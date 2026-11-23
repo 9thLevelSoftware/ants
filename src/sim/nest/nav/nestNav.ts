@@ -307,9 +307,43 @@ class NestNavImpl implements NestNav {
     return true;
   }
 
+  /**
+   * The sample of p that field queries read, into out: the nearest passable sample, unless that is a lone open voxel
+   * the field does not reach - then the nearest sample of the same 4^3 block that it reaches. A lone voxel (a bubble a
+   * bite left in the wall, joined to the passage only across an edge the graph does not step) can be the nearest
+   * sample of a walker standing in the passage: her distance read Infinity, her field leg failed on the spot and was
+   * asked for again for game days (colony-life round 15: deliverers in the entrance throat of woodland-edge #1). A
+   * pocket of two or more samples keeps its own reading (Infinity when sealed). False if no sample is passable.
+   */
+  private nearestReached(f: DistanceField, p: Vec3, out: { slot: number; idx: number }): boolean {
+    if (!this.nearestSample(p, out)) return false;
+    if (f.get(out.slot, out.idx) !== NAV_INF || !this.isLone(out.slot, out.idx)) return true;
+    const inv = 1 / this.grid.voxel;
+    const fi = p.x * inv, fj = p.y * inv, fk = p.z * inv;
+    const bi = Math.floor(fi), bj = Math.floor(fj), bk = Math.floor(fk);
+    let best = Infinity;
+    for (let dk = -1; dk <= 2; dk++) for (let dj = -1; dj <= 2; dj++) for (let di = -1; di <= 2; di++) {
+      const i = bi + di, j = bj + dj, k = bk + dk;
+      const s = this.ch.slotAt(i, j, k);
+      if (s < 0) continue;
+      const idx = (i & 15) | ((j & 15) << 4) | ((k & 15) << 8);
+      if (this.ch.pass[s][idx] !== 1 || f.get(s, idx) === NAV_INF) continue;
+      const g = (i - fi) ** 2 + (j - fj) ** 2 + (k - fk) ** 2;
+      if (g < best) { best = g; out.slot = s; out.idx = idx; }
+    }
+    return true; // none reached in the block: the lone sample stays (reads Infinity)
+  }
+
+  /** No allowed step leads from this passable sample to another (a one-voxel bubble). */
+  private isLone(slot: number, idx: number): boolean {
+    scanNeighbours(this.ch, slot, idx, this.nh);
+    for (let n = 0; n < 26; n++) if (stepAllowed(this.nh.mask, n)) return false;
+    return true;
+  }
+
   distanceAt(id: string, p: Vec3): number {
     const f = this.current(id);
-    if (!f || !this.nearestSample(p, _hit)) return Infinity;
+    if (!f || !this.nearestReached(f, p, _hit)) return Infinity;
     const d = f.get(_hit.slot, _hit.idx);
     if (d === NAV_INF) return Infinity;
     const v = this.grid.voxel;
@@ -338,7 +372,7 @@ class NestNavImpl implements NestNav {
     const d = this.distanceAt(id, p);
     if (d === Infinity || d === 0) return d;
     const f = this.fields.get(id)!;
-    this.nearestSample(p, _hit);
+    this.nearestReached(f, p, _hit);
     const s0 = _hit.slot, i0 = _hit.idx;
     if (f.get(s0, i0) === 0 || !this.descend(f, s0, i0)) return d;
     this.sampleOf(_hit.slot, _hit.idx, _q);
@@ -357,7 +391,7 @@ class NestNavImpl implements NestNav {
     const d = this.distanceAt(id, p);
     if (d === Infinity) return d;
     const f = this.fields.get(id)!;
-    this.nearestSample(p, _hit);
+    this.nearestReached(f, p, _hit);
     let s = _hit.slot, i = _hit.idx;
     for (let n = 0; n < steps; n++) {
       if (!this.descend(f, s, i)) break;

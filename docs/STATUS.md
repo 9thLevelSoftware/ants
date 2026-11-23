@@ -1318,3 +1318,10 @@ Round 15 launched 11:16 UTC: task `we0pfalpj`, run `wf_0000963d-109` (`wf-life.j
 opus, effort: high}`, direction 30). After a restart: relaunch `firstRound 15` with a note that the ledger's
 "## Round 15" progress and directions 30 / 30a say what is in the tree. Owed by me: direction 30a (LARVA_P_REQ) when
 `test-output/colony-life/round-14/sweep-long-p08/summary.txt` says DONE.
+
+Direction 30a (11:54 UTC): LARVA_P_REQ 0.8 adopted after the hand-over (fresh long runs at 0.8: winter 1 -> 2 = 85 -> 85,
+3 of 5 at >= 1.0 x, 0 at 1.5 x, eggs 209 -> 63 eclosed; at 1.2: 74 -> 71, 2 of 5, 132 -> 47); the founding keeps 1.2 if a
+one-read split reproduces the cached hand-overs. Round 15 by 11:40 had items 1-3 built: the throat livelock (a lone
+open voxel read as the nearest nav sample; plus a deliver recovery) - we #1 on sweep 14's hand-over viable again,
+deliver share 28.6 % -> 1.7 %; buried spoiled food placed on the floor and lifted; homing after a flee
+(`outdoor/removal.verify` green).

@@ -1036,3 +1036,37 @@ Not yours to move: any balance constant other than placement / recovery paramete
 as 30a rules it; no new allocation, demand or laying rule; bars and ruling tests. Must-haves if the round runs long:
 items 1, 2, 3 and 6. Keep the ledger's "## Round 15" progress current; re-read the tail of this file and of your
 ledger section each time an arm or a trace finishes.
+
+## Direction 30a (integrator, 11:54 UTC Nov 23) — LARVA_P_REQ 0.8 is adopted for the colony after the hand-over
+
+Paired evidence, 1.2 against 0.8, same scripts and seeds:
+
+| | 1.2 | 0.8 |
+|---|---|---|
+| year one, round-10 hand-overs (15): workers / viable | (tree A 266 / 12; P not run) | 280 / 13 |
+| year one, fresh foundings (15): workers / viable / archetypes at >= 2 of 3 | 255 / 13 / 4 of 5 | 273 / 13 / 5 of 5 |
+| fresh foundings: first workers >= 9 (bar 13 of 15) | 14 | **11** |
+| year two from the cache (5; winter 1 = 82): second winters / at >= 1.0 x | 74 / 2 | 83 / 3 |
+| fresh long runs (5): winter 1 -> winter 2 / at >= 1.0 x / at 1.5 x | 74 -> 71 / 2 / 0 | 85 -> 85 / 3 / 0 |
+| fresh long runs: year-two eggs / eclosed | 132 / 47 | 209 / 63 |
+
+(0.8 long runs: `round-14/sweep-long-p08`: we #2 9 -> 6, sg #2 18 -> 20, cpv #1 25 -> 33, pp #3 21 -> 24, kd #3 12 -> 2;
+kd #3 went into the winter not viable, C 2.2, and starved in spring.) Nothing is worse at 0.8 after the hand-over and
+three comparisons are better, none of them by more than this sample's spread; the one thing that is worse is the
+founding (first workers).
+
+Ruling:
+1. **`LARVA_P_REQ` = 0.8 in the live tree** for the established colony; restate `colony/brood.test` E2 to the
+   constant; DEVIATIONS row R43 (adopted round 15, with the table above in one line).
+2. **The founding keeps 1.2**, so that foundings, their first-worker counts and the hand-over caches of every earlier
+   sweep stay as they are: a second constant `FOUNDING_LARVA_P_REQ` = 1.2 read while the colony has not handed over
+   (larvae already alive at the hand-over go on at 0.8, which is what `round-14/arm-y1P3b` measured). Do this only
+   if the brood step can tell the phase in one place (colony stage / founding flag) without touching the founding
+   module's own tuning. Check: one founding on the live tree reproduces sweep 14's cached hand-over (same first
+   workers, same state hash at the hand-over) - if it does not, or the split needs more than that one read, **drop
+   the split**, keep the single constant at 0.8, and report the first-worker counts in the close.
+3. The close's arms (item 6) run on the tree with this ruling in; their baselines are `round-14/arm-y1P3b` (year one)
+   and `round-14/y2-P3b` (year two).
+Items 1 to 3: read and accepted as built (lone-voxel nav sample + deliver recovery; floor placement and lift of
+buried waste; no crumbs while homing and retrace from the nearest crumb). Two slots are free again (my long runs are
+done): three run slots are yours.

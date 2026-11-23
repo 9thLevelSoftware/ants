@@ -159,6 +159,12 @@ export const UNLOAD_CROP_MARGIN = 0.05;
 export const GIVE_REACH_L = 2;
 /** Deliver state timeout, s (search + wait + walking inside). */
 export const DELIVER_MAX_S = 120;
+/**
+ * Failed walks to a chamber in one unload before the deliverer stops walking and unloads where she stands (hands
+ * her crop on, or puts her item down); each failure but the last re-plans to the nearest other chamber of the nest
+ * that the nest field reaches from her (colony-life round 15: a failed leg was asked for again for game days).
+ */
+export const DELIVER_LEG_FAILS_MAX = 2;
 /** Arrival radius at a receiver ant, body lengths; give up on an unreachable receiver after RECEIVER_TRY_S. */
 export const RECEIVER_ARRIVE_L = 0.25;
 export const RECEIVER_TRY_S = 10;

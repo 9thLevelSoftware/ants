@@ -7,6 +7,7 @@ import {
   SPOIL_REF_C, SPOILED_ITEM_LOADS, WASTE_BULK, STOMACH_C_BASE, STOMACH_C_PER_ADULT, STOMACH_P_PER_ADULT, TOXIN_HALF_LIFE_GD,
 } from '@/sim/balance';
 import { spawnItem } from '@/sim/entities';
+import { chamberFloorUnder } from './wasteFall';
 import { book, coreOf } from './core';
 import { colonyChambers } from './census';
 import { chamberTempC } from './envAdapter';
@@ -348,9 +349,10 @@ function spawnSpoiledItem(sim: Sim, col: Colony): void {
   // in the chamber whose pile spoiled: the food chamber, or the larder in the brood's chamber (R21: hygiene applies)
   const ch = storeChamber(sim, col);
   const nest = sim.stores.nests.get(col.nestIds[0] ?? -1);
-  // on the chamber's floor below its centre (the centre is in the air of the cavity: an item there is out of every
-  // hauler's reach, haul.ts `onSurface`, and stayed in the food chamber for good; colony-life round 1)
-  const pos = ch ? { x: ch.center.x, y: ch.center.y - ch.radii.y, z: ch.center.z } : nest ? nest.origin : sim.world.queenStart.pos;
+  // on the cavity's floor below the chamber's centre (the centre is in the air of the cavity: an item there is out of
+  // every hauler's reach, haul.ts `onSurface`, colony-life round 1; the registry's ellipsoid bottom lies inside the
+  // floor in the game's nests, round 15: wasteFall.ts chamberFloorUnder)
+  const pos = ch ? chamberFloorUnder(sim, ch) : nest ? nest.origin : sim.world.queenStart.pos;
   spawnItem(sim, {
     kind: 'waste', pos,
     init: {

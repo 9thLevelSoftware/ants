@@ -105,6 +105,7 @@ function membership(sim: Sim, ant: Ant, r: LocoRuntime): void {
   const prev = ant.nestId;
   const now = walkerNest(sim, ant, prev);
   if (now !== prev) {
+    ant.flags &= ~AntFlag.HOMING; // a new trip (or the end of one)
     if (now >= 0) { clearCrumbs(ant); resetHomeVec(ant, null); }
     else if (prev >= 0) {
       const e = nearestOpenEntrance(sim, prev, ant.pos);
@@ -120,7 +121,11 @@ function membership(sim: Sim, ant: Ant, r: LocoRuntime): void {
     return;
   }
   ant.chamberId = -1;
-  if (ant.medium === 'surface') { recordCrumb(ant, r); integrateHome(ant, r, sim.state.tick); }
+  if (ant.medium === 'surface') {
+    // crumbs mark the way out; recorded on the way home too, a retrace resumed after a flee walked them back outward
+    if ((ant.flags & AntFlag.HOMING) === 0) recordCrumb(ant, r);
+    integrateHome(ant, r, sim.state.tick);
+  }
 }
 
 /**

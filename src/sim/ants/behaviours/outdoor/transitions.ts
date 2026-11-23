@@ -64,6 +64,7 @@ function newBout(sim: Sim, ant: Ant): void {
 export function startOutbound(sim: Sim, ant: Ant, fl: Flavour, srcId: number, dest: Vec3, markerId: number,
   reason: ReasonCode, detail = srcId): void {
   dropAction(sim, ant);
+  ant.flags &= ~AntFlag.HOMING; // heading out again: crumbs mark the way
   if (ant.nestId >= 0 || (ant.bb[K.trip0] ?? -1) < 0) newBout(sim, ant);
   ant.bb[K.src] = srcId;
   ant.bb[K.marker] = markerId;
@@ -161,10 +162,14 @@ export function startReturn(sim: Sim, ant: Ant, fl: Flavour, success: boolean, r
   if (fl.scout && (ant.bb[K.success] ?? 0) === 1) success = true;
   ant.bb[K.success] = success ? 1 : 0;
   noteKind(sim, ant);
+  // a return resumed part-way home (after a flee or a chase) is not a new turn at the source: the route was taken
+  // from the crumbs when she turned home (the crumbs from here would make it a way out and back)
+  const resumed = (ant.flags & AntFlag.HOMING) !== 0;
   if (success && src >= 0 && ant.nestId < 0) {
-    prepareRoute(sim, ant, src);
+    if (!resumed) prepareRoute(sim, ant, src);
     decideReturnTrail(sim, ant, src, fl.scout, (ant.bb[K.queuedLong] ?? 0) === 1);
   }
+  if (ant.nestId < 0) ant.flags |= AntFlag.HOMING;
   resetAvoid(ant);
   if (ant.nestId >= 0 && (ant.bb[K.wentOut] ?? 0) !== 1) { abandonTrip(sim, ant, fl, reason); return; }
   ant.bb[K.returnWhy] = (REASON_CODES as readonly string[]).indexOf(reason.split(':')[0]);
@@ -196,6 +201,7 @@ export function startDeliver(sim: Sim, ant: Ant, fl: Flavour): void {
   stopLaying(sim, ant);
   ant.bb[K.unload] = UNLOAD.toChamber;
   ant.bb[K.unload0] = sim.state.tick;
+  ant.bb[K.legFails] = 0;
   ant.bb[K.full0] = -1;
   ant.bb[K.receiver] = -1;
   ant.bb[K.badRcv] = -1;

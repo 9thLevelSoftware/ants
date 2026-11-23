@@ -2,12 +2,12 @@
 // departure ration (§1.4) and unloading (§5.3 forage.deliver / scout.report), which ends the trip: delivery
 // statistics, recruitment contacts (colony.recordForagerReturn), route learning and the task re-evaluation.
 
-import type { Ant, Marker, ReasonCode, Sim } from '@/sim/types';
+import type { Ant, Chamber, Marker, Nest, ReasonCode, Sim } from '@/sim/types';
 import { AntFlag, FOOD_KINDS } from '@/sim/types';
 import { REST_ENTER, REST_EXIT } from '@/sim/balance';
 import { CROP_RETURN_MIN, TROPH_DONOR_MIN } from '@/sim/balance/actions';
 import {
-  DELIVER_MAX_S, DEPART_RATION_C, FOOD_ROOM_ARRIVE_BU, GIVE_REACH_L, RATION_MAX_S, RATION_POOL_MIN_C, RATION_SEARCH_BU,
+  DELIVER_LEG_FAILS_MAX, DELIVER_MAX_S, DEPART_RATION_C, FOOD_ROOM_ARRIVE_BU, GIVE_REACH_L, RATION_MAX_S, RATION_POOL_MIN_C, RATION_SEARCH_BU,
   RECEIVER_ARRIVE_L, RECEIVER_SEARCH_BU, RECEIVER_SEARCH_WIDE_BU, RECEIVER_STORE_BONUS_BU, RECEIVER_TRY_S, REST_MAX_S,
   SUCCESS_CROP, THINK_WAIT_TICKS, UNLOAD_CROP_MARGIN, UNLOAD_MAX_WAIT_S, UNLOAD_RETRY_S, UNLOAD_SEARCH_S,
   WAIT_REEVAL_S, WAIT_SPREAD_BU,
@@ -328,6 +328,33 @@ function putStep(sim: Sim, ant: Ant, fl: Flavour): void {
   begin(sim, ant, 'put-down', null);
 }
 
+/**
+ * The walk to the delivery chamber failed (direction 30 item 1b). Asked again on the next tick from the same spot it
+ * fails the same way: woodland-edge #1's foragers stood with full crops in the entrance throat for game days, the
+ * phase timing out and starting again in place. So: walk to the nearest other chamber the nest field reaches from
+ * here (any chamber ends the walk; the unload goes on from there); after DELIVER_LEG_FAILS_MAX failures, or with no
+ * such chamber, unload where she stands - hand the crop to a nestmate (the receiver search) or put the item down.
+ */
+function deliverLegFailed(sim: Sim, ant: Ant, nest: Nest, room: Chamber, solid: boolean): void {
+  const fails = (ant.bb[K.legFails] ?? 0) + 1;
+  ant.bb[K.legFails] = fails;
+  const alt = fails < DELIVER_LEG_FAILS_MAX ? nearestReachableChamber(sim, ant, nest, room.id) : undefined;
+  if (alt && goToChamber(sim, ant, alt, FOOD_ROOM_ARRIVE_BU)) return;
+  stop(sim, ant);
+  ant.bb[K.unload] = solid ? UNLOAD.put : UNLOAD.find;
+}
+
+/** The chamber of the nest (other than `skip`) with the shortest nest-field way from the ant; undefined if none. */
+function nearestReachableChamber(sim: Sim, ant: Ant, nest: Nest, skip: number): Chamber | undefined {
+  let best: Chamber | undefined, bd = Infinity;
+  for (const c of nest.chambers) {
+    if (c.id === skip) continue;
+    const d = sim.nestNav.distance(nest.id, { kind: 'chamber', id: c.id }, ant.pos);
+    if (d >= 0 && d < bd) { bd = d; best = c; }
+  }
+  return best;
+}
+
 export function updateDeliver(sim: Sim, ant: Ant, fl: Flavour): void {
   if (ant.nestId < 0) { if (!moving(ant)) homePlanner(sim, ant); return; }
   if (phaseS(sim, ant) > DELIVER_MAX_S && !ant.action) {
@@ -345,6 +372,7 @@ export function updateDeliver(sim: Sim, ant: Ant, fl: Flavour): void {
       ant.bb[K.unload] = solid ? UNLOAD.put : UNLOAD.find;
       return;
     }
+    if (ant.nav.status === 'failed') { deliverLegFailed(sim, ant, nest!, room, solid); return; }
     if (!moving(ant)) goToChamber(sim, ant, room, FOOD_ROOM_ARRIVE_BU);
     return;
   }

@@ -36,6 +36,12 @@ export const AntFlag = {
   FIELDED: 1 << 12,
   /** Injured below INJURED_HEALTH: no outside tasks (GDD 02). */
   INJURED: 1 << 13,
+  /**
+   * On its way home this trip (set by the outdoor behaviours when the ant turns home, cleared when it enters or
+   * leaves a nest or heads out again): no breadcrumbs are recorded, so the crumb trail stays the way out
+   * (GDD 02 §9.1-9.2; colony-life round 15, locomotion/crumbs.ts retraceTarget).
+   */
+  HOMING: 1 << 14,
 } as const;
 
 /** An action primitive in progress (GDD 01 §7). */

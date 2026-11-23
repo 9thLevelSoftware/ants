@@ -5761,3 +5761,76 @@ Scratch trees (`/home/user/frozen-sweep14`, `/home/user/scratch-sweep14-probe`) 
 scratch copy (archived as `round-14/sweep-review/probes/*.ts.txt`); no process of this review left running (the
 integrator's `sweep-p08` runs are not this review's). Kept: `src/sim/colony/wasteFall.verify.test.ts` (case 1 green,
 case 2 RED: finding 2).
+
+## Round 15
+
+Engineer of round 15 (the last colony-life round), started 11:16 UTC Nov 23. Order: direction 30 (items 1-6). Tree at
+start = HEAD ec35477, `git status` clean (tree P, LARVA_P_REQ 1.2). Evidence: `test-output/colony-life/round-15/`.
+
+### Progress (round 15; newest last)
+- 11:20 Read the spec, direction 30, round 14 results and sweep 14. CPU: integrator's `sweep-long-p08` uses two slots
+  until ~12:05: one run slot for me until then. Starting item 1 (throat livelock) from the probe of sweep 14.
+- 11:40 Item 1 cause found (probe `tools/sim/probe/r15-throat.ts`, archived at the end): at ant 7725's spot in the throat
+  the nearest nav sample is a **lone open voxel** (passable, field value INF, joined to the throat only across an edge
+  the graph does not step); `nestNav.distanceAt`/`lookahead` read it, so the chamber leg failed on the spot. Fix (a):
+  `nest/nav/nestNav.ts nearestReached` (a lone unreached nearest sample gives way to the nearest reached sample of the
+  4^3 block; pockets of 2+ voxels keep their reading); test `nest/nav/loneVoxel15.test.ts` (red without the fix). Fix
+  (b): `outdoor/phaseNest.ts deliverLegFailed` (re-plan to the nearest other reachable chamber, then unload where she
+  stands; `DELIVER_LEG_FAILS_MAX` 2 in `balance/foraging.ts`, key `fo.legF`); test
+  `outdoor/deliverRecovery15.test.ts` (red without it: 1201 ticks standing failed, crop kept). Repro probe, 2 gd from
+  sweep 14's we #1 hand-over (`round-15/probe-deliver-we1-{before,fix}.txt`): stuck deliverers mean 0.35 / max 2 ->
+  0 / 0; deliver share 3.1 % -> 1.1 %. Frozen tree `/home/user/scratch-r15a` (items 1a+1b); running we #1 to winter
+  from sweep 14's hand-over (`round-15/h14-r15a`, runner `round-15/run15.sh` / `jobs15.sh`). Next: item 2.
+- 11:38 **we #1 from sweep 14's hand-over to winter on r15a** (`round-15/h14-r15a`): **viable** (sweep 14: not viable),
+  workers 18 -> 22 (21), C 21.2 for an R27 need of 6, P intake 0.301 (0.03), trips 207 at 44 % (32 %), **deliver share
+  of worker time 1.7 %** (28.6 %); lost 2 (1), predation 2. Bar of item 1 met. (Its "stuck 31.6 worker-gd" is the
+  life.ts funnel's no-progress clock, 1.7-27.8 in sweep 14's runs; walker-stuck-explosion at tick 76500 as in sweep 14.)
+- 11:38 **Item 2 done** (in the live tree, not in r15a): `colony/wasteFall.ts chamberFloorUnder` (spoiled food lands on
+  the cavity floor under the chamber centre; `stores.ts spawnSpoiledItem` uses it) and `liftBuriedItem` (waste or a
+  corpse deeper than ITEM_BURIED_BU in solid rides up onto the floor above, half-voxel steps up to BURIED_LIFT_BU, from
+  `settleHangingWaste`, the colony-cycle hook). `wasteFall.verify.test` case 2 **green**; new `wasteFall15.test.ts`
+  (buried item lifted and hauled: red without the lift; brood corpse under a ceiling on the floor at spawn: red with
+  `spawnWaste` at `b.pos`). Other spawn points using registry radii: none spawn items (floodEvac / queen use it as a
+  target or water probe).
+- 11:38 **Item 3 done** (live tree): cause traced with `outdoor/zprobe15flee.test.ts` (probe, deleted at the end;
+  `round-15/probe-flee-before.txt`): crumbs were recorded on the way home too, and loop erasure cut the list while she
+  walked it, so the retrace index pointed at other crumbs; a retrace resumed after a flee began at the newest crumb
+  and walked the way-home crumbs backwards (scout 44: 63.7 -> 107 BU from home). Fix: `AntFlag.HOMING` (types, additive;
+  set by `transitions.ts startReturn`, cleared by `startOutbound` and on entering / leaving a nest in
+  `locomotion/system.ts membership`): no crumbs while homing; `locomotion/crumbs.ts retraceTarget` starts a retrace at
+  the crumb nearest the ant (was: the newest); `startReturn` re-prepares the route only on the first turn home.
+  `outdoor/removal.verify` **green** (visits per ant [1 x6]); test `locomotion/retraceResume15.test.ts` (L-shaped way
+  out, homing ant 31 BU out: farthest 60.3 BU with the old start crumb, red; flagged ant records no crumbs: red without
+  the flag check).
+- 11:55 Frozen tree **`/home/user/scratch-r15b`** = live tree with items 1-3 (probe files removed). Running the item-4
+  trace (`tools/sim/probe/r15-sugar.ts` on r15b, we #3 from sweep 14's hand-over -> `round-15/trace-sugar-we3.txt`).
+  Item 5 set up (per-run table `round-15/item5-perrun.txt`: year-one flooding 7 -> 20 is kd #3 alone, 1 -> 11; trip
+  success fell most in sg #2 62 -> 45, pp #3 56 -> 44, cpv #2, kd #1, we #1 (item 1)): A/B trees `scratch-r15-Pmask`
+  (tree P with round 12's mound-mask hole probe) and `scratch-r15-Pnowf` (tree P without wasteFall); job lists
+  `round-15/jobs-ab-{0,1}.txt` (kd #3 base P to check the restore reproduces sweep 14, then mask / no-wasteFall on kd #3,
+  sg #2, pp #3, all from sweep 14's hand-overs in `round-15/handover14/`). The withdrawn rules are absent from both
+  sweep 12's tree and P, so they are not a candidate for sweep 12 -> 14.
+- 12:00 **Item 4 traced** (`round-15/trace-sugar-we3.txt`, probe `tools/sim/probe/r15-sugar.ts` on r15b, we #3 from
+  sweep 14's hand-over to winter). Per day (doy 10-21): C stores 9.2 -> 2.0-3.3, needC **0.00 on doy 10-11 at 10.6 /
+  8.1 days of C stock** and 0.5-0.86 from doy 12 (the winter need 6 is never in needC: R41's question, for the
+  integrator; not rebuilt). Known C: nectar #4333 (175 BU, in news, 2-4 foragers' routes) all season; crumbs
+  #4313/#4314 (204 / 158 BU, C 0.7 each at a time) known doy 10-13, forgotten by doy 15 (routes 0, not in news), known
+  again doy 20. Departures: hunt 5-18 a day on doy 10-13 and 9 on doy 16; the departure scores (sourceScore against
+  choosePatch) put the patch over the known sugar on doy 10-13 (patch U 5-9e-3 vs sugar 1.2-5.9e-3), and on doy
+  15-20 the nectar's U reads 0 for most foragers (claims: the food on the flower is taken by trips under way) - target
+  choice working as built. **The execution defect:** of 33 trips to a C source that came home without reaching it,
+  29 turned home with reason `item-collected` 78-168 BU short of the nectar: the foragers met springtails of a patch on
+  the way, broke off (hunt.ts huntCheck: any outbound forager may), and brought prey home; the trip's sugar was never
+  fetched. Fix: `outdoor/hunt.ts huntCheck` - a forager on her way to (or searching at) a known source whose food is
+  mostly carbohydrate breaks off for patch prey only under a protein deficit (`col.needs.proteinDeficit`, the gate
+  mites already use). D4 (hunting on the way home after a failed trip) unchanged. Test
+  `outdoor/sugarTripHunt15.test.ts` (no deficit: 0 break-offs in 7+ meetings, red without the fix; deficit: she
+  hunts); `testkit.ts holdNeeds` takes an optional `proteinDeficit`. Frozen tree **`/home/user/scratch-r15c`** = items
+  1-4. Before / after on we #3 (h14, r15b vs r15c) queued to start when the integrator's long runs say DONE
+  (`round-15/jobs-c-0.txt`). Folder tests so far on the live tree (`round-15/vitest-done.txt`): nest/nav 3/3,
+  behaviours/outdoor 38/38 (before the item-4 edit), locomotion 27/28 (`perf` timing, known).
+- 11:54 **INTEGRATOR NOTE:** Direction 30a is at the tail of `colony-life.md`: LARVA_P_REQ 0.8 adopted for the
+  established colony (paired long runs at 0.8: winter 1 -> 2 = 85 -> 85, 3 of 5 at >= 1.0 x; at 1.2: 74 -> 71, 2 of 5);
+  the founding keeps 1.2 through a second constant only if one read of the colony's phase does it and a founding then
+  reproduces sweep 14's cached hand-over, else a single constant at 0.8; baselines of the close = `arm-y1P3b`,
+  `y2-P3b`. Items 1-3 accepted as built. My long runs are done: three run slots are yours.

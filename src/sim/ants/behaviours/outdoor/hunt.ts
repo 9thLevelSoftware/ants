@@ -127,6 +127,11 @@ export function huntCheck(sim: Sim, ant: Ant, fl: Flavour): boolean {
   if (fl.task === 'tend' || ant.nestId >= 0 || !mayBreakOff(ant) || !free(ant)) return false;
   const col = sim.stores.colonies.get(ant.colony);
   if (!col) return false;
+  // A forager sent for carbohydrate keeps to her trip unless the colony is short of protein: the departure already
+  // weighed the patch against her source (wait phase, choosePatch) and chose the sugar. woodland-edge #3 (round 15,
+  // sweep 14's hand-over): 29 of 33 trips to a nectar source 175 BU out turned home 80-165 BU short with a springtail
+  // caught on the way, while carbohydrate stood at 2-4 loads against a winter need of 6.
+  if (sugarTrip(sim, ant) && !col.needs.proteinDeficit) return false;
   const near = preyNear(sim, ant.pos, HUNT_NOTICE_BU * sim.world.bu, ant.colony);
   for (const q of near) {
     if (q.kind !== 'springtail' && !(q.kind === 'mite' && col.needs.proteinDeficit)) continue;
@@ -142,6 +147,14 @@ export function huntCheck(sim: Sim, ant: Ant, fl: Flavour): boolean {
     return true;
   }
   return false;
+}
+
+/** The ant's trip is to a known source whose food is mostly carbohydrate (not a hunting trip, not exploring). */
+function sugarTrip(sim: Sim, ant: Ant): boolean {
+  const phase = phaseOf(ant);
+  if (phase !== PHASE.outbound && phase !== PHASE.search) return false;
+  const s = sim.stores.sources.get(ant.bb[K.src] ?? -1);
+  return s !== undefined && s.c > s.p;
 }
 
 /** Another ant of the colony already chases this prey (two hunters do not split one springtail). */

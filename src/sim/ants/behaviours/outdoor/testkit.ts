@@ -39,7 +39,7 @@ export interface ScenarioOptions {
    * Set the colony's demand signals after each tick's economy (GDD 02 §5.5 needC, needP, desired protein share sP):
    * "a protein / carbohydrate deficit set in the colony". A test fixture.
    */
-  holdNeeds?: { needC: number; needP: number; sP: number };
+  holdNeeds?: { needC: number; needP: number; sP: number; proteinDeficit?: boolean };
   /** Start hour of the game day (default 7). */
   startHour?: number;
 }
@@ -91,7 +91,7 @@ export function pinnedSystems(pinned: Map<number, number>, base: readonly System
  * pinned sources, and one after the colony economy that holds the stores down.
  */
 function fixtureSystems(pinned: Map<number, number> | null, hold: { c: number; p: number } | null,
-  needs: { needC: number; needP: number; sP: number } | null, base: readonly System[] = SYSTEMS): System[] {
+  needs: { needC: number; needP: number; sP: number; proteinDeficit?: boolean } | null, base: readonly System[] = SYSTEMS): System[] {
   pinned ??= new Map();
   const drain: System = {
     name: 'test-hold-stores', phase: 'colony-economy',

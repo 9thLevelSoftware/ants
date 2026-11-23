@@ -131,7 +131,8 @@ export function retraceTarget(sim: Sim, ant: Ant, s: NavScratch, r: LocoRuntime,
   const n = ant.mem.crumbLen;
   if (n === 0) return false;
   let check = false;
-  if (s.crumbIdx < 0 || s.crumbIdx >= n) { s.crumbIdx = n - 1; check = true; }
+  if (s.crumbIdx < 0) { s.crumbIdx = nearestCrumb(ant); check = true; }
+  else if (s.crumbIdx >= n) { s.crumbIdx = n - 1; check = true; }
   while (s.crumbIdx >= 0 && crumbDist(ant, s.crumbIdx) <= r.P.crumbReach) { s.crumbIdx--; check = true; }
   if (s.crumbIdx < 0) return false;
   if (check) {
@@ -144,6 +145,21 @@ export function retraceTarget(sim: Sim, ant: Ant, s: NavScratch, r: LocoRuntime,
   }
   crumbAt(ant, s.crumbIdx, out);
   return true;
+}
+
+/**
+ * Where a retrace joins the trail: the crumb nearest the ant (the older one on a tie). At the end of the way out that
+ * is the newest crumb; on a retrace resumed part-way home (after a flee) it is the crumb she had reached, where the
+ * newest one lies at the far end of the way out (colony-life round 15: a scout 64 BU from home walked back out to
+ * 107 BU, removal.verify).
+ */
+function nearestCrumb(ant: Ant): number {
+  let best = ant.mem.crumbLen - 1, bd = Infinity;
+  for (let i = 0; i < ant.mem.crumbLen; i++) {
+    const d = crumbDist(ant, i);
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
 }
 
 function crumbDist(ant: Ant, i: number): number {

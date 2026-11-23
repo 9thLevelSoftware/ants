@@ -43,6 +43,8 @@ export const K = {
   rcv0: 'fo.rcv0',
   /** The last receiver that could not be reached (skipped by the next search), -1 none. */
   badRcv: 'fo.badRcv',
+  /** Walks to a chamber that failed in this unload (phaseNest.ts deliverLegFailed). */
+  legFails: 'fo.legF',
   /** Tick the ant first found the stores full this unload (-1 not yet). */
   full0: 'fo.full0',
   /** Queue start tick (-1 none) and 1 if it waited long in a full queue (crowding feedback). */
