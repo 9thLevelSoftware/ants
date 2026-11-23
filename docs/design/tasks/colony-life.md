@@ -1070,3 +1070,36 @@ Ruling:
 Items 1 to 3: read and accepted as built (lone-voxel nav sample + deliver recovery; floor placement and lift of
 buried waste; no crumbs while homing and retrace from the nearest crumb). Two slots are free again (my long runs are
 done): three run slots are yours.
+
+### Direction 30b (integrator, 12:59 UTC Nov 23) - rulings on the 12:15-12:50 entries
+
+1. **Item 4 accepted as built** (`outdoor/hunt.ts huntCheck`: a forager bound for a mostly-carbohydrate source breaks
+   off for patch prey only under a protein deficit). It is a defect of execution, which direction 30 allows. **needC
+   not carrying the winter need stays as it is** (R41's question): no rule change this late; write it into the known
+   limits with we #3's numbers (C / need 0.85-0.97 on three trees).
+2. **Founding:** the single constant 0.8 stands (the split needs more than one read). First workers >= 9 in 11 of 15
+   goes into the known limits as a miss of R19's check, with sweep 15's own count.
+3. **Tests red from R43** (`colony/allocation.test` E13, `colony/econGrowth.test` x2,
+   `colony/handoverStomach.verify`, `colony/founding/lapse.test` E19, `colony/reproduction/reproduction.test`
+   App. E 22): **restate them.** Where the expectation can be derived from the constants, derive it; where the GDD pins
+   a number that follows from 1.2 P per larva (first worker at 4.52 gd, alate cost 336 loads), put the number the 0.8
+   tree gives and list old and new in DEVIATIONS row R43. No tolerance is widened and no assertion is dropped.
+4. **`behaviours/nest/burst26.verify` and `hygiene26` "deep water holds her":** fix the fixtures, not the limits -
+   start them with stores that do not spoil inside the scenario (or clear the spoiled items the 100 / 100 pile makes
+   before the measured window), so the scenario again measures what D32 rules. If that cannot be done without moving a
+   threshold, leave them red and list them with this cause.
+5. **Mound mask (item 5's lead): build the deterministic wide probe now, timeboxed.** Round 14's cavity-only probe
+   cost trip success in all three A/B colonies and doubled kd #3's brood flooding; that is a regression from a round-14
+   change with a named mechanism and test guards, so it is in scope of the last round. Probe = the hole test of round
+   12's width read from state that a save restores exactly (the substrate / carve field without the pile overlays, as
+   you propose). **Adopt only if all of:** `nest/moundMaskHeights.test`, `nest/moundRestore14.test`,
+   `locomotion/pointFieldRestore.test` and `outdoor/determinism.perf` green; the sg #2 save / restore run equal
+   for 36000 ticks; and on the three A/B hand-overs (kd #3, sg #2, pp #3 from sweep 14) trip success not below tree
+   P's in at least 2 of 3 with kd #3's brood flooding <= 11. **Timebox: 14:20 UTC.** If it is adopted, the final tree
+   is r15d + the probe and the close arms (year one 15, year two 5, we #1 / we #3) are rerun on it - those reruns are
+   the close; the r15d arms now running stay as the before column. If it is not green by the timebox, drop it,
+   restore the round-14 probe, and write the mask into the known limits with the A/B table.
+6. **Year-two arm on r15d (79 against 82, 1 of 5 at >= 1.0 x, cpv #1 at 1.58 x):** recorded; inside the spread of
+   single runs. No extra arms to chase it. Sweep 15's fresh long runs are the judgement.
+7. Nothing else is added to the round. After the close: known-limits section, DEVIATIONS rows, known-red list, probes
+   archived, scratch trees of this round deleted (keep `scratch-r14-P`, `scratch-r14-P3b` and the final tree).

@@ -5834,3 +5834,77 @@ start = HEAD ec35477, `git status` clean (tree P, LARVA_P_REQ 1.2). Evidence: `t
   the founding keeps 1.2 through a second constant only if one read of the colony's phase does it and a founding then
   reproduces sweep 14's cached hand-over, else a single constant at 0.8; baselines of the close = `arm-y1P3b`,
   `y2-P3b`. Items 1-3 accepted as built. My long runs are done: three run slots are yours.
+- 12:05 Integrator's long runs DONE (11:54): three slots from now. kd #3 on tree P from sweep 14's hand-over
+  reproduces sweep 14's run exactly (final hash feadcfb3 both), so sweep 14's own JSONs are the A/B bases
+  (`round-15/ab5.py`). First A/B: kd #3 with round 12's mound-mask probe: brood flooding 11 -> 5, workers 8 -> 14,
+  trips 67.0 -> 69.3 % (one chaotic run). Running: kd #3 without wasteFall; sg #2 / pp #3 mask and no-wasteFall
+  (`jobs-ab-1.txt`); we #3 r15b (done) / r15c (running). Folder tests, live tree with item 4: behaviours/outdoor 39/39,
+  colony 82/83 (red `workedExample`, known).
+- 12:15 **INTEGRATOR NOTE read** (direction 30a, 11:54). Applied: `balance/colony.ts LARVA_P_REQ` 1.2 -> **0.8**;
+  `colony/brood.test` E2 restated to the constants (green); DEVIATIONS row **R43**. **The founding split is dropped**:
+  the larva's food requirement is read without a colony at hand (`colony/life.ts larvaFood(def, destined, length)`,
+  `species/derive.ts larvalCost`) and also by economy.ts (brood need), queen.ts (prospective protein), index.ts
+  (nurse mix share) and reproduction/gate.ts - more than one read, so by 30a the single constant stays at 0.8. First
+  workers of fresh foundings at 0.8 (integrator's `round-14/sweep-p08`): >= 9 in 11 of 15 (at 1.2: 14 of 15); my arms
+  all start from cached hand-overs, so they do not measure the founding. we #3 item-4 before / after (h14):
+  r15b (items 1-3) not viable, 15 workers, C/need 0.97; r15c (+ item 4) not viable, 15 workers, C/need 0.85, P 0.76,
+  trips 70 % (sweep 14: 16 workers, C 0.90). The sugar fix alone does not give we #3 its winter carbohydrate.
+  item-5 A/B kd #3 without wasteFall: flooding 11 -> 11 (wasteFall is not the cause); with round 12's mask 11 -> 5.
+- 12:15 **Final tree frozen: `/home/user/scratch-r15d`** = HEAD 5ecf722 + LARVA_P_REQ 0.8 (items 1-4, R43). tsc clean
+  (probe files aside). Close arms started (`jobs-f-{0,1,2}.txt`, three slots; f-2 starts when the item-5 list
+  `jobs-ab-1` ends): year two from `round-13/cache-y2` -> `round-15/y2-r15d`; we #1 / we #3 from sweep 14's
+  hand-overs -> `round-15/h14-r15d`; year one 15 from the round-10 hand-overs -> `round-15/arm-y1-r15d`.
+  Remaining after the arms: tables against `arm-y1P3b` / `y2-P3b`, the known-limits section, folder tests, probes
+  archived and deleted, scratch trees deleted.
+- 12:35 **Folder tests on the live tree with R43** (`round-15/vitest-c-*.txt`; one worker, three life runs alongside).
+  New reds, each checked on scratch trees: (a) **from R43 (LARVA_P_REQ 0.8)** - green at 1.2 on r15c, red at 0.8:
+  `colony/allocation.test` E13 (nurse target off by 4.2 against +-1), `colony/econGrowth.test` x2 (nurse load P share
+  0.2 against 0.15; laying protein 0.40 against > 0.4), `colony/handoverStomach.verify` (3 larvae at a rationing
+  stage), `colony/founding/lapse.test` E19 (first worker 0.28 gd off GDD's 4.52 at 19.5 C: the founding's larvae
+  need less protein), `colony/reproduction/reproduction.test` App. E 22 (alate cost 252 against the GDD's 336 loads).
+  They pin numbers the GDD derives from 1.2 P per larva; 30a asked only for E2's restatement, so they are left red for
+  the integrator (restating them is a ruling-test change). (b) **from item 2** (bisect: green on r15a, red with
+  `wasteFall.ts` / `stores.ts` alone added): `behaviours/nest/burst26.verify` (16 meconium cleared in 1300 ticks
+  against 1250) and `behaviours/nest/hygiene26` "deep water holds her ... handed back" (she is re-tasked to nurse
+  before the hold limit). Both fixtures start with 100 / 100 loads in a test nest; the spoiled-food items that pile
+  makes are now on the floor and haulable (they were buried before), so haul work competes with the scenario. Not
+  restated (ruling tests of D32); listed known-red with this cause. (c) **pre-existing**: `ants/actions/runner.test`
+  "failure codes" red on tree P too (not this round's). Known as before: `workedExample`, `sfaReview.verify`,
+  `stall.soak`, timing tests.
+- 12:35 **Item 5 A/Bs done** (`round-15/ab5-table.md`; sweep 14's hand-overs; base = sweep 14's own runs, which the
+  restore reproduces hash for hash):
+
+  | run | arm | brood flooding | trip success | C / need | viable | workers |
+  |---|---|---|---|---|---|---|
+  | kd #3 | sweep 14 (tree P) | 11 | 67.0 % | 0.886 | yes | 8 |
+  | kd #3 | P + round 12's mound-mask probe | 5 | 69.3 % | 1.008 | yes | 14 |
+  | kd #3 | P without wasteFall | 11 | 72.7 % | 0.936 | yes | 12 |
+  | sg #2 | sweep 14 | 0 | 44.9 % | 0.879 | yes | 16 |
+  | sg #2 | round 12's mask | 0 | 60.2 % | 0.819 | no | 16 |
+  | sg #2 | without wasteFall | 0 | 44.9 % (same hash) | 0.879 | yes | 16 |
+  | pp #3 | sweep 14 | 0 | 43.9 % | 1.295 | yes | 20 |
+  | pp #3 | round 12's mask | 0 | 54.7 % | 1.285 | yes | 21 |
+  | pp #3 | without wasteFall | 0 | 43.9 % (same hash) | 1.295 | yes | 20 |
+
+  Reading: **wasteFall is not the cause** of either (it never acts in sg #2 / pp #3 year one: identical hashes; kd #3's
+  flooding unchanged). **Round 14's mound-mask change is the lead for both**: with round 12's hole probe trip success
+  is higher in all three (+2, +15, +11 points) and kd #3's flooding halves. Mechanism (not traced): round 12's probe
+  read the whole field at the ground-minus-depth point, which is positive on the steep sides of an entrance funnel, so
+  the mask kept piles off a wider ring round each entrance; round 14's cavity-only probe (needed for the restore) clears
+  only cells over open cavity, so spoil can lie on the entrance's lip - a longer way in for returning foragers and a
+  different run-off into the throat. One run per arm on chaotic runs; not fixed this round (the probe is the restore
+  fix's core, validated by 36000 equal ticks; a probe that is both deterministic and as wide as round 12's - e.g. the
+  substrate field without the pile overlays - is the next step). Reported in the known limits.
+- 12:50 **Year-two arm done** (`round-15/y2-r15d`, table `round-15/y2-table.md` by `round-15/y2table.py`, which
+  reproduces round 14's y2-P3b table: 83 / 3 of 5): r15d **79 against 82 at winter 1**, >= 1.0 x **1 of 5** (cpv #1
+  30 = 1.58 x, the first 1.5 x of the task), >= 1.5 x 1 of 5; y2-P3b 83 / 3 of 5 / 0. Per colony against y2-P3b: we #2
+  12 (15), sg #2 16 (21), cpv #1 30 (23), pp #3 19 (19), kd #3 2 (5). Year-two eggs / eclosed 157 / 61 (P3b 157 / 56).
+  sg #2 lost 4 workers outside at the start of the second winter (days 21-22, after the winter-2 row; P3b: 1). The
+  difference is inside the spread of single chaotic runs (direction 13) and the interim bar (3 of 5, sum >= 82) is not
+  met on this arm. Year-one arm (15) and we #1 / we #3 running.
+- 12:59 **INTEGRATOR NOTE:** Direction 30b is at the tail of `colony-life.md`. In short: item 4 accepted (needC /
+  winter need = known limit, no rule change); single constant 0.8 stands; **restate the six R43-red tests** (derive from
+  the constants, GDD-pinned numbers listed old / new in R43); **fix the fixtures** of burst26 / hygiene26, not the
+  limits; **build the deterministic wide mound-mask probe now** (adopt only with the four restore / determinism tests
+  green, 36000 equal ticks, and the three A/B hand-overs not worse; timebox 14:20 UTC; if adopted the close arms are
+  rerun on r15d + probe, else the round-14 probe stays and the mask is a known limit). No extra year-two arms.

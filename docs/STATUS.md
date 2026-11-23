@@ -1325,3 +1325,18 @@ one-read split reproduces the cached hand-overs. Round 15 by 11:40 had items 1-3
 open voxel read as the nearest nav sample; plus a deliver recovery) - we #1 on sweep 14's hand-over viable again,
 deliver share 28.6 % -> 1.7 %; buried spoiled food placed on the floor and lifted; homing after a flee
 (`outdoor/removal.verify` green).
+
+### Nov 23 ~13:00 UTC — round 15 check-in: items 1-4 built, direction 30b ruled
+
+- Engineer (round 15, still open): item 4 = foragers bound for sugar broke off for patch prey on the way (29 of 33
+  failed sugar trips); fixed in `outdoor/hunt.ts huntCheck` (break off only under a protein deficit). we #3 still
+  short of winter sugar on three trees (C / need 0.85-0.97) - needC never carries the winter need; known limit.
+- LARVA_P_REQ 0.8 applied as a single constant (the founding split needs more than one read). Six tests pinned to
+  GDD numbers derived from 1.2 went red; 30b: restate them, old / new numbers into DEVIATIONS R43.
+- Item 5 A/B: `wasteFall` is not the cause of the flooding / trip-success drop; round 14's cavity-only mound-mask
+  probe is (round 12's probe: trip success +2 / +15 / +11 points on kd #3 / sg #2 / pp #3, kd #3 flooding 11 -> 5).
+  30b: build a deterministic probe of round 12's width now, timebox 14:20 UTC, adopt only with the restore /
+  determinism tests green and the three A/B colonies not worse; close arms rerun on it if adopted.
+- Year-two arm on r15d (items 1-4 + 0.8): 79 against 82 at winter 1, 1 of 5 at >= 1.0 x (cpv #1 30 = 1.58 x, the
+  first colony over 1.5 x); the 0.8 baseline arm had 83 / 3 of 5. Single runs; sweep 15 judges.
+- Next: round 15 returns -> sweep 15 (final) -> close colony-life with known limits -> gate-close-sim.

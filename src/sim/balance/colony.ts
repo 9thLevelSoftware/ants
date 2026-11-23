@@ -119,8 +119,13 @@ export const TOXIN_HALF_LIFE_GD = 3;
 export const BROOD_SURVIVAL = { egg: 0.9, larva: 0.85, pupa: 0.95 } as const;
 /** Base hazard multiplier for diapause larvae. */
 export const DIAPAUSE_HAZARD_MULT = 0.1;
-/** Larval food over the whole stage, loads (worker; x food multiplier for sexuals). */
-export const LARVA_P_REQ = 1.2;
+/**
+ * Larval food over the whole stage, loads (worker; x food multiplier for sexuals). LARVA_P_REQ 1.2 -> 0.8 by ruling
+ * R43 (direction 30a, colony-life round 15; DEVIATIONS R43): the paired long runs gave 85 -> 85 workers winter 1 -> 2
+ * at 0.8 against 74 -> 71 at 1.2. It acts in the founding too (one constant: larvaFood has no colony to tell the
+ * founding from the established colony, so 30a's split was dropped).
+ */
+export const LARVA_P_REQ = 0.8;
 export const LARVA_C_REQ = 0.4;
 export const LARVA_GUT_CAP = 0.3;
 /** A larva asks for food below this gut content, loads. */

@@ -4,6 +4,7 @@ import { AntFlag, BroodFlag } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { addBrood, addChamber, addWorkers, careSystem, colonyOf, establishQueen, makeColonySim, step } from './testkit';
 import { ecloseBrood } from './brood';
+import { LARVA_C_REQ, LARVA_P_REQ } from '@/sim/balance';
 
 /** Ticks from start to the brood-stage events of `to`, per brood id. */
 function stageTimes(sim: Sim, to: string): Map<number, number> {
@@ -53,7 +54,8 @@ describe('brood development (GDD 02 §2.2-2.3, E1-E3)', () => {
     expect(Math.abs(meanGd(times, start) - expected)).toBeLessThan(0.01 + expected * 0.005);
   });
 
-  it('E2: a larva refilled whenever below 0.15 pupates with fed = 1.20 P and 0.40 C', () => {
+  // E2 states 1.20 P and 0.40 C; the protein per larva is the constant LARVA_P_REQ (0.8 by ruling R43, round 15)
+  it('E2: a larva refilled whenever below 0.15 pupates with fed = LARVA_P_REQ P and LARVA_C_REQ C', () => {
     const { sim, ch } = setup(21);
     addBrood(sim, 'larva', 20, ch);
     sim.enqueue({ type: 'cheat.addFood', colonyId: colonyOf(sim).id, c: 0, p: 30, toxin: 0 });
@@ -66,10 +68,10 @@ describe('brood development (GDD 02 §2.2-2.3, E1-E3)', () => {
     step(sim, Math.ceil(0.7 * TICKS_PER_DAY));
     expect(fed.size).toBeGreaterThan(10);
     for (const [, f] of fed) {
-      expect(f.p).toBeGreaterThan(1.18);
-      expect(f.p).toBeLessThan(1.22);
-      expect(f.c).toBeGreaterThan(0.38);
-      expect(f.c).toBeLessThan(0.42);
+      expect(f.p).toBeGreaterThan(LARVA_P_REQ - 0.02);
+      expect(f.p).toBeLessThan(LARVA_P_REQ + 0.02);
+      expect(f.c).toBeGreaterThan(LARVA_C_REQ - 0.02);
+      expect(f.c).toBeLessThan(LARVA_C_REQ + 0.02);
     }
   });
 
