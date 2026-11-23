@@ -1239,3 +1239,9 @@ Known red now: `colony/workedExample`, `nest/sfaReview.verify`, `nest/stall.soak
 `locomotion/perf.test` under load. Scratch trees kept for round 14: `/home/user/scratch-r13-final3` (v3),
 `/home/user/scratch-r13-final3-dose1` (v3 at LARVA_P_REQ 0.8); year-two cache
 `test-output/colony-life/round-13/cache-y2` (lost on a container restart: rebuild with `life.ts --save-y2`).
+
+Round 14 launched 04:57 UTC: task `w1tntppki`, run `wf_eae72ca1-72e` (`wf-life.js {maxRounds: 1, firstRound: 14, model:
+opus, effort: high}`, direction 29: Part A restore year one by switch-off bisect; Part B the save / load gap; Part C
+brood survival in year two with the authorized constants). After a restart: scratch trees and
+`test-output` are lost only if the container was replaced (check `ls /home/user/scratch-r13-final3`); relaunch
+`firstRound 14` with a note that the ledger's "## Round 14" progress and direction 29 say what is in the tree.
