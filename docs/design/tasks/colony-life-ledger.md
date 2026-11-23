@@ -5169,3 +5169,11 @@ brood on a shaft wall); (6) kd #3's 37 eggs dead of hygiene in the final arm.
   as built; `appendixE23` restated with larvae is accepted. Choose by direction 28's rule and say here which dose;
   if dose 1, write "live tree to 0.8 please" and I make that edit (constant + E2 pin) before the year-one arm's tree
   is frozen (or freeze the year-one tree as a copy of the dose tree plus anything built since).
+- 03:43 **y2-final3 (v3, dose 0) complete** (`table-y2-final3.md`, `account-y2-final3.txt`): second winter 10 / 16 / 25 /
+  16 / 3 = 70 (>= 1.0 x 1 of 5: cpv #1 1.32 x); eggs 20 / 27 / 31 / 35 / 23 (>= 35: 1); eclosions 49; larvae starved 8;
+  R27 4 of 5 (kd #3 0.0 / 1.8). Direction 28's interim bars not met at dose 0 -> dose 1 is next by the rule; y2-dose1
+  running (two slots, started 03:26 and 03:33).
+- 04:03 **INTEGRATOR NOTE:** direction 28c (tail of `colony-life.md`): dose 1 read (sum 70 = dose 0's 70; eggs 136 ->
+  198 but egg hygiene 6 -> 37, cpv #1 25 -> 13, sg #2 16 -> 26): **not adopted, the live tree stays at 1.2.** Now: one
+  year-one arm of v3 (dose 0) on the 15, three slots; results section updated; "Next" as direction 28c orders; keep
+  the two final3 scratch trees; then close.

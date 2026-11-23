@@ -806,3 +806,31 @@ Read at 02:38 from your 01:43 entry and from the 8 finished runs of `arm-final13
    - If dose 1 is chosen, the live tree must end at 0.8: say so in the ledger and I make that edit (constant + the
      E2 pin in `colony/brood.test.ts`) before you close; list the tests that then need restating and restate those
      you are allowed to.
+
+## Direction 28c (integrator, Nov 23 04:03 UTC) — the dose is not adopted this round; one year-one arm on v3, then close
+
+Read at 04:03 from `y2-final3` and `y2-dose1` (my own table from the JSON):
+
+| | we #2 | sg #2 | cpv #1 | pp #3 | kd #3 | sum (winter 1: 82) | >= 1.0 x | eggs | eclosions | larvae starved | egg hygiene |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| v3, LARVA_P_REQ 1.2 | 10 | 16 | 25 | 16 | 3 | 70 | 1 | 136 | 49 | 8 | 6 |
+| v3, LARVA_P_REQ 0.8 | 11 | 26 | 13 | 20 | 0 | 70 | 1 | 198 | 49 | 16 | 37 |
+
+The dose does what it should to the eggs (sg #2 27 -> 45, cpv #1 31 -> 54, pp #3 35 -> 58) and where the nest stays
+clean the colony grows (sg #2 16 -> 26, 1.37 x; pp #3 16 -> 20). In cpv #1 the 54 eggs meet a dirty chamber: 21 eggs,
+7 pupae and 6 larvae die of hygiene and the colony ends at 13 instead of 25. Net over the five: nothing. So the
+next limit behind protein is nest hygiene under a larger brood, and a balance change that buys nothing net is not
+adopted: **the live tree stays at LARVA_P_REQ 1.2.** The dose tree stays on disk for round 14.
+
+Do now, then close the round:
+1. One year-one arm of **v3** (9f5935ce, dose 0) on the 15 hand-overs against `round-12/arm-final12`, three slots.
+   It judges R44 and R42 at 0.3 / 0.25. Bars as direction 28a (viable >= 14, median P >= 0.45, hygiene <= 15, R27
+   kept, runs without a lost worker >= 13).
+2. While it runs: add v3 and dose rows to the round's results section, restate what is "Not done", and write "Next"
+   for round 14 in this order: (a) hygiene under a larger brood: cpv #1 at dose 1 from the year-two cache (which
+   chamber, which waste by kind and day: meconium, corpses of the old-age deaths, dead brood; who hauls; where the
+   queen lays) and kd #3's dirty royal chamber; (b) the save -> load -> continue gap; (c) the passage-brood carry;
+   (d) whatever the year-one arm shows of R42 against R27 and of trips at wC > wP after R44; (e) the dose again
+   once (a) is fixed.
+3. Leave `/home/user/scratch-r13-final3` and `-final3-dose1` in place (round 14 uses them); delete the other
+   scratch trees. Close with the year-one table in the results.
