@@ -4,7 +4,7 @@ FOUNDRESS is a naturalistic ant colony sandbox for the browser, written in TypeS
 
 It is single-player and needs no server. The game is unfinished: the state of play is at the end of this file.
 
-Last checked 2026-11-18 at commit `fb15f3d`. Every command in this file was run on that day.
+Last checked 2026-11-23 on the working tree of look pass 5 (last commit `645f21f`). The commands were run on 2026-11-18 (commit `fb15f3d`); on 2026-11-23 the install, type check, test, harness and URL-flag lines were used again and still hold.
 
 ## Requirements
 
@@ -172,21 +172,21 @@ Layering rule: `core` imports nothing from the project; `sim` and `worldgen` imp
 
 Where sources disagree, the order is: design seed, design directions (sections J and K), GDD index, the chapter that owns the topic, other chapters.
 
-## State of the game today (2026-11-18)
+## State of the game today (2026-11-23)
 
 Taken from `docs/STATUS.md`. The game is a first playable, not a finished game.
 
 What works:
 
 - Starting a game from the title screen with the black garden ant (*Lasius niger*) on five locality types, three difficulty presets and custom rules.
-- The opening played by hand: find a site, dig a chamber, seal it, lay eggs, a first-brood time-lapse, hand-over to the first workers.
+- The opening played by hand: find a site, dig a chamber, seal it, lay eggs, a first-brood time-lapse (the camera looks down into the queen's cell through a cut in the ground), the result card, hand-over to the first workers. In the browser it is reliable up to the result card on the two test seeds, but not past it: at seed 1 the entrance stays in "reopening" and the first workers do not walk out, at seed 2 rain floods the chamber and the founding fails (`docs/design/tasks/look-pass-5-report.md`).
 - The three views (possess an ant, observer, colony view with a nest cutaway), colony orders, markers and dig plans, scent view and overlays, alerts with automatic slow-down, time controls, photo mode, saving and loading with export, gamepad and accessibility settings.
 - Creatures, weather, human events, rival colonies, winter time-lapse, winged queens and the nuptial flight, a lineage record and an epitaph screen.
 - A portable build that runs from a sub-path and inside a sandboxed iframe (27.8 MB).
 
 What does not work yet, or not well:
 
-- **Colonies do not reliably grow.** In the unattended simulation sweeps, few colonies passed the viability bar at the first winter, and growth in the second year was not shown. Where the numbers live: `docs/design/tasks/colony-life-ledger.md` and `docs/STATUS.md`. The colony-life work is still running.
+- **Colonies do not reliably grow.** The unattended simulation sweeps got better (sweep 15: 14 of 15 colonies viable at the first winter, at least 2 of 3 per locality; the final gate's first close sweep gave 12 of 15 and is still being settled), but three growth bars are still not met (protein intake, first workers, second-year growth). Where the numbers live: `docs/design/tasks/colony-life-ledger.md` and `docs/STATUS.md`. A final simulation gate (`docs/design/tasks/gate-sim-2.md`) is running.
 - **Three of the four species are not available.** *Camponotus*, *Messor* and *Atta* have modules, but their colonies did not meet the viability bar, so they are flagged `available: false` and the New Game screen greys them out.
 - Several difficulty parameters have no effect yet (they are marked "Not in this build" on the New Game screen).
 - The rulings R13, R14 and R28 in `docs/STATUS.md` are written down but not built.

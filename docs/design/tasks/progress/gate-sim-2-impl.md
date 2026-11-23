@@ -93,3 +93,11 @@ Started 2026-11-23 ~16:50 UTC (session 1).
   sweep-long-item4); KEEP item 4 if (a) its five colonies together have >= the reverted tree's workers at the second
   winter and (b) no item-4 colony that entered winter at >= 0.95 of R27 loses > 15 % in the lapse or its queen; else the
   revert stands. Report both sweeps and both long tables side by side. No third sweep. Do not delete frozen-gate2.
+- 19:50 vt-final (final tree, touched folders) green except review.verify, loco perf (timing), escapeDig. tsc clean.
+- 20:20 SWEEP2 DONE: viable 13/15, all archetypes >=2/3 (pp#3 0.99x, cpv#3 0.63x not viable) -> BAR MET. sweep2-table.md, sums.txt. Long runs running (close2.sh) -> sweep-long.
+- 20:31 report sections written except LONGRUN and R14_PROBE placeholders. Remaining: long runs (ETA 21:10) -> longrun-table.py; R14 probe x15 (after long runs); delete probes from tools/sim/probe, scratch trees (scratch-g2f, g2-4, g2-no2, g2-no4, frozen-gate2, frozen-gate2b, probe copies in scratch-r15e/tools/sim/probe); final StructuredOutput.
+- 20:31 INTEGRATOR NOTE (second time, binding): **ruling 2 is not in your "Remaining" list.** After close2.sh's long runs
+  end, run the five long runs on the item-4 tree (`/home/user/frozen-gate2` -> test-output/gate-sim-2/sweep-long-item4)
+  and apply ruling 2's keep rule before you write the final report. Do NOT delete frozen-gate2 before that (a copy is at
+  /home/user/keep-gate2-item4; leave that copy alone). If you have already closed when you read this, say so in the
+  report: the integrator runs them.

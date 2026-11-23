@@ -1456,3 +1456,18 @@ Saved: `docs/design/tasks/reviews/colony-life-sweep-15.json`. Tables: `test-outp
   continuation gap; age unknown; one check asked).
 - look-pass-5: items 1-5 done in code (wall-foot streaks were interpolated varyings at the 250 mm face limit; moulded
   plastic finish added); firstplay seed 2 running.
+
+### Nov 23 ~20:32 UTC — check-in: sweep2 (fix reverted) 13 of 15; the browser opening fails on both seeds again
+
+- gate-sim-2 sweep2 (item 4 reverted, tree 43fbaf86): viable 13 of 15, all archetypes >= 2 of 3 (pp #3 0.99, cpv #3 0.63
+  of R27), workers 270, median P 0.434, trips 53.5 %, larvae starved 10. First sweep (item 4 in): 12 / 271 / 0.515 /
+  56.7 % / 1. Long runs on the reverted tree running; the engineer's list did not carry ruling 2 (second note written;
+  a copy of the item-4 tree is kept at `/home/user/keep-gate2-item4` so I can run its long runs myself).
+- **look-pass-5's firstplay runs: both seeds fail in the founding** (they passed at round 9, Nov 22): seed 2 ends
+  "Water filled the burrow" in the lapse at a site read as flood-safe; seed 1's first workers never reopen the entrance
+  (`reopening:130`). The headless sweeps do not exercise the player's path. New spec
+  `docs/design/tasks/opening-fix.md` (Opus): reproduce headless, bisect from 4ab0ebd, fix at the cause, confirm in the
+  browser on five seeds. Launch when the gate-sim-2 chain has returned (both edit `src/sim`).
+- look-pass-5: outcome shot reworked on a real founding (the queen and eggs sat in the shaft throat, 18 mm from the
+  chamber record: the shot now frames the animals); a stand-in run past beat 13 died at beat 16 (a worker did not hand
+  over her load); continuing with soft failures to picture the later beats.

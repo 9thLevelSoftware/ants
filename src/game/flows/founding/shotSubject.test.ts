@@ -3,44 +3,52 @@ import type { Sim } from '@/sim/types';
 import { foundingShotSubject } from './shotSubject';
 
 const BU = 4;
+type P = { x: number; y: number; z: number };
 
-/** Just enough of a Sim for the subject: one colony, its nest with one chamber, ants and brood. */
-function fakeSim(ants: { x: number; y: number; z: number }[], withChamber = true): Sim {
+/** Just enough of a Sim for the subject: one colony with its queen (ants[0]), workers, brood, and a nest with one chamber. */
+function fakeSim(o: { queen?: P; workers?: P[]; brood?: P[]; chamber?: boolean }): Sim {
   const chamber = { id: 1, volume: 100, center: { x: 100, y: -12, z: 200 }, radii: { x: 8, y: 5, z: 9 } };
-  const nest = { id: 7, alive: true, colony: 1, chambers: withChamber ? [chamber] : [] };
-  const list = ants.map((p, i) => ({ id: i + 1, alive: true, colony: 1, pos: p }));
-  const colony = { id: 1, alive: true, queenId: 1, nestIds: [7], species: 'x' };
+  const nest = { id: 7, alive: true, colony: 1, chambers: o.chamber === false ? [] : [chamber] };
+  const ants = [...(o.queen ? [{ id: 1, alive: true, colony: 1, pos: o.queen }] : []), ...(o.workers ?? []).map((p, i) => ({ id: i + 2, alive: true, colony: 1, pos: p }))];
+  const colony = { id: 1, alive: true, queenId: o.queen ? 1 : -1, nestIds: [7], species: 'x' };
   return {
-    state: { player: { colonyId: 1 }, ants: list, brood: [{ alive: true, colony: 1, carriedBy: -1, pos: { x: 104, y: -16, z: 198 } }] },
+    state: { player: { colonyId: 1 }, ants, brood: (o.brood ?? []).map((p) => ({ alive: true, colony: 1, carriedBy: -1, pos: p })) },
     world: { bu: BU },
-    stores: {
-      colonies: new Map([[1, colony]]), nests: new Map([[7, nest]]), ants: new Map(list.map((a) => [a.id, a])),
-    },
+    stores: { colonies: new Map([[1, colony]]), nests: new Map([[7, nest]]), ants: new Map(ants.map((a) => [a.id, a])) },
   } as unknown as Sim;
 }
+const blank = () => ({ x: 0, y: 0, z: 0, radius: 0, cutY: 0 });
 
 describe('founding shot subject', () => {
-  it('is the cell: centred on the chamber (a little below its middle), holding the animals in it and not the foragers outside', () => {
-    const inside = [{ x: 100, y: -16, z: 200 }, { x: 105, y: -16, z: 195 }];
-    const out = { x: 0, y: 0, z: 0, radius: 0, cutY: 0 };
-    const r = foundingShotSubject(fakeSim([...inside, { x: 400, y: 30, z: 500 }]), out)!;
-    expect(r.x).toBe(100); expect(r.z).toBe(200);
-    expect(r.y).toBeLessThan(-12);
-    expect(r.radius).toBeGreaterThanOrEqual(9);
-    expect(r.radius).toBeLessThan(40); // the forager 500 mm away did not widen it
-  });
-
-  it('puts the cut plane through the cell: above the animals backs, below the roof', () => {
-    const out = { x: 0, y: 0, z: 0, radius: 0, cutY: 0 };
-    const r = foundingShotSubject(fakeSim([{ x: 100, y: -16, z: 200 }]), out)!;
-    expect(r.cutY).toBeGreaterThan(-16);
-    expect(r.cutY).toBeLessThanOrEqual(-12 + 0.8 * 5 + 1e-9);
-  });
-
-  it('a lone queen with no chamber on record still gets a subject at her', () => {
-    const out = { x: 0, y: 0, z: 0, radius: 0, cutY: 0 };
-    const r = foundingShotSubject(fakeSim([{ x: 50, y: -3, z: 60 }], false), out)!;
-    expect(r.x).toBe(50); expect(r.z).toBe(60);
+  it('is the queen and her brood, not the chamber record (a real queen lays in the throat of the shaft, away from it)', () => {
+    const r = foundingShotSubject(fakeSim({ queen: { x: 80, y: 4.5, z: 190 }, brood: [{ x: 82, y: 4.4, z: 189 }], workers: [] }), blank())!;
+    expect(r.x).toBeCloseTo(81, 6); expect(r.z).toBeCloseTo(189.5, 6);
+    expect(Math.abs(r.x - 100)).toBeGreaterThan(10); // not at the chamber
     expect(r.radius).toBeGreaterThan(0);
+  });
+
+  it('puts the cut plane just above the queen and the brood, whatever workers do: a worker higher up is cut away, one in the chamber below does not move it', () => {
+    const base = { queen: { x: 80, y: 4.5, z: 190 }, brood: [{ x: 82, y: 4.4, z: 189 }] };
+    const plain = foundingShotSubject(fakeSim({ ...base, workers: [] }), blank())!;
+    expect(plain.cutY).toBeGreaterThan(4.5);
+    expect(plain.cutY).toBeLessThan(4.5 + 3 * BU);
+    const withWorkers = foundingShotSubject(fakeSim({ ...base, workers: [{ x: 84, y: 12, z: 190 }, { x: 100, y: -14, z: 200 }] }), blank())!;
+    expect(withWorkers.cutY).toBe(plain.cutY);
+  });
+
+  it('counts the first workers in the cell into the frame and leaves out the ones that went out', () => {
+    const base = { queen: { x: 80, y: 4.5, z: 190 }, brood: [] as P[] };
+    const alone = foundingShotSubject(fakeSim({ ...base, workers: [] }), blank())!;
+    const near = foundingShotSubject(fakeSim({ ...base, workers: [{ x: 95, y: 2, z: 190 }] }), blank())!;
+    const far = foundingShotSubject(fakeSim({ ...base, workers: [{ x: 500, y: 30, z: 600 }] }), blank())!;
+    expect(near.radius).toBeGreaterThan(alone.radius);
+    expect(far.radius).toBe(alone.radius);
+  });
+
+  it('with no queen and no brood the chamber is the subject; with nothing at all there is none', () => {
+    const r = foundingShotSubject(fakeSim({ chamber: true }), blank())!;
+    expect(r.x).toBe(100); expect(r.z).toBe(200);
+    expect(r.cutY).toBeGreaterThan(-12);
+    expect(foundingShotSubject(fakeSim({ chamber: false }), blank())).toBeNull();
   });
 });

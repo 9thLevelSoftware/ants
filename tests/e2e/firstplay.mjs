@@ -16,6 +16,7 @@
 //   FIRSTPLAY_SEED=<hex code>      seed typed into the New colony screen (default 00000002: seed 2, warm summer)
 //   FIRSTPLAY_AUTOFOUND=1          STAND-IN: complete the opening by cheat after beat 04 (recorded in result.standIns)
 //   FIRSTPLAY_STANDIN_TRAIL=1      STAND-IN: lay the trail to the food by hand when no forager has (beat 13 -> 14; recorded in result.standIns)
+//   FIRSTPLAY_CONTINUE=1           a failed check is recorded (result.softFailures) and the run goes on to the next beat (not a pass)
 //   FIRSTPLAY_SHORT=1              the short run (portable build): title, new colony, intro, queen, workers, save
 import fs from 'node:fs';
 import {
@@ -281,6 +282,16 @@ export default async (ctx) => {
         }
         result.checks.lapseTrace = lapseTrace.filter((_, k) => k % 10 === 0 || k === lapseTrace.length - 1);
         log('lapse trace', JSON.stringify(lapseTrace[lapseTrace.length - 1]), 'relay clutches', result.checks.relayClutches);
+        // look pass 5: where the chamber shot looks and what is in the cell (the cut plane has to pass through the cell with the animals below it)
+        const shotInfo = () => g(() => {
+          const s2 = window.__hud.game.session, v2 = s2.views, sim = s2.sim, col = sim.state.player.colonyId;
+          const q = sim.stores.ants.get(sim.stores.colonies.get(col).queenId), nest = sim.state.nests.find((n) => n.colony === col);
+          const r = (o) => JSON.parse(JSON.stringify(o ?? null));
+          return r({ subject: v2.shotSource ? v2.shotSource() : null, queen: q && q.pos, chambers: nest?.chambers.map((c) => ({ c: c.center, r: c.radii, roofMin: c.roofMin, depthMm: c.depthMm })), origin: nest?.origin,
+            brood: sim.state.brood.filter((b) => b.alive && b.colony === col).slice(0, 4).map((b) => [b.stage, b.pos]), ants: sim.state.ants.filter((a) => a.alive && a.colony === col).slice(0, 5).map((a) => [a.caste, a.pos]) });
+        });
+        result.checks.shotAtLapse = await shotInfo();
+        log('shot at lapse', JSON.stringify(result.checks.shotAtLapse));
         await beat('11-timelapse', ['founding-lapse']);
         done('11');
         await click('founding-skip');
@@ -288,6 +299,8 @@ export default async (ctx) => {
         v = await view();
         expect(v.phase === 'handover' || v.phase === 'done', 'skip did not end the lapse', v.phase);
         result.checks.outcome = v.outcome;
+        result.checks.shotAtOutcome = await shotInfo();
+        log('shot at outcome', JSON.stringify(result.checks.shotAtOutcome));
         await beat('12-outcome-card', ['founding-outcome']);
         await click('founding-continue');
         await step(1);
@@ -349,6 +362,7 @@ export default async (ctx) => {
   }
   expect(!result.failures?.length, 'failed checks', result.failures);
   log('result', JSON.stringify(result));
+  if (result.softFailures?.length) throw new Error(`firstplay (FIRSTPLAY_CONTINUE): ${result.softFailures.length} failed check(s): ${result.softFailures.map((f) => f.slice(0, 160)).join(' | ')}`);
   return result;
 };
 

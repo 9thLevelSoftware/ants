@@ -11,7 +11,15 @@ export const SITE_MAX_R_BU = 120;
 
 export function helpers({ page, shot, log, wait }, result) {
   const g = (fn, arg) => page.evaluate(fn, arg);
-  const expect = (cond, msg, data) => { if (!cond) throw new Error(`firstplay: ${msg} ${data === undefined ? '' : JSON.stringify(data).slice(0, 1500)}`); };
+  // FIRSTPLAY_CONTINUE=1 (look pass 5): a failed check is recorded in result.softFailures and the run goes on to the next beat, so one run
+  // shows what every later beat looks like. The run is then not a pass (the final result lists the failures); a normal run still stops at the first.
+  const expect = (cond, msg, data) => {
+    if (cond) return;
+    const text = `firstplay: ${msg} ${data === undefined ? '' : JSON.stringify(data).slice(0, 1500)}`;
+    if (!process.env.FIRSTPLAY_CONTINUE) throw new Error(text);
+    (result.softFailures ??= []).push(text);
+    log('SOFT FAILURE', text.slice(0, 300));
+  };
   const summary = () => g(() => window.__game.summary());
   const view = () => g(() => window.__founding?.view() ?? null);
   const phase = async () => (await view())?.phase ?? null;

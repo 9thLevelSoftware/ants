@@ -245,16 +245,16 @@ export const FSHOT_PITCH_DEG = 52;
 /** The subject's bounding sphere fills 1 / this much of the frame height. */
 export const FSHOT_FILL = 0.92;
 /** Behind a card in the middle of the screen (outcome, failure): the cell is shown this far above the middle of the frame, filling this much. */
-export const FSHOT_CARD_LIFT = 0.5;
-export const FSHOT_CARD_FILL = 0.78;
+export const FSHOT_CARD_LIFT = 0.42;
+export const FSHOT_CARD_FILL = 0.74;
 /** The subject sphere never counts as smaller than this radius (BU): a lone queen still gets a chamber-sized frame. */
 export const FSHOT_MIN_RADIUS_BU = 4.5;
 /**
- * The slice plane sits this far above the highest animal (BU) and never above FSHOT_CUT_MAX_OF_RADIUS of the chamber's vertical
- * radius over its centre: the cut cap is a soil face with the cell as a hole in it, so the plane has to pass through the cell.
+ * The slice plane sits this far above the highest animal's reference point (BU): the cut cap is a soil face with the cell as a hole in it, so
+ * the plane has to pass through the cell, above every animal (an animal above the plane is cut away with the soil) and, in a cell barely
+ * higher than the queen, as close above her back as it can be.
  */
-export const FSHOT_CUT_ABOVE_BU = 0.9;
-export const FSHOT_CUT_MAX_OF_RADIUS = 0.8;
+export const FSHOT_CUT_ABOVE_BU = 0.6;
 /** Slice radius as a multiple of the camera's horizontal reach (the cut must contain the line of sight). */
 export const FSHOT_CUT_REACH = 1.8;
 /** Opening yaw of the orbit (degrees) and its rate (GDD 08 §7.10: 0.02 revolutions per real second). */

@@ -4,7 +4,40 @@ Engineer: gate-sim-2 implementer, Nov 23 16:50-UTC onward (one session; progress
 `docs/design/tasks/progress/gate-sim-2-impl.md`). Evidence: `test-output/gate-sim-2/` (git-ignored; paths below are
 relative to it unless they start with `src/`, `docs/` or `test-output/`).
 
-SWEEP_SECTION_PLACEHOLDER
+## 0. Result in one screen
+
+- **Close sweep (`sweep2/`, final tree, src hash 43fbaf86): viable 13 of 15, every archetype >= 2 of 3 — viability bar
+  MET.** woodland-edge 3/3, suburban-garden 3/3, playground-park 2/3 (pp #3: C 0.99 x of its R27 need), car-park-verge
+  2/3 (cpv #3: 0.63 x), kitchen-door 3/3. R19 4 of 7 (P intake 0.434, first workers >= 9 in 11, no-lost in 12: not
+  met; not chased).
+- The first close sweep (`sweep/`, item 4 in) had 12 of 15 with suburban-garden 1 of 3; the switch-off runs showed item
+  4 cost it (section 2), item 4 was reverted and the sweep run again in full on the reverted tree (`sweep2/`).
+- Kept from this task: item 2 (retrace variant f), the time.test fix (winter path on the default year), the runner's
+  failure code fix, the layering rename, restated stale tests, load guards. Reverted: item 4 (a real defect fix,
+  section 2 and section 6 item 1), the species-module stagger offsets. Not built: item 3. Item 5: no defect of the
+  kind named; one candidate found (section 6 item 5).
+- Red tests in the folders of this task: 49 before, 33 after; every remaining red is in section 1 with its cause and
+  owner. `npm run typecheck` clean.
+
+## 0a. Close sweep tables
+
+Tables by `tools/sim/sweep-table.py` against sweep 15 (`colony-life/round-15/sweep`): `sweep2-table.md` (final), and
+`sweep-table.md` (first close sweep, item 4 in). Sums over the 15 JSONs (`sums.py`, `sums.txt`):
+
+| sweep | tree | viable | first workers | workers at winter | eclosions | larvae starved | median P / C intake | median trip success | crushed / lost / predation |
+|---|---|---|---|---|---|---|---|---|---|
+| sweep 15 (colony-life close) | 48db2e0d | 14 | 161 | 258 | 116 | 8 | 0.344 / 1.278 | 51.6 % | 12 / 4 / 1 |
+| first close sweep (items 2 + 4) | 55c4dfff | 12 | 161 | 271 | 131 | 1 | 0.515 / 1.147 | 56.7 % | 8 / 6 / 6 |
+| **close sweep (item 2; item 4 reverted)** | **43fbaf86** | **13** | 161 | **270** | 118 | 10 | 0.434 / 1.196 | 53.5 % | 4 / 4 / 1 |
+
+Foundings are the same in all three (first workers and hand-over days equal run by run): the founding code did not
+change. Per-run regressions of the final sweep against sweep 15 (from the table): pp #3 and cpv #3 viable -> NOT
+viable (both short of winter carbohydrate), intake C lower in 8 runs, we #3 eclosions 7 -> 1; sg #2 NOT viable ->
+viable. kd #3 again raises no worker (7 larvae starved: item 4's defect, reverted). One sweep of chaotic runs
+(direction 13): the counts are the bar's, the per-run differences are not evidence on their own.
+
+LONGRUN_PLACEHOLDER
+
 
 ## 1. Red-test table (item 1)
 
@@ -281,4 +314,28 @@ None in `src/sim/types/**` or `src/core/**`. Additive within owned module APIs: 
 
 ## 8. Evidence paths
 
-EVIDENCE_PLACEHOLDER
+All under `test-output/gate-sim-2/` unless noted.
+- Runner scripts: `freeze.sh`, `run.sh` (modes winter / h14 / h15 / f15 / g2 / y2), `jobs.sh`, `folders.sh`
+  (folder-by-folder vitest), `close2.sh`, `bisect.sh` (one test file on a `git archive` of a commit), `sums.py`.
+- Tests: `vt-before/`, `vt-after/`, `vt-final/` (per folder `.txt` + vitest `.json`, `summary.txt`). Failing-test
+  lister (scratch): `python3 - DIR` over the JSONs, listing `assertionResults` with status `failed`.
+- Item 2: `item2-f/` (we #3, sg #3 from round-10 hand-overs; we #1 from sweep 14's), compare
+  `colony-life/round-15/arm-y1-r15e`, `h14-r15e`; `threat-seeds-e.txt`, `threat-seeds-f.txt`.
+- Item 4: `probe-kd3-r15e.txt`, `probe-kd3-n7296.txt`, `item4-base/`, `item4-fix/`, `trip.ts.item4-reverted`;
+  switch-off: `off-item2/`, `off-item4/`, `off-base/`.
+- Item 5: `probe-sg2-dig-r15e.txt` (and a partial run on the item-4 tree, `probe-sg2-dig-g24-partial.txt`).
+- Item 7: `probe-hash-g24.txt`, `probe-hash-g24o.txt`.
+- Item 6: `r13r14-from-sweep15.md`, `r14-probe.txt`.
+- Sweeps: `sweep/` (first close sweep), `sweep2/` (close sweep), `sweep-long/` (long runs), tables
+  `sweep-table.md`, `sweep2-table.md`, `sweep-long-table.md`, `sums.txt`.
+- Probes used (removed from `tools/sim/probe/`, archived in `probes/*.ts.txt`): g2-nurse, g2-nurse1, g2-dig,
+  g2-stall, g2-threat, g2-hash, g2-larva, g2-r14.
+- Scratch trees deleted at the end (`/home/user/scratch-g2f`, `scratch-g2-4`, `scratch-g2-no2`, `scratch-g2-no4`,
+  `frozen-gate2`, `frozen-gate2b`; probes copied into `/home/user/scratch-r15e/tools/sim/probe` removed again).
+- For a reviewer putting files back: the production changes of this task are `src/sim/locomotion/crumbs.ts`
+  (-> `retraceResume15` case 1 red, `appendixE23` red with the consumption lines restored), `src/sim/colony/queen.ts`
+  + `src/sim/balance/colony.ts` (-> `colony/winterPathSeason` and `time.test` red), `src/sim/ants/actions/runner.ts` +
+  `types.ts` + granary / fungus `actions.ts` (-> `runner.test` "failure codes" red),
+  `src/sim/species/modules/granary/rhythm.ts` (-> `testing/layering` DOM case red),
+  `src/worldgen/populate/economy.ts` (-> one more entry in `worldgen/layering`).
+
