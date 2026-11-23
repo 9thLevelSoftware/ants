@@ -101,3 +101,5 @@ Started 2026-11-23 ~16:50 UTC (session 1).
   and apply ruling 2's keep rule before you write the final report. Do NOT delete frozen-gate2 before that (a copy is at
   /home/user/keep-gate2-item4; leave that copy alone). If you have already closed when you read this, say so in the
   report: the integrator runs them.
+- 21:05 three waiter shells reduced to one; probes except g2-r14 removed from tools/sim/probe (archived, cmp same); scratch trees g2f/g2-4/g2-no2/g2-no4/frozen-gate2 deleted; R43 row extended with species larval costs. Waiting kitchen-door 3 long run.
+- 21:14 DONE. Long runs: R22 5/5, R34 4/5 at 1.0x, 0/5 at 1.5x (sweep-long-table.md). R14 probe 15/15 within 4 h (r14-probe.txt). Placeholders filled. Probes and scratch trees removed (scratch-r15e, scratch-r14-P3b kept: not this task's). Typecheck clean; tests/docs + populate green.

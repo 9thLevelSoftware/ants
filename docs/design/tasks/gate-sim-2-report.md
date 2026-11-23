@@ -36,7 +36,26 @@ viable (both short of winter carbohydrate), intake C lower in 8 runs, we #3 eclo
 viable. kd #3 again raises no worker (7 larvae starved: item 4's defect, reverted). One sweep of chaotic runs
 (direction 13): the counts are the bar's, the per-run differences are not evidence on their own.
 
-LONGRUN_PLACEHOLDER
+**Long runs (to day 40 of year 2, the same five runs as sweep 15, from the frozen tree, `longrun-life.sh`):**
+`test-output/gate-sim-2/sweep-long/` and `sweep-long-table.md` (`tools/sim/longrun-table.py`); sweep 15's at
+`test-output/colony-life/round-15/sweep-long/longrun-table.md`.
+
+| run | winter 1 workers (sweep 15 -> final) | spring d1 | y2 eggs / eclosed | winter 2 workers, C | R34 >= 1.0 x |
+|---|---|---|---|---|---|
+| car-park-verge-1 | 23 -> 26 | 20 -> 23 | 53 / 28 -> 37 / 23 | 31, 19.5 -> 32, 20.5 | yes -> yes |
+| kitchen-door-3 | 9 -> 9 | 8 -> 8 | 13 / 2 -> 30 / 8 | 2, 0 -> 8, 9.0 | no -> no |
+| playground-park-3 | 19 -> 20 | 18 -> 19 | 37 / 20 -> 40 / 20 | 23, 16.4 -> 22, 4.5 | yes -> yes |
+| suburban-garden-2 | 17 -> 17 | 7 -> 14 | 0 / 0 -> 37 / 16 | 2, 18.0 -> 19, 13.5 | no -> yes |
+| woodland-edge-2 | 11 -> 13 | 10 -> 12 | 28 / 12 -> 30 / 11 | 13, 24.8 -> 13, 23.7 | yes -> yes |
+
+- **R22** (spring >= 0.7 x winter 1): 4 of 5 -> **5 of 5** (bar 4 of 5, met). sg #2 no longer loses its queen to
+  starvation over the winter (sweep 15: queen:starvation 1, worker:starvation 9, winter C 0; final: winter C 8.0,
+  no starvation death). That is the winter-path fix (`queen.ts winterPathRamp`): sweep 15's sg #2 entered winter
+  with no carbohydrate.
+- **R24** (first year-2 egg): sg #2 "-" -> doy 3; the other four unchanged (3, 6, 5, 3).
+- **R34** (second winter >= 1.0 x / >= 1.5 x winter 1): 3 of 5 -> **4 of 5** at 1.0 x (bar 4 of 5, met); 0 of 5 ->
+  0 of 5 at 1.5 x (bar 3 of 5, not met; a growth bar, a known limit per the integrator note). kd #3 still fails
+  (8 workers against 9). pp #3 ends year 2 with C 4.5 against 16.4: one chaotic run, not traced.
 
 
 ## 1. Red-test table (item 1)
@@ -220,7 +239,13 @@ can only be bounded by a day.
 - **R14 (entrance open within 4 game hours of the hand-over):** all 15 hand over with no open entrance (day-0 row 0)
   and have one open by the day-1 row (and departures on day 1): open within 24 game hours in 15 of 15. The 4-hour
   bound is not measurable from the JSON. A probe that restores each hand-over and ticks to the first open entrance
-  (`tools/sim/probe/g2-r14.ts`, archived) gives the hours where it was run: R14_PROBE_PLACEHOLDER
+  (`tools/sim/probe/g2-r14.ts`, archived) gives the hours, run on the final tree over the 15 sweep hand-overs
+  (`test-output/viab/cache/founded-lasius-niger-<arch>-<seed>-naturalist-d-325775ec.bin`, one process at a time;
+  output `test-output/gate-sim-2/r14-probe.txt`): every hand-over starts with its entrance `reopening`, and the
+  entrance is open after 0.88-3.82 game h (median 1.38; we #1 3.06, we #3 3.82, cpv #1 3.15, pp #2 3.13, kd #3 3.53,
+  the other ten 0.88-1.75). **R14 holds in 15 of 15** (all within 4 game hours; the slowest, we #3, has 0.18 h to
+  spare). The same probe reads the site's raw flood risk at the nest origin (`assessSite`): 0.000-0.059, the highest
+  at we #2 0.055 and we #3 0.059.
 - **R13 (no flood-safe site reaches 25 % flooded in the brood / royal chamber from ordinary showers):** not readable
   (no flooded share in the JSON). Losses to water: brood lost to flooding in 5 of 15 runs (cpv #1 6, kd #3 10, kd #2 2,
   kd #1 1, sg #3 1), one adult drowned (kd #1), no queen lost. kd #3 is the flood-prone nest named in the colony-life

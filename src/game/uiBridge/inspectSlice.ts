@@ -24,6 +24,18 @@ function targetOf(sim: Sim, r: InspectRequest): TargetRef | null {
 
 const cap = (s: string): string => (s.length ? s[0].toUpperCase() + s.slice(1) : s);
 
+/**
+ * The simulation writes some unit strings with raw floats ("/ 14.774999999999999" for a chamber's adult capacity): the card shows
+ * every number in a unit to one decimal at most (look pass 5, item 6).
+ */
+export function tidyUnit(unit: string | undefined): string | undefined {
+  if (!unit) return unit;
+  return unit.replace(/\d+\.\d{2,}/g, (m) => String(Number(Number(m).toFixed(1))));
+}
+
+/** A queen's physiological age stays at 0 in the simulation (the card read "callow (0 game days)" after days): the row is left off her card. */
+function queenAge(sim: Sim, id: number): boolean { return sim.stores.ants.get(id)?.caste === 'queen'; }
+
 /** The card for `req`, or null when there is none (no request, or the target is gone). */
 export function inspectOf(sim: Sim, req: InspectRequest | null): UiInspect | null {
   if (!req) return null;
@@ -43,8 +55,8 @@ export function inspectOf(sim: Sim, req: InspectRequest | null): UiInspect | nul
   const possessed = !!ant && ant.id === sim.state.player.possessedAntId;
   return {
     kind: card.kind, targetKind: req.kind, targetId: req.id, title: card.title, header,
-    senses: card.senses.map((r) => ({ key: r.key, word: r.word, value: r.value, unit: r.unit })),
-    colony: card.colony.map((r) => ({ key: r.key, word: r.key === 'state' ? stateWord(r.word, card.colony.find((x) => x.key === 'task')?.word ?? '') : r.word, value: r.value, unit: r.unit })),
+    senses: card.senses.filter((r) => !(r.key === 'age' && req.kind === 'ant' && queenAge(sim, req.id))).map((r) => ({ key: r.key, word: r.word, value: r.value, unit: tidyUnit(r.unit) })),
+    colony: card.colony.map((r) => ({ key: r.key, word: r.key === 'state' ? stateWord(r.word, card.colony.find((x) => x.key === 'task')?.word ?? '') : r.word, value: r.value, unit: tidyUnit(r.unit) })),
     canPossess: ours && !possessed, canFollow: ours,
     colonyOrders: ours && card.colony.some((r) => r.key === 'colony-orders'),
   };

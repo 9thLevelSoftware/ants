@@ -1471,3 +1471,18 @@ Saved: `docs/design/tasks/reviews/colony-life-sweep-15.json`. Tables: `test-outp
 - look-pass-5: outcome shot reworked on a real founding (the queen and eggs sat in the shaft throat, 18 mm from the
   chamber record: the shot now frames the animals); a stand-in run past beat 13 died at beat 16 (a worker did not hand
   over her load); continuing with soft failures to picture the later beats.
+
+### Nov 23 ~21:36 UTC — check-in: gate-sim-2 implementation returned; review running; item-4 long runs started by me
+
+- gate-sim-2 (impl) closed 21:14 on the reverted tree: sweep2 viable 13 of 15 (bar met); long runs
+  (`test-output/gate-sim-2/sweep-long-table.md`): R22 spring 5 of 5, **R34 >= 1.0 x in 4 of 5 (bar 4: met for the
+  first time)**, 0 of 5 at 1.5 x; five colonies 85 at winter 1 -> 94 at winter 2 (cpv #1 26 -> 32, kd #3 9 -> 8,
+  pp #3 20 -> 22, sg #2 17 -> 19, we #2 13 -> 13). R14 probe: 15 of 15 entrances open within 4 game hours.
+- It closed without ruling 2's long runs on the item-4 tree: I started them from `/home/user/keep-gate2-item4` ->
+  `test-output/gate-sim-2/sweep-long-item4` (background, two at a time). Decision by ruling 2's rule when they end.
+- Reviewer (so far): sg #2's restore is exact on the round-15 tree, so the continuation gap seen in the first close
+  sweep is newer than this task's start (it is checking the final tree); the report credits `winterPathRamp` wrongly;
+  DEVIATIONS lacks three old -> new numbers.
+- look-pass-5: controls, views, lifecycle, stage1a strict, panels pass; save script timed out in part B (rerun
+  queued); a stand-in run reached beat 25 with two soft failures (worker did not hand over her load; a dig plan's
+  anchor not in the nest); inspector pictures under way.

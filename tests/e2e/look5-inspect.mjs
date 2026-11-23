@@ -55,7 +55,7 @@ export default async ({ page, log, out, wait }) => {
       const s = window.__hud.game.session.sim, st = s.state, col = st.player.colonyId;
       const q = s.stores.ants.get(s.stores.colonies.get(col).queenId);
       const nest = st.nests.find((n) => n.colony === col);
-      const brood = st.brood.filter((b) => b.alive && b.colony === col && b.carriedBy < 0);
+      const brood = st.brood.filter((b) => b.alive && b.colony === col);
       const by = (stage) => brood.find((b) => b.stage === stage);
       return {
         queen: q ? { id: q.id, pos: q.pos } : null,
@@ -66,9 +66,12 @@ export default async ({ page, log, out, wait }) => {
       };
     });
     log('ids', JSON.stringify(ids));
-    // the camera follows the thing inspected: the observer on the nest, close
-    const near = async (p, back = 40) => {
-      await g((a) => { const s = window.__hud.game.session; s.views.freeFlyAt({ x: a.p.x + a.back, y: a.p.y + a.back * 0.8, z: a.p.z + a.back }, a.p); window.__game.renderNow(0); }, { p, back });
+    // the camera follows the thing inspected: colony view (the nest cut open), centred on it; `back` is unused in this view
+    await g(() => window.__hud.game.setView('colony'));
+    await g(() => window.__game.step(2));
+    const near = async (p) => {
+      await g((pp) => { const v = window.__hud.game.session.views; v.colony.enter(pp, true, v.world.groundHeight); }, p);
+      await render(1);
     };
     if (ids.queen) { await near(ids.queen.pos); res.queen = await card('queen-inspector', { kind: 'ant', id: ids.queen.id }); }
     for (const k of ['egg', 'larva', 'pupa']) {
