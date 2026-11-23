@@ -5072,3 +5072,100 @@ Progress (kept current; a successor continues from here)
   freeze; (3) R40 c2 accepted as reverted, its lead under "Next"; (4) the dose: freeze v3 at
   `/home/user/scratch-r13-final3`, write "v3 frozen" here, start `y2-final3`; I make
   `/home/user/scratch-r13-final3-dose1` and write "dose tree ready" here; three slots allowed.
+- 03:05 **Closing-tree-v2 arms complete** (tree 6d1c6f09). y2 (`table-y2-final2.md`, `account-y2-final2.txt`,
+  `measure-d-final2.md`); year one (`table13b-year1.txt`, `r42-carb-by-day.txt`). Results below. Scratch trees deleted
+  next; no process running.
+
+### Round 13 results
+
+**Baseline and accounting.** Bar table: sweep 12 (`round-12/sweep-table.md`). Year two: the five long-run colonies
+cached at year 2 doy 1 (`round-13/cache-y2/`, `life.ts --save-y2` / `--from`); identity on the round-12 tree: 4 of 5
+final hashes equal to sweep 12's long runs (we #2, cpv #1, pp #3, kd #3); sg #2 equal through doy 5, then a restore gap
+(repro under Next). Year one: the 15 sweep-9 hand-overs (`round-10/cache`) against `round-12/arm-final12`.
+
+**Causes ranked by measured loss (year two, base from the cache, 5 colonies; `account-y2-base.txt`):**
+1. Eggs not laid on warm days: potential ~900 egg-days, 122 laid. Gate days while potential > 0: larval hunger 10.1,
+   brood-need 8.5, p-days 8.7 (protein) and winter-reserve 7.8 (in colonies at 1.6-7 x their winter carbohydrate).
+   R40 a removed the last; arm A then showed the protein behind the eggs is the limit (below).
+2. Late brood dying in the autumn (pupa untended 10, egg untended 11): pupae pupated at >= 12 C and then lay in the
+   cold, some in passages after carries (R40 c trace); larvae pupating under 12 C (the ruled defect) fixed.
+3. Larvae starved with protein short (9, pp #3 7); hygiene 17; old age 39 adults against 47 eclosions.
+Year one (sweep 12 findings, 27a): kd #2's nursing gap (nurse walks to a larva pile failing in a point field: fixed),
+autumn `worker:lost` (the cold, R42), carbohydrate where the foragers bring protein (we #3: R41 built; not cured).
+
+**Year two, second winter (winter 1 = 13 / 19 / 19 / 21 / 10 = 82):**
+| arm (tree) | we #2 | sg #2 | cpv #1 | pp #3 | kd #3 | sum | >= 1.0 x | eggs >= 35 | eclosions | larvae starved | R27 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| base (round 12) | 12 | 19 | 22 | 15 | 3 | 71 | 2 | 0 (122 eggs) | 47 | 9 | 5 / 5 |
+| A (R40 a + b) | 9 | 18 | 21 | 12 | 4 | 64 | 1 | 1 (143) | 42 | 19 | 5 / 5 |
+| B (A + c) | 9 | 18 | 21 | 11 | 4 | 63 | 1 | 1 (143) | 42 | 19 | 5 / 5 |
+| final 4725f524 (+ R41, D33, point field) | 12 | 15 | 14 | 18 | 1 | 60 | 0 | 3 (177) | 38 | 6 | 5 / 5 |
+| final v2 6d1c6f09 (+ R42) | 11 | 19 | 18 | 13 | 5 | 66 | 1 | 0 (132) | 43 | 8 | 4 / 5 (kd #3 0.0 / 2.1) |
+Year-two bars: >= 1.0 x in >= 3 of 5 NOT met in any arm (best 2, the base); sum >= 82 NOT met (best 71, base); eggs
+>= 35 in >= 3 of 5 met only by the final arm (sg 38, pp 37, kd 49: kd #3's 49 eggs died, 37 of hygiene); R27 kept in
+every arm until v2 (kd #3 misses). R34 1.5 x: 0 of 5 in every arm. R40 d (`measure-d-final*.md`): on doy 9-14 the
+potential is 18-32 eggs / gd and protein arrives at 1-4 P / gd (LARVA_P_REQ 1.2 a larva): the gates that hold are
+brood-need, larval hunger and p-days. **Named for the ruling:** with R40 a-c built the loss is protein per egg
+(direction 28's R43); the dose arm could not be run (below).
+
+**Year one (15 hand-overs, against arm-final12 = 266 workers, 14 viable, P 0.482):**
+| | arm-final12 | final 4725f524 | final v2 6d1c6f09 (+ R42) |
+|---|---|---|---|
+| workers at winter | 266 | 260 | 268 |
+| viable | 14 | 12 | 10 |
+| median P / C intake over need | 0.482 / 1.386 | 0.403 / 1.247 | 0.360 / 1.156 |
+| brood hygiene deaths | 9 | 9 | 12 |
+| runs without `worker:lost` | 11 | 12 | **15** |
+| R27 lost (met in the base) | - | we #3, sg #2 | we #2, we #3, sg #2 |
+| forage time, worker gd | 643 | 728 | 381 |
+Year-one bars on v2: viable >= 14 NOT met (10), median P >= 0.45 NOT met (0.360), hygiene <= 15 met (12), R27 kept NOT
+met (3 colonies), no-lost >= 13 met (15). R42's carbohydrate check (`r42-carb-by-day.txt`): we #3 and sg #2 were
+already under their need from doy 15 in the final arm (foragers bringing protein with wC > wP, see 01:33); we #2 is
+lost by R42: deliveries of C fall to 0.2-0.5 a day on doy 16-19 with 1-5 workers out, C 4.8 -> 3.0 against a need of
+7.6 -> 3.9. For the ruling.
+
+**Fixes in the closing tree (each with its unit test):** R40 a (`queen.ts colonyHasWintered`, `needs.ts carbStockWanted`,
+`economy.ts` winter path key; `colony/r40.test.ts`), R40 b (`PROSPECTIVE_CARB_RAMP_FROM`; `prospectiveProtein.test.ts`),
+R40 c (`brood.ts pupationIntoCold`; `colony/r40c.test.ts`), R41 (needC on carbStockWanted; `colony/r41.test.ts`), D33
+(`economy.ts yieldEstimate`; `colony/yield27a.test.ts`), the point-field seed (`locomotion/nests.ts` wide fields;
+`locomotion/pointFieldSeed.test.ts`), R42 (`colony/coldGate.ts`, engine / activation / demand; `outdoor/coldGate42.test.ts`),
+27a item 5 test repairs, `homeRange` case 2 restated. Tools: `life.ts --save-y2 / --from / --trace13`,
+`tools/sim/lifeTrace13.ts`.
+
+**Tried and reverted:** the 00:13 point-field fix (every field widened: `fleeWater.scenario` red); R40 c2's stray-brood
+job (broke `fleeWater.scenario` and `starvation.test`, not needed by its own test).
+
+**Not done:** R43 dose arms (the `LARVA_P_REQ` edit was refused by the permission check; nothing changed); R40 c2 (see
+above; the interruption that put we #2's pupae in a passage not traced); 27a item 4 is R42 now.
+
+**GDD deviations recorded (DEVIATIONS.md):** R40, R41, R42, D33; D32's row points at hold26 / burst26.verify.
+
+**Known red:** `colony/workedExample`, `nest/sfaReview.verify`, `nest/stall.soak` (as before); **new:**
+`outdoor/determinism.perf` (save -> load -> continue != uninterrupted; green with D33's old yield form, so D33's
+trajectory meets a restore gap like sg #2's). tsc clean.
+
+**Next:** (1) R43 dose 1 by whoever may change `LARVA_P_REQ`, on the v2 tree from the year-two cache, then the
+year-one arm; (2) the restore gap (sg #2: `cache-y2/y2-suburban-garden-2.bin`, `life.ts --seed 2 --archetype
+suburban-garden --until-day 23 --from <it>` on the round-12 tree; first diverging row doy 6: `meanLarvalHunger`,
+`storesC`, `storesP`, `byTask`; and `outdoor/determinism.perf`); (3) year one: foragers bring protein while wC > wP and
+carbohydrate is under the winter path (we #3, sg #2): the trip choice does not follow the weights; trace the candidate
+lists of doy 15-19; (4) R42 against R27 (we #2): ruling; (5) the passage-brood carry (nurses walking to the surface for
+brood on a shaft wall); (6) kd #3's 37 eggs dead of hygiene in the final arm.
+- 03:10 **v3 frozen 03:10** at `/home/user/scratch-r13-final3` (hash 9f5935ce, `final3-tree-hash.txt`; LARVA_P_REQ 1.2) = v2 + **R44**
+  (`allocation/demand.ts forageDemand`: per nutrient min(want / yield, known forager-equivalents of that nutrient),
+  summed, + at most 1 for the want nothing known can take; KnownCapacity antsC / antsP; prospective protein on the
+  protein side only; test `colony/r44.test.ts` 4 cases as ruled) + **R42 thresholds 0.3 / 0.25** (= about **10.8 C**
+  and **10.0 C** of air on Lasius' curve; `coldGate42.test` restated at the 0.2 point = 9 C). `colony/yield27a.test`
+  case 2 gets known sugar sources too (R44 caps each nutrient by its own sources). Started at once: year two from the
+  cache on v3 (`y2-final3`, 5 runs, two slots). Waiting for the integrator's dose tree
+  (`/home/user/scratch-r13-final3-dose1`). New red with R44: `outdoor/appendixE23` (App. E 23: 100 workers, C 4 / P
+  0.2 held, only a large carcass known: no trail; with the demand per nutrient the colony's carbohydrate want no
+  longer staffs carrion trips and its protein want is ~0.3 loads / gd) - to restate with a protein want (larvae), not
+  yet done.
+- 03:23 y2-final3 2 of 5 done; folder tests on the live tree (v3 code + the restated appendixE23): colony 81/82 (workedExample), outdoor green but determinism.perf (appendixE23 restated with 30 larvae: green), nest 34/36 (known), locomotion 26/27 (perf.test timing under 2 life runs + vitest: load noise), docs 8/8. Waiting for the dose tree.
+- 03:26 **INTEGRATOR NOTE: dose tree ready** at `/home/user/scratch-r13-final3-dose1` = a copy of v3 (9f5935ce) with one
+  line changed: `LARVA_P_REQ = 0.8` in `src/sim/balance/colony.ts` (`diff -rq` shows that file only). Run year two
+  from the cache on it (`y2-dose1`, 5 runs; a third slot is allowed). R44 and the 0.3 / 0.25 thresholds are accepted
+  as built; `appendixE23` restated with larvae is accepted. Choose by direction 28's rule and say here which dose;
+  if dose 1, write "live tree to 0.8 please" and I make that edit (constant + E2 pin) before the year-one arm's tree
+  is frozen (or freeze the year-one tree as a copy of the dose tree plus anything built since).

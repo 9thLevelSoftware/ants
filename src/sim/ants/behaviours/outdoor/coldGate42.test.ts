@@ -1,5 +1,5 @@
-// Ruling R42 (colony-life direction 28, round 13): the cold does not catch workers outside. With the entrance air at
-// the 0.4 point of the thermal speed curve nobody departs and the allocator asks for no forage, tend or scout; a
+// Ruling R42 (colony-life directions 28 / 28b, round 13): the cold does not catch workers outside. With the entrance
+// air at the 0.2 point of the thermal speed curve (under OUTDOOR_DEPART_MIN_SPEED 0.3) nobody departs and the allocator asks for no forage, tend or scout; a
 // forager out on a trip whose own speed multiplier falls under OUTDOOR_TURN_BACK_SPEED turns home.
 
 import { describe, expect, it } from 'vitest';
@@ -24,20 +24,20 @@ function tempAt(m: number): number {
 }
 
 describe('R42: no departures in the cold, and the cold turns workers back', () => {
-  it('the thresholds on the curve (Lasius, no thermal shift): about 14.2 C to depart, 11.7 C to turn back', () => {
-    expect(tempAt(OUTDOOR_DEPART_MIN_SPEED)).toBeCloseTo(14.17, 1);
-    expect(tempAt(OUTDOOR_TURN_BACK_SPEED)).toBeCloseTo(11.67, 1);
+  it('the thresholds on the curve (Lasius, no thermal shift): about 10.8 C to depart, 10 C to turn back', () => {
+    expect(tempAt(OUTDOOR_DEPART_MIN_SPEED)).toBeCloseTo(10.83, 1);
+    expect(tempAt(OUTDOOR_TURN_BACK_SPEED)).toBeCloseTo(10, 1);
   });
 
-  it('entrance air at the 0.4 point: no departures for 0.2 gd, forage / tend / scout demand 0, nobody outside', () => {
+  it('entrance air at the 0.2 point: no departures for 0.2 gd, forage / tend / scout demand 0, nobody outside', () => {
     const { sim, col, sources } = forageScenario({
       workers: 20, seed: 4, holdStores: { c: 1, p: 0.3 },
       sources: [{ kind: 'sugar', variant: 'sugar-granules', distBu: 30, bearingDeg: 0, units: 400 }],
     });
     for (const s of sources) announce(sim, col, s);
-    const air = tempAt(0.4);
+    const air = tempAt(0.2);
     setClimateOverride(sim, { pointTemp: () => air, surfaceActivity: () => 1 });
-    expect(entranceAirSpeed(sim, col)).toBeCloseTo(0.4, 3);
+    expect(entranceAirSpeed(sim, col)).toBeCloseTo(0.2, 3);
     expect(speedMult(sim, air, col.species)).toBeLessThan(OUTDOOR_DEPART_MIN_SPEED);
     expect(tooColdToDepart(sim, col)).toBe(true);
     let departed = 0, outside = 0;

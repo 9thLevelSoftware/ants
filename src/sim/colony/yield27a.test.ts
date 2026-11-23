@@ -30,9 +30,9 @@ describe('direction 27a item 2: the realised yield per forager', () => {
     step(sim, 120);
     const col = colonyOf(sim);
     col.stores.c = 0; col.stores.p = 0;
-    // two large known carcasses keep the known-capacity cap out of the way
-    for (const dx of [200, 260]) {
-      const s = createSource(sim, { variant: 'large-carcass', pos: { x: 100 + dx, y: 0, z: 100 } });
+    // two large known carcasses and two sugar spills keep both nutrients' known-capacity caps (R44) out of the way
+    for (const [dx, variant] of [[200, 'large-carcass'], [260, 'large-carcass'], [230, 'sugar-granules'], [290, 'sugar-granules']] as const) {
+      const s = createSource(sim, { variant, pos: { x: 100 + dx, y: 0, z: 100 } });
       col.knownSourceIds.push(s.id);
     }
     const demand = (y: number) => {
