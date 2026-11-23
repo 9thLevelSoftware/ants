@@ -1415,3 +1415,16 @@ Saved: `docs/design/tasks/reviews/colony-life-sweep-15.json`. Tables: `test-outp
 - Colony-life ends here by the cap (15 rounds). Unmet: R19 P intake, R19 first workers, R34 year-two growth; see the
   ledger's "### Known limits at the close of colony-life" and "### Independent sweep after round 15".
 - Next: gate-close-sim (Workflow, Opus).
+
+### Nov 23 ~16:49 UTC — after colony-life: gate-sim-2 (Opus) and look-pass-5 (Sonnet / Opus verify) launched
+
+- `docs/design/tasks/gate-sim-2.md` supersedes `gate-close-sim.md`: red-test table to green, retrace variant f
+  (App. E 23), deterministic wide mound-mask probe, kd #3 larvae starving with protein in store, sg #2 digging without
+  a plan, R13 / R14 table from sweep 15's data, leftover seams, a fresh close sweep (bar: viable >= 13 of 15 and >= 2
+  of 3 per archetype). No new economy rule; growth bars stay as known limits.
+- `docs/design/tasks/look-pass-5.md`: outcome-card framing, backdrop fuzz speckle, kitchen-door wall foot, moulded
+  plastic, resolved alert under the card, inspector and slope pictures, full firstplay on seeds 1 and 2 without
+  stand-ins with a "still unfinished" list, manual / README drift.
+- Both through `wf-build.js` (implement -> independent verify -> fix). After a restart: relaunch with the same args and
+  a note pointing at `docs/design/tasks/progress/<key>-impl.md`.
+- Disk: rounds 1-9 of `test-output/colony-life` and scratch trees r13 / r14-P deleted (9.5 GB free).
