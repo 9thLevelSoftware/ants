@@ -4909,7 +4909,7 @@ Progress (kept current; a successor continues from here)
   15 / 3 (we, sg, cpv, pp, kd) = 71 against 82 at winter 1, >= 1.0 x in 2 of 5; eggs y2 23 / 33 / 27 / 26 / 13 (0 of 5
   >= 35); R27 carbohydrate at the second winter 5 of 5 (C / need 19.5 / 2.8, 13.2 / 4.3, 22.9 / 7.4, 6.0 / 3.8, 8.4 /
   1.5). Arm A running (both slots).
-- 23:45 **Arm A complete** (R40 a + b; `round-13/table-y2-A.md`, `account-y2-A.txt`), against base from the cache:
+- 23:42 **Arm A complete** (R40 a + b; `round-13/table-y2-A.md`, `account-y2-A.txt`), against base from the cache:
   | | we #2 | sg #2 | cpv #1 | pp #3 | kd #3 | sum |
   |---|---|---|---|---|---|---|
   | second winter, base -> A (winter 1) | 12 -> 9 (13) | 19 -> 18 (19) | 22 -> 21 (19) | 15 -> 12 (21) | 3 -> 4 (10) | 71 -> 64 (82) |
@@ -4923,3 +4923,79 @@ Progress (kept current; a successor continues from here)
   and the extra larvae starve; eclosions fall 47 -> 42. Bars on A: >= 1.0 x 1 of 5, sum 64 < 82, eggs >= 35 1 of 5,
   R27 kept 5 of 5. Running: probes (nurse kd #2, lost pp #1), then arm B. The sg #2 no-trace check ran only 2 days
   (`--until-day 19` from tick 99748): to be rerun to day 23.
+- 23:44 **27a item 4 traced, no fix (ruling)** (`round-13/probe-lost.txt`, probe `tools/sim/probe/probe-lost13.ts`,
+  base tree, pp #1 sweep-12 hand-over, hourly gd 12.3-14.4): both of pp #1's lost workers left the source at gd 12.36
+  (doy 17) and were walking home the whole 2 gd (nav `moving` throughout, no hold, no re-plan failure); the forager
+  started 224-237 BU out, the tender on a plant 1.4 m up, 11-79 BU from the entrance. The surface air was 2.5-9.1 C
+  (doy 17-19); body temperature followed it (0.9-8.7 C) and the thermal speed multiplier was **0.0-0.2** (0 at a body
+  temperature of about 5 C and under, 0.1 at 6-7 C, 0.2 at 8.7 C). The forager reached 8.8 BU from the entrance by gd
+  14.3 and froze there (body 2-4 C); both died `lost` at RETURN_LOST_S (gd 14.4). It is the cold catching workers
+  outside on autumn trips: they set out at surface temperatures of 7-9 C, where a trip of 0.2-0.4 gd at full speed
+  takes 1-2 gd at 0.1-0.2 x. Stopped for a ruling (who decides to go out in the cold: the forage gate's surface
+  temperature, or a homing worker allowed to shelter).
+  **27a item 3, first probe** (`probe-nurse-v1.txt`, kd #2 hours 49-68 on the base tree): idle workers do take the
+  open nurse places (idle -> nurse 4-14 a game hour, reason deficit/job; all idle workers eligible, band mid, take
+  probability 0.4-0.9), and nurses fall back to idle as fast: **nurse -> idle 'stuck' 4-13 a game hour**
+  (`common.ts recover(..., stuck)`: 3 nav failures within STUCK_WINDOW_S 60 s hand the task back). So the gap is not
+  the threshold, age band or a held task: the nurses' walks inside kd #2's nest fail. Probe v2 (which walk: state,
+  destination, fail reason) queued after arm B.
+- 23:54 Folder tests on the live tree: colony 81 / 82 files (red `workedExample`, known), behaviours/nest 34 / 36
+  (red `sfaReview.verify`, `stall.soak`, known), tests/docs 8 / 8 (DEVIATIONS rows R40, R41, D33 added; D32's row
+  points at hold26 / burst26.verify too), behaviours/outdoor 36 / 37: **`homeRange.test` case 2 red with D33 (the yield
+  estimate)**, green on the base and B trees and on the live tree with the old yield form: the test forages 30 workers
+  for 4000 ticks and then measures one scout's heading bias at one spot; with D33 the trajectory differs and the bias
+  there is +0.05 (n = 800 draws: marked -0.21, unmarked -0.26) instead of +0.37 (bar 0.1). The bias points the right
+  way; the size depends on where that scout stands and what she remembers. Not fixed yet (left for the closing check;
+  if it stays, it is listed as red with this reason).
+- 23:55 Arm B: we #2 and kd #3 give A's final hashes (4bc57521; kd #3 equal too): R40 c never fired there. In A / B's
+  we #2 the late pupae pupated on doy 14-16 at 12.0-14.2 C (at or over DIAPAUSE_COLD_C: lawful under the ruling), the
+  chamber then fell to 2.5-5.4 C and 5 died `untended` on doy 20-21 at development 0.45-0.94. Who should have tended
+  them (`nursingHours` doy 19-21): 2-6 workers on `nurse`, nurse target 1, idle 0, the nurses mostly in `nurse.carry`
+  (brood moved, with `flee.run` and egg flooding in the same hours); the overdue pupae lay **outside any chamber
+  (chamberId -1, put down in a passage) or in chamber 14551** while the nurses stood in chamber 5542. So these are not
+  pupae pupated into the cold: they are cold pupae left lying in a passage after a carry. Stopped there for a ruling
+  (direction 27 c: "say who should have tended them and stop").
+- 00:13 **27a item 3 traced and fixed.** Probe v2 (`probe-nurse2.txt`): every nurse hand-back of hours 48-68 is a walk
+  in `nurse.feed` / `nurse.tend` to brood at one spot, (11012, 36, 12853), failing with `leg` in `field` mode, from
+  1-6 BU away (one nurse 7 mm from it). Probe v3 (`probe-nurse3.txt`, `tools/sim/probe/probe-nurse13b.ts`): 13 larvae
+  and eggs lie there on the rim of the nursery (chamber 11719, radii 16 x 4 x 14 mm), 0.3-0.95 mm inside the solid,
+  the nearest open sample 0.8-1.8 mm away and in the nurses' own nav component (19). The defect is the point field:
+  `locomotion/nests.ts pointField` quantises the goal to a 2 BU (8 mm) cell and seeds the open voxels within 1 BU of
+  the cell centre, else the nearest open sample within two voxels; the centre of that larva pile's cell lies ~6 mm
+  from it, inside the wall, with nothing to seed, so the field is infinite everywhere and every walk to the pile
+  fails; 3 failures in 60 s hand the nurse back (`recover` stuck). **Fix** (`registerPointField`): the seed radius is
+  pointFieldR + half the cell's diagonal (the quantisation), so a goal with open space next to it always has a field
+  that reaches it; still a pure function of the field's name (save / load re-registers it identically). Test
+  `locomotion/pointFieldSeed.test.ts` (48 goals 0.3 mm inside a chamber floor around its rim: field finite at the
+  chamber centre for all; red before the fix: 1 unreachable). Locomotion folder 26 / 26 files green. On kd #2's
+  hand-over with the live tree, hours 49-68: nurse -> idle 'stuck' 157 -> 0, hours with target - nursing >= 2 and an
+  idle worker 8 -> 0 (`probe-nurse-fixed.txt`).
+- 00:13 **Closing tree frozen** `/home/user/scratch-r13-final` (hash 384ba36e, `round-13/final-tree-hash.txt`; recipe:
+  sha256 of src/sim, src/worldgen, src/core, tools/sim *.ts without tests and probes) = R40 a + b + c, R41, D33
+  (yield), the point-field seed fix, test repairs (27a item 5). Running (both slots, `jobs-final.txt` /
+  `jobs-final-rev.txt`): the final year-two arm (`round-13/y2-final`, 5) and the year-one arm (`round-13/arm-final13`,
+  15 sweep-9 hand-overs, round-10 cache, `--cache-any`, against `round-12/arm-final12`; table `round-12/table12.py`).
+  Slot 2 first finishes B's cpv #1 and the sg #2 no-trace check to day 23 (`chainD.sh`, `chainE.sh`).
+- 00:19 **Point-field fix reworked** (the 00:13 form widened every point field's seed: `nest/fleeWater.scenario` (a)
+  went red, one egg flooded in the evacuation; caught by the nest-behaviours folder run before any arm result was
+  used; the two final runs started on the 00:13 tree were killed and their outputs deleted). Now
+  `locomotion/nests.ts pointField` keeps the 1 BU seed and only when the cell centre is cut off from the goal (no open
+  sample near the centre, or one in another nav component than the goal's own nearest open sample) registers a
+  *wide* field (name suffix `;w`, seed radius 1 BU + half the cell's diagonal; `ensureField` re-registers it from the
+  name, so save / load stays exact). Tests: `pointFieldSeed.test` green (red on the old code), `fleeWater.scenario`
+  green; locomotion + behaviours/nest 60 / 62 files (red `sfaReview.verify`, `stall.soak`, known). kd #2 hours 49-68
+  on the live tree: nurse -> idle 'stuck' 157 -> 0, gap hours 8 -> 0 (`probe-nurse-fixed2.txt`).
+  **Closing tree refrozen** 00:18, hash **4725f524** (`final-tree-hash.txt`); final arms relaunched (`jobs-final.txt`
+  / `-rev.txt`, both slots): `round-13/y2-final` (5) and `round-13/arm-final13` (15). Expected done ~02:00.
+- 00:19 **Arm B complete** (`table-y2-B.md`, `account-y2-B.txt`): equal to A in we #2, kd #3, cpv #1 (same final
+  hashes) and sg #2; pp #3 12 -> 11. R40 c fired in none of the five in a way that changed the outcome: in these
+  trajectories the late larvae pupated at >= 12 C (doy 14-16) and the losses are cold pupae left in passages (above).
+  **sg #2 identity**: the restore without `--trace13` (`notrace/`, to game day 23) equals the traced restore and
+  diverges from sweep 12 at the same doy-6 row: not an observer effect; a restore gap in that colony (state equal to
+  doy 5; not traced further this round).
+- 00:37 Final arms running (4 of 20 done: y2 we #2 12 workers at the second winter (base 12, A / B 9), 29 eggs, P
+  delivered 29.9 (A 19.9); year one cpv #1 21 -> 22, cpv #3 18 -> 20, kd #3 10 -> 11 against arm-final12). Probes
+  archived to `round-13/probes/*.ts.txt` and removed from `tools/sim/probe`. R40 d table script `round-13/measure13d.py`
+  (eggs / potential / gates / P delivered, fed, spoiled / old age by day; run on the final arm at the close).
+  Remaining: wait for the arms, tables, the round's results section, cleanup (scratch trees `scratch-r13-base`, `-A`,
+  `-B`, `-final`; no process left).

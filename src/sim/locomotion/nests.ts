@@ -128,11 +128,31 @@ export function pointField(sim: Sim, r: LocoRuntime, p: Vec3): string {
   const ix = Math.round(p.x / q), iy = Math.round(p.y / q), iz = Math.round(p.z / q);
   const id = `${POINT_PREFIX}${ix},${iy},${iz}`;
   if (sim.nestNav.hasTarget(id)) return id;
-  registerPointField(sim, r, id, ix, iy, iz);
-  return id;
+  const wide = id + WIDE_SUFFIX;
+  if (sim.nestNav.hasTarget(wide)) return wide;
+  const use = cellCentreCutOff(sim, ix * q, iy * q, iz * q, p) ? wide : id;
+  registerPointField(sim, r, use, ix, iy, iz);
+  return use;
 }
 
 const POINT_PREFIX = 'loco:pt:';
+/** Name suffix of a point field seeded over the whole quantisation cell (see cellCentreCutOff). */
+const WIDE_SUFFIX = ';w';
+const _o1 = { x: 0, y: 0, z: 0 }, _o2 = { x: 0, y: 0, z: 0 };
+
+/**
+ * Colony-life round 13 (kd #2's nursing gap): the quantised cell centre of a goal can lie in the wall, up to half the
+ * cell's diagonal from a goal that has open space next to it (larvae resting 0.3-1 mm inside a nursery rim). Then
+ * the centre has no open voxel to seed (or seeds one in another component) and the field reads infinite at every
+ * walker: each walk to the goal failed and nurses were handed back to idle 4-13 times a game hour. True in that case:
+ * such a field is seeded over pointFieldR + half the cell's diagonal ("wide", named so a reload rebuilds it the same).
+ */
+function cellCentreCutOff(sim: Sim, cx: number, cy: number, cz: number, goal: Vec3): boolean {
+  const nav = sim.nestNav;
+  if (!nav.nearestOpen(goal, _o2)) return false; // the goal itself has no open space near it: nothing to gain
+  if (!nav.nearestOpen({ x: cx, y: cy, z: cz }, _o1)) return true;
+  return nav.componentAt(_o1) !== nav.componentAt(_o2);
+}
 
 export function isPointField(id: string): boolean {
   return id.startsWith(POINT_PREFIX);
@@ -144,13 +164,15 @@ export function isPointField(id: string): boolean {
  */
 export function ensureField(sim: Sim, r: LocoRuntime, id: string): void {
   if (!id || sim.nestNav.hasTarget(id) || !isPointField(id)) return;
-  const [ix, iy, iz] = id.slice(POINT_PREFIX.length).split(',').map(Number);
+  const [ix, iy, iz] = id.slice(POINT_PREFIX.length).replace(WIDE_SUFFIX, '').split(',').map(Number);
   if (Number.isFinite(ix) && Number.isFinite(iy) && Number.isFinite(iz)) registerPointField(sim, r, id, ix, iy, iz);
 }
 
+/** A wide field (name ending in WIDE_SUFFIX) is seeded over pointFieldR + half the cell's diagonal. */
 function registerPointField(sim: Sim, r: LocoRuntime, id: string, ix: number, iy: number, iz: number): void {
   const q = r.P.pointFieldCell;
-  sim.nestNav.setTarget(id, { points: [{ x: ix * q, y: iy * q, z: iz * q }], radius: r.P.pointFieldR });
+  const radius = id.endsWith(WIDE_SUFFIX) ? r.P.pointFieldR + 0.5 * Math.sqrt(3) * q : r.P.pointFieldR;
+  sim.nestNav.setTarget(id, { points: [{ x: ix * q, y: iy * q, z: iz * q }], radius });
   r.pointFields.push(id);
   while (r.pointFields.length > r.P.pointFieldMax) {
     const old = r.pointFields.shift();

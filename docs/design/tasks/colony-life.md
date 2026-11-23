@@ -659,3 +659,80 @@ rather than half done. The year-one arm (15 hand-overs, against `round-12/arm-fi
 bars as direction 27, and in addition we #3's kind of colony: no colony ends under its R27 carbohydrate that met it
 in the base. Not this round's: the 12 red `ecology/sources` tests, lifespans, `LARVA_P_REQ`, prey values,
 `LAYING_SUPPLY_HORIZON_GD`, base brood mortality.
+
+## Direction 28 (integrator, Nov 23 00:46 UTC) — rulings on round 13's three stops; the round goes on, do not close yet
+
+Read at 00:46 from your ledger entries 23:42-00:37. Accepted as built: the year-two cache and its identity (4 of 5),
+R40 a, b, c (`pupationIntoCold`, "outside spring"), R41 with the winter path in every colony's want, D33 (the yield
+prior), the point-field seed fix in its 00:19 form, 27a item 5. My premise for R40 b was partly wrong (carbRamp was
+0.9-1.0 in we #2 and kd #3); it stays built. Arm A is the finding of the round: R40 a released 21 more eggs and
+they hatched into a protein shortage (larva starvation 9 -> 19, eclosions 47 -> 42, second winters 71 -> 64). Eggs were
+not the lever alone; the protein behind each egg is.
+
+**Do not close the round when the running final arms (`y2-final`, `arm-final13`) finish.** They become the base of
+the next arms. Build the three rulings below in the live tree while they run, freeze a new closing tree, run the
+arms listed at the end, then close. Keep the ledger current; if your context runs short, write the hand-over line a
+successor needs and close with what is measured.
+
+### R42 — the cold does not catch workers outside (27a item 4)
+
+Your trace: workers set out at 7-9 C surface air, where the thermal speed multiplier is 0.1-0.2 and a 0.3 gd trip
+takes 1-2 gd; they stall at 0 near the entrance and die `lost`. Ants do not leave the nest in that cold. Rule:
+- **No departure:** a worker does not start an outdoor trip (forage, tend, scout, and any other task's surface leg
+  that leaves the mound) while the surface air at the entrance gives a thermal speed multiplier under
+  `OUTDOOR_DEPART_MIN_SPEED` 0.5. The allocator's "surface workable" test reads the same threshold, so demand for
+  outdoor tasks is not raised for a surface nobody may walk on (those workers are free for nest tasks or idle).
+- **Turn back:** a worker outside whose own speed multiplier falls under `OUTDOOR_TURN_BACK_SPEED` 0.35 ends her trip
+  and homes at once (carrying what she has).
+- No change to RETURN_LOST_S, the thermal curve or `worker:cold`.
+Tests: entrance air at the 0.4 point -> no departures for 0.2 gd, forage / tend / scout demand 0, nobody outside; a
+forager 100 BU out when her multiplier crosses 0.35 turns home. Say in the ledger which air temperatures the two
+thresholds are on Lasius' curve. Carbohydrate check in the year-one arm: if a colony that met R27 misses it because
+late-autumn trips stop, report stock against need by day: I rule.
+
+### R40 c2 — brood lying outside a brood chamber is a nurse's first job
+
+Your trace: we #2's late pupae were not pupated into the cold; they were put down in a passage (chamberId -1) or in
+chamber 14551 during a carry in hours with `flee.run` and egg flooding, and lay there untended at 2.5-5.4 C while
+the nurses stood in chamber 5542. Rule: any brood item, at any stage, that lies outside a chamber or in a chamber the
+colony does not use for brood is a move job for nurses, taken ahead of feeding, tending and grooming (after a
+starving larva's feed); it is carried to the brood chamber the stage's placement rule picks (warmest dry one for
+pupae). A carry that is interrupted (flee, task change, hand-back) puts the item down as now, and the item is
+re-queued by this rule at once. First trace why the carried pupae were put down where they were (which interruption)
+and say so; fix that too if it is a defect (for example a carrier that drops instead of finishing a carry she could
+finish). Test: 5 pupae on a passage floor, 4 nurses, a dry brood chamber 20 BU away -> all 5 in the chamber within
+0.1 gd; an interrupted carry's item is picked up again.
+
+### R43 — the protein behind an adult (my lever; one dose, measured)
+
+With the present constants growth past 1 x is not reachable in year two: a colony of 13-19 delivers 20-35 P in the
+year (0.35-0.6 P a forager game day of hunting), a larva asks LARVA_P_REQ 1.2, and the founding cohort's turnover
+alone needs ~12 adults. Dose arms, year two from the cache only (5 runs each), on the new closing tree (final arms'
+tree + R42 + R40 c2):
+- **dose 1:** `LARVA_P_REQ` 1.2 -> 0.8 (one constant; everything that reads it follows: remaining need, the
+  brood-need gate, the prospective demand).
+- **dose 2 (run only if dose 1 misses the year-two interim bars):** dose 1 + the patch prey's protein per carried
+  item x 1.4 (springtail `deadP` 0.25 -> 0.35; mites and the other patch kinds in the same proportion; carrion and
+  honeydew unchanged).
+Choose the smaller dose that meets: second winter >= 1.0 x first winter in >= 3 of 5, the five second winters
+together >= the five first winters together, larvae starved in year two <= half of arm A's 19. Report for both the
+base (final arms) and each dose: eggs, eclosions, larvae starved, P delivered / fed / spoiled, second winters, R27
+at the second winter, and how many reach 1.5 x (R34's bar: 3 of 5). Do not move anything else of mine
+(`LAYING_SUPPLY_HORIZON_GD`, lifespans, base brood mortality). Update the tests and DEVIATIONS rows that state the
+constant (the `workedExample` red is known; say whether the new constant moves it).
+
+### Smaller items
+- **`outdoor/homeRange.test` case 2** (red with D33): the test measures a heading bias after 4000 ticks of free
+  foraging, so any change of trajectory moves it. Restate it so the scout's memory and position are set by the test,
+  not by a run (same assertion, bar 0.1); do not leave it red.
+- **sg #2's restore gap** (state equal through doy 5, diverges at the doy-6 row, with and without the observer): a
+  save that does not continue as the unsaved run is a defect for the player's saves. Not this round's to trace;
+  record the repro (cache file, command, first diverging row and field) in the ledger's "Next" list.
+
+### Arms from here (model-free, no more than these)
+1. base = the running `y2-final` and `arm-final13` (do not rerun them).
+2. year two from the cache on the new closing tree at dose 1; dose 2 only by the rule above.
+3. one year-one arm of the chosen tree on the 15 hand-overs against `round-12/arm-final12`, with `arm-final13` as
+   the middle column. Bars as direction 27 (viable >= 14, median P intake / need >= 0.45, brood hygiene <= 15, R27
+   kept) plus: runs without a lost worker >= 13 of 15.
+Then tables, the round's results section, cleanup, close.
