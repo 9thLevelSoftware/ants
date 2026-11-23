@@ -24,8 +24,8 @@ export function ageGd(sim: Sim, s: FoodSource): number {
   return (sim.state.tick - s.spawnedTick) / TICKS_PER_DAY;
 }
 
-/** Updates one source over dtGd game days (normally one hour). May remove it. */
-export function updateSource(sim: Sim, s: FoodSource, dtGd: number): void {
+/** Updates one source over dtGd game days (normally one hour) under the rules of `tier`. May remove it. */
+export function updateSource(sim: Sim, s: FoodSource, dtGd: number, tier: number = ECOLOGY_TIER): void {
   if (!s.alive) return;
   const d = defOf(s);
   if (!d) return;
@@ -33,14 +33,14 @@ export function updateSource(sim: Sim, s: FoodSource, dtGd: number): void {
   if (s.stage !== null && d.carrion) {
     if (advanceCarrion(sim, s, dtGd)) return; // removed as a husk
   } else {
-    const lifetime = lifetimeGd(d.variant, d.carrion);
+    const lifetime = lifetimeGd(d.variant, d.carrion, tier);
     if (lifetime > 0 && age >= lifetime) {
       retireSource(sim, s, d.variant === 'elaiosome-seed' ? 'germinated' : 'expired');
       return;
     }
   }
   applySchedules(s, age);
-  if (isInSeason(sim, s)) renew(sim, s, dtGd);
+  if (isInSeason(sim, s, tier)) renew(sim, s, dtGd);
   decay(sim, s, dtGd);
   if (s.alive && isEmpty(s) && !d.renewable) retireSource(sim, s, 'depleted');
 }
@@ -50,8 +50,8 @@ export function updateSource(sim: Sim, s: FoodSource, dtGd: number): void {
  * catalogue row without its own T1 age, e.g. a large corpse turned to carrion at T1) always gets one, so no
  * carcass stays on the map for ever.
  */
-function lifetimeGd(variant: FoodVariant, carrion: boolean): number {
-  const t = sourceDef(variant, ECOLOGY_TIER).lifetimeGd;
+function lifetimeGd(variant: FoodVariant, carrion: boolean, tier: number): number {
+  const t = sourceDef(variant, tier).lifetimeGd;
   return t > 0 || !carrion ? t : T1_CARRION_REMOVE_GD;
 }
 

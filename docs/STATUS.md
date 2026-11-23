@@ -1486,3 +1486,25 @@ Saved: `docs/design/tasks/reviews/colony-life-sweep-15.json`. Tables: `test-outp
 - look-pass-5: controls, views, lifecycle, stage1a strict, panels pass; save script timed out in part B (rerun
   queued); a stand-in run reached beat 25 with two soft failures (worker did not hand over her load; a dig plan's
   anchor not in the nest); inspector pictures under way.
+
+### Nov 23 ~22:30 UTC — item 4 (buried-larva fix) kept by ruling 2's rule; gate-sim-2 fix stage running
+
+Long runs on the two trees (`test-output/gate-sim-2/sweep-long-table.md`, `sweep-long-item4-table.md`):
+
+| tree | winter 1 -> winter 2 (five colonies) | R34 >= 1.0 x | >= 1.5 x | R22 spring | largest lapse loss |
+|---|---|---|---|---|---|
+| reverted (no item 4) | 85 -> 94 | 4 of 5 | 0 of 5 | 5 of 5 | - |
+| **item 4 in (kept)** | 85 -> **105** | 4 of 5 | 1 of 5 | 5 of 5 | 14.3 % |
+
+Per colony at winter 2 (reverted / item 4): cpv #1 32 / 21, kd #3 8 / 13, pp #3 22 / 26, sg #2 19 / 28, we #2 13 / 17.
+- By the letter the kept tree's year-one sweep is 12 of 15 viable (suburban-garden 1 of 3: bar not met; R27 ratios
+  0.97, 0.74, 0.98); the reverted tree had 13 of 15. Different colonies fail in each; both are inside the spread seen
+  across sweeps 11-15 (13-14).
+- Caveat: sg #2 on the kept tree enters its second winter with 28 workers and 0.5 C. The winter-sugar limit (needC
+  does not carry the winter need; R41 withdrawn in round 14 as part of a bundle) is now the first economy lead:
+  candidate for one clean single-rule arm after opening-fix.
+- Review of gate-sim-2 (`reviews/gate-sim-2.json`): fail, 2 major (rulings 1 and 2 not carried out by the
+  implementer), 4 minor; the fix stage has done ruling 1 (12 ecology tests green through a tier argument, hash
+  unchanged), the DEVIATIONS rows, the report corrections and the keep rule. `nest/escapeDig`: the nest opens after
+  8.76 game hours in the test fixture (pre-existing; not fixed). The save / restore continuation gap exists only with
+  item 4: ruling 3 gives the fix engineer one hour to find it.

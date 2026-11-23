@@ -31,6 +31,8 @@ import { createNewGame, defaultGameConfig } from '@/sim/createGame';
 import { spawnAnt } from '@/sim/entities';
 import { walkerPlace } from '@/sim/locomotion/walker';
 import { createSim } from '@/sim/sim';
+import { SYSTEMS } from '@/sim/systems';
+import { makeSourcesSystem } from '@/sim/ecology/sources';
 import { requireSpecies } from '@/sim/species';
 import { defaultWorldParams } from '@/worldgen';
 import { buildFeatures, TEST_FEATURES, type TestFeature } from './testFeatures';
@@ -104,6 +106,11 @@ export interface TestSimOptions extends TestWorldOptions {
   nest?: 'none' | 'small';
   /** Adult workers placed inside the small nest. */
   workers?: number;
+  /**
+   * Ecology rules tier (default ECOLOGY_TIER = 2, R1): the initial sources / plants are made at it and, unless
+   * `systems` is given, the sources system runs it. Tests of the Tier 1 rules pass 1.
+   */
+  ecologyTier?: number;
 }
 
 /**
@@ -119,12 +126,18 @@ export function makeTestSim(opts: TestSimOptions = {}): Sim {
   const base = defaultGameConfig(opts.species ?? 'lasius-niger', opts.seed ?? 1);
   const pinned = (opts.species ?? 'lasius-niger') === 'lasius-niger' ? TEST_START : {};
   const config: GameConfig = { ...base, ...pinned, cheats: true, world: world.params, ...opts.config };
-  const { state } = createNewGame(config, world);
-  const sim = createSim(state, world, { systems: opts.systems, behaviours: opts.behaviours });
+  const { state } = createNewGame(config, world, { ecologyTier: opts.ecologyTier });
+  const sim = createSim(state, world, { systems: opts.systems ?? tierSystems(opts.ecologyTier), behaviours: opts.behaviours });
   const workers = opts.workers ?? 0;
   if (opts.nest === 'small') addWorkers(sim, workers);
   else if (workers > 0) throw new Error("makeTestSim: workers need nest: 'small'");
   return sim;
+}
+
+/** The default system list with the sources system at `tier` (undefined: the default list itself). */
+function tierSystems(tier: number | undefined): readonly System[] | undefined {
+  if (tier === undefined) return undefined;
+  return SYSTEMS.map((s) => (s.name === 'sources' ? makeSourcesSystem(tier) : s));
 }
 
 /** Installs the small nest and spreads `n` workers over its chambers, standing on the floors. */

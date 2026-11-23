@@ -122,14 +122,14 @@ describe('decay and schedules', () => {
   // GDD 05 §1.2 writes the 3 gd only on insect-small; T1 drops every carrion stage, so all T1 carrion gets it
   // (T1_CARRION_REMOVE_GD, review decision), including a large corpse turned to carrion at T1.
   it('T1 carrion (small, medium, and a corpse made carrion) is removed 3 gd after it appeared, with its event', () => {
-    const sim = makeSourceSim();
+    const sim = makeSourceSim({ tier: 1 }); // the game runs T2 (R1): the T1 rule is reached by its tier argument
     const seen = collect(sim);
     const p = centre(sim);
     const corpse = spawnItem(sim, { kind: 'corpse', pos: p, init: { c: 1, p: 10, bulk: 20 } });
     const list = [
-      createSource(sim, { variant: 'insect-small', pos: p }),
-      createSource(sim, { variant: 'insect-medium', pos: p }),
-      sim.stores.sources.get(carrionFromItem(sim, corpse.id))!,
+      createSource(sim, { variant: 'insect-small', pos: p, tier: 1 }),
+      createSource(sim, { variant: 'insect-medium', pos: p, tier: 1 }),
+      sim.stores.sources.get(carrionFromItem(sim, corpse.id, 1))!,
     ];
     expect(list[2].variant).toBe('insect-large');
     expect(T1_CARRION_REMOVE_GD).toBe(3);

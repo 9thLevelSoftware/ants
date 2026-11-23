@@ -1,4 +1,5 @@
 // Deliverable 2 / 5: sources from placement tables at New Game, runtime carrion drops, the T1 crumb rule.
+// The game runs Tier 2 (R1, ECOLOGY_TIER = 2): the T1 cases pass tier 1 explicitly (gate-sim-2, integrator ruling 1).
 
 import { describe, expect, it } from 'vitest';
 import { v3DistanceSq } from '@/core/math/vec3';
@@ -14,6 +15,7 @@ import { addWorker, anchor, makeSourceSim, stepTicks } from './testkit';
 describe('sources from food anchors (New Game)', () => {
   it('creates one source per anchor that makes one at T1, with the anchor id, season mask and start state', () => {
     const sim = makeSourceSim({
+      tier: 1,
       anchors: [
         anchor('nectar', 100, 100), anchor('nectar', 120, 100, 'empty'), anchor('honeydew', 140, 100),
         anchor('crumb', 160, 100), anchor('crumb', 180, 100), anchor('crumb', 200, 100), anchor('crumb', 220, 100),
@@ -49,12 +51,12 @@ describe('sources from food anchors (New Game)', () => {
 
   it('cluster sizes are rolled within the catalogue range and scaled by foodAbundanceMult', () => {
     const anchors = Array.from({ length: 40 }, (_, i) => anchor('sugar', 50 + i * 10, 200));
-    const nat = makeSourceSim({ anchors });
+    const nat = makeSourceSim({ anchors, tier: 1 });
     const units = nat.stores.sources.list.map((s) => s.units);
     expect(Math.min(...units)).toBeGreaterThanOrEqual(50);
     expect(Math.max(...units)).toBeLessThanOrEqual(300);
     const difficulty = { preset: 'gentle' as const, params: { ...DIFFICULTY_PARAMS.gentle }, custom: {} };
-    const gentle = makeSourceSim({ anchors: [anchor('nectar', 100, 100), anchor('honeydew', 200, 100)], config: { difficulty } });
+    const gentle = makeSourceSim({ anchors: [anchor('nectar', 100, 100), anchor('honeydew', 200, 100)], config: { difficulty }, tier: 1 });
     const [flower, site] = gentle.stores.sources.list;
     expect(flower.capacity).toBeCloseTo(1.5 * 1.3, 9); // pools x foodAbundanceMult
     expect(flower.refillPerGd).toBeCloseTo(4 * 1.3, 9); // refill x foodAbundanceMult
@@ -65,16 +67,16 @@ describe('sources from food anchors (New Game)', () => {
 describe('carrion drops', () => {
   it('drops the expected T1 numbers per day (x4 small and medium), placed in the zone and away from ants', () => {
     const world = makeTestWorld({ sizeBu: 2000 });
-    const sim = makeSourceSim({ world });
+    const sim = makeSourceSim({ world, tier: 1 });
     const ant = addWorker(sim, { x: world.size / 2, y: 0, z: world.size / 2 });
     const plots = zonePlots(world).lawn;
     expect(plots).toBeCloseTo(400, 6);
     const season = calendarNow(sim).season;
     const mult = CARRION_MULT.naturalist;
-    const small = carrionDropsPerGd(0, 'lawn', plots, season, mult);
-    const medium = carrionDropsPerGd(1, 'lawn', plots, season, mult);
+    const small = carrionDropsPerGd(0, 'lawn', plots, season, mult, 1);
+    const medium = carrionDropsPerGd(1, 'lawn', plots, season, mult, 1);
     expect(small).toBeCloseTo(0.02 * 4 * 400 * (season === 'summer' ? 1 : season === 'spring' ? 0.8 : 0.7), 9);
-    expect(carrionDropsPerGd(2, 'lawn', plots, season, mult)).toBe(0); // insect-large is T2
+    expect(carrionDropsPerGd(2, 'lawn', plots, season, mult, 1)).toBe(0); // insect-large is T2
     stepTicks(sim, TICKS_PER_DAY);
     const live = sim.stores.sources.list.filter((s) => s.alive);
     const nSmall = live.filter((s) => s.variant === 'insect-small').length;
@@ -97,7 +99,7 @@ describe('carrion drops', () => {
 describe('T1 crumb rule', () => {
   it('re-places 30 % of the consumed clusters at 12:00 and respects the 60-cluster cap', () => {
     const anchors = Array.from({ length: 10 }, (_, i) => anchor('crumb', 100 + i * 20, 300, 'crumb-starch'));
-    const sim = makeSourceSim({ anchors });
+    const sim = makeSourceSim({ anchors, tier: 1 });
     for (const s of sim.stores.sources.list.slice()) retireSource(sim, s, 'depleted');
     expect(sim.state.worldDelta.consumedAnchors).toHaveLength(10);
     let replacedAt = -1;
@@ -113,7 +115,7 @@ describe('T1 crumb rule', () => {
 
   it('does not exceed 60 live clusters', () => {
     const anchors = Array.from({ length: 70 }, (_, i) => anchor('crumb', 20 + (i % 35) * 25, 200 + Math.floor(i / 35) * 50, 'crumb-starch'));
-    const sim = makeSourceSim({ anchors });
+    const sim = makeSourceSim({ anchors, tier: 1 });
     const live = sim.stores.sources.list.filter((s) => s.alive);
     for (const s of live.slice(0, 10)) retireSource(sim, s, 'depleted');
     stepTicks(sim, TICKS_PER_DAY);

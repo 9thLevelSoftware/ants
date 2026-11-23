@@ -25,4 +25,4 @@ export {
   removeSourcesInArea, reprojectSources, type HumanFoodEvent,
 } from './runtime';
 export { dayOffer, sustainedOffer, zonePlotsWithin, type FoodOffer, type OfferOptions } from './budget';
-export { sourcesSystem, runSources, syncAvoidBits } from './system';
+export { sourcesSystem, makeSourcesSystem, runSources, syncAvoidBits } from './system';

@@ -76,10 +76,10 @@ describe('windows by year fraction', () => {
 
   it('T1 flowers are open all year; out of season a T2 window also stops the refill', () => {
     const sim = simWithSeasonLength(7);
-    const flower = createSource(sim, { variant: 'flower', pos: centre(sim) });
+    const flower = createSource(sim, { variant: 'flower', pos: centre(sim), tier: 1 }); // T1 by argument (R1: game is T2)
     for (const yf of [0.01, 0.3, 0.6, 0.9]) {
       setYearFrac(sim, yf);
-      expect(isInSeason(sim, flower)).toBe(true);
+      expect(isInSeason(sim, flower, 1)).toBe(true);
     }
     const efn = createSource(sim, { variant: 'extrafloral-nectary', pos: centre(sim), tier: 2, empty: true });
     setYearFrac(sim, 21 / 28); // past day 20

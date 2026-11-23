@@ -127,12 +127,15 @@ export function buildMarkerScene(p: MarkerSceneInput): MarkerSceneDesc {
     keyParts.push('ts', round(p.tunnelStart));
   }
   for (const [t, color] of [[p.hover, HOVER_COLOR], [p.selected, SELECT_COLOR]] as const) {
-    if (!t || t.kind === 'ant' || t.kind === 'brood' || t.kind === 'item') continue; // those glow in their own renderer
-    const r = t.kind === 'chamber' ? chamberRadius(sim, t.id) : 1.6 * bu;
+    // ants and items glow in their own renderer; brood is a millimetre across and its glow is lost at the colony view's distance (look
+    // pass 5, item 6: a pinned egg could not be found in the chamber), so there it also gets a ring
+    if (!t || t.kind === 'ant' || t.kind === 'item' || (t.kind === 'brood' && !p.colony)) continue;
+    const r = t.kind === 'chamber' ? chamberRadius(sim, t.id) : t.kind === 'brood' ? 0.7 * bu : 1.6 * bu;
+    const at = t.kind === 'brood' ? sim.stores.brood.get(t.id)?.pos ?? t.pos : t.pos;
     const pos: number[] = [];
-    pushGroundRing(pos, t.pos, r, null, 0);
+    pushGroundRing(pos, at, r, null, 0);
     lines.push({ positions: pos, color, style: color === HOVER_COLOR ? 'dashed' : 'solid', dash: bu });
-    keyParts.push('h', t.kind, t.id, color);
+    keyParts.push('h', t.kind, t.id, color, t.kind === 'brood' ? round(at) : '');
   }
   const points: MarkerPointSet[] = [];
   const xray = p.colony && p.cutaway === 'xray';

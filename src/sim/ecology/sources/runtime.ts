@@ -8,7 +8,7 @@ import { removeItem } from '@/sim/entities';
 import { zoneAt } from '@/sim/world';
 import {
   CARRION_BULK_CLASSES, CHILDREN_FOOD, HUMAN_DROP_CRUMBS, HUMAN_DROP_CRUST_SHARE, SOURCE_REPROJECT_MAX_BU,
-  SPILL_INDOOR_GRANULE_SHARE, type WindfallFruit,
+  ECOLOGY_TIER, SPILL_INDOOR_GRANULE_SHARE, type WindfallFruit,
 } from '@/sim/balance/ecology';
 import { createSource, rollSpillMm } from './spawn';
 import { retireSource } from './remove';
@@ -42,11 +42,11 @@ export function carrionVariantForBulk(bulk: number): FoodVariant {
  * A corpse or carcass item lying outside becomes a carrion source with the item's nutrients and bulk (the item is
  * removed). Returns the source id, -1 if the item is missing or carried.
  */
-export function carrionFromItem(sim: Sim, itemId: number): number {
+export function carrionFromItem(sim: Sim, itemId: number, tier: number = ECOLOGY_TIER): number {
   const it = sim.stores.items.get(itemId);
   if (!it || it.carrierIds.length > 0) return -1;
   const variant = carrionVariantForBulk(it.bulk);
-  const s = createSource(sim, { variant, pos: it.pos, units: 1, stage: it.stage });
+  const s = createSource(sim, { variant, pos: it.pos, units: 1, stage: it.stage, tier });
   s.unitBulk = it.bulk;
   s.c = it.c;
   s.p = it.p;

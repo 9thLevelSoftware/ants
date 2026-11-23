@@ -2,13 +2,6 @@
 // royal chamber's floor; the walk to a brood item resolved its goal straight up through the soil to the ground above
 // (locomotion/trip.ts snapToSurface), so every nurse with a full crop walked out of the nest and back. A goal a little
 // inside a solid now moves to the nearest free space (the chamber beside it).
-//
-// REVERTED in gate-sim-2's close (spec item 8: an item that costs the viability bar is reverted): with the fix the
-// suburban-garden colonies sg #2 / sg #3 of the close sweep raised more brood and ended short of their R27 winter
-// carbohydrate (0.97 x, 0.74 x); with only trip.ts put back, both were viable (1.79 x, 1.06 x) from the same
-// hand-overs (test-output/gate-sim-2/off-item4). The fix is kept in test-output/gate-sim-2/trip.ts.item4-reverted and
-// these cases are skipped until the integrator rules on the winter-carbohydrate limit; they are red on the reverted
-// trip.ts (52 mm / 114 nurse-ticks outside, the defect as it stands).
 import { describe, expect, it } from 'vitest';
 import { snapToSurface } from '@/sim/locomotion/trip';
 import { makeNestColony } from './testkit';
@@ -20,7 +13,7 @@ function buryInFloor(k: ReturnType<typeof makeNestColony>, larvaId: number): num
   return sim.field.sample(b.pos);
 }
 
-describe.skip('a larva lying a little inside the chamber floor (gate-sim-2 item 4; fix reverted, see header)', () => {
+describe('a larva lying a little inside the chamber floor (gate-sim-2 item 4)', () => {
   it('the walk goal of a point 1 mm inside the chamber wall is beside it in the chamber, not on the ground above', () => {
     const k = makeNestColony({ workers: 0 });
     const { sim, nursery } = k;
@@ -29,7 +22,7 @@ describe.skip('a larva lying a little inside the chamber floor (gate-sim-2 item 
     for (let i = 0; i < 400 && sim.field.sample(p) > -1.0; i++) p.x += 0.1;
     const inWall = { ...p };
     expect(sim.field.sample(inWall)).toBeLessThan(-1.0);
-    snapToSurface(sim, p, sim.world.bu); // with the fix: snapToSurface(sim, p, bu, true), the goal of an in-nest item / brood
+    snapToSurface(sim, p, sim.world.bu, true); // the goal of a brood or item lying in the nest
     expect(sim.field.sample(p)).toBeGreaterThanOrEqual(0);
     expect(Math.hypot(p.x - inWall.x, p.y - inWall.y, p.z - inWall.z)).toBeLessThan(sim.world.bu);
     expect(p.y).toBeLessThan(nursery.center.y + nursery.radii.y);

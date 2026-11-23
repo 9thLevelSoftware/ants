@@ -28,3 +28,7 @@
   on the hand-over tree. So the fddce888/cf83827c gap of the first close sweep's tree is newer than this task's start.
 - 21:32 STARTED restore check on final tree copy (scratchpad/frozen-live) sg#2 g2 mode -> test-output/gate-sim-2-review/live-sg2-g2;
   compare with sweep2 sg#2 in-process finalHash.
+- 21:40 RESULT: final tree sg#2 restore = e112bd51 = sweep2 in-process: EXACT. Gap only seen on item-4 tree.
+- 21:45 all 4 reviewer verify files green (8 tests). tsc: only src/game/uiBridge/inspectSlice.ts (other engineer WIP).
+  Someone else started sweep-long-item4 runs (integrator) at ~21:40: not mine, left alone.
+- DONE: writing final StructuredOutput.

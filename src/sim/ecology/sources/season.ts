@@ -4,7 +4,7 @@
 
 import type { FoodSource, Season, Sim } from '@/sim/types';
 import { SEASONS } from '@/sim/types';
-import { DEFAULT_SEASON_LENGTH_DAYS } from '@/sim/balance';
+import { DEFAULT_SEASON_LENGTH_DAYS, ECOLOGY_TIER } from '@/sim/balance';
 import { calendarNow } from '@/sim/environment';
 import { defaultVariant, sourceDef } from './def';
 
@@ -32,9 +32,9 @@ export function seasonBit(season: Season): number {
  * Whether the source is in season now: its catalogue window (for the game's tier: T1 flowers are always open) and
  * its season mask both allow it.
  */
-export function isInSeason(sim: Sim, s: FoodSource): boolean {
+export function isInSeason(sim: Sim, s: FoodSource, tier: number = ECOLOGY_TIER): boolean {
   const cal = calendarNow(sim);
   if ((s.seasonMask & seasonBit(cal.season)) === 0) return false;
   const v = s.variant ?? defaultVariant(s.kind);
-  return windowActive(v ? sourceDef(v).window : null, cal.yearFrac);
+  return windowActive(v ? sourceDef(v, tier).window : null, cal.yearFrac);
 }

@@ -27,8 +27,9 @@ export function rowLabel(key: string): string {
   return w.charAt(0).toUpperCase() + w.slice(1);
 }
 
-function unitText(unit: string): string {
-  if (unit === 'game days') return 'game days';
+/** "1 game day", "0.3 game days": the singular for exactly one (look pass 5: the card read "1 game days"). */
+function unitText(unit: string, n: string): string {
+  if (unit === 'game days' && n === '1') return 'game day';
   return unit;
 }
 
@@ -64,7 +65,7 @@ export function rowValue(r: UiInspectRow): string {
   if (r.key === 'size' && r.unit === 'x L') return `${numberText(v)} \u00d7 our length`;
   const count = !r.unit;
   const n = count ? String(Math.round(r.value)) : numberText(v);
-  const num = count ? n : `${n}${r.unit === '%' ? ' %' : ` ${unitText(r.unit)}`}`;
+  const num = count ? n : `${n}${r.unit === '%' ? ' %' : ` ${unitText(r.unit, n)}`}`;
   if (isTail(word)) return /BU down$/.test(word) ? `${num}, ${word}` : `${num} ${word}`;
   return `${word} (${num})`;
 }

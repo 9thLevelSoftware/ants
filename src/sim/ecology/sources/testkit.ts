@@ -4,20 +4,23 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, ActionId, FoodAnchor, GameConfig, Sim, WorldData } from '@/sim/types';
 import { spawnAnt } from '@/sim/entities';
 import { makeTestSim, makeTestWorld } from '@/sim/testing';
-import { sourcesSystem } from './system';
+import { makeSourcesSystem, sourcesSystem } from './system';
 
 export interface SourceSimOptions {
   anchors?: Omit<FoodAnchor, 'id'>[];
   world?: WorldData;
   config?: Partial<GameConfig>;
   sizeBu?: number;
+  /** Ecology rules tier of the sources made from anchors and of the sources system (default ECOLOGY_TIER). */
+  tier?: number;
 }
 
 /** A test sim running only the sources system; the world may carry food anchors. */
 export function makeSourceSim(o: SourceSimOptions = {}): Sim {
   const world = o.world ?? makeTestWorld({ sizeBu: o.sizeBu ?? 256 });
   if (o.anchors) world.placements.foodAnchors = o.anchors.map((a, i) => ({ ...a, id: i }));
-  const sim = makeTestSim({ world, systems: [sourcesSystem], config: o.config });
+  const systems = [o.tier === undefined ? sourcesSystem : makeSourcesSystem(o.tier)];
+  const sim = makeTestSim({ world, systems, config: o.config, ecologyTier: o.tier });
   sim.index.refresh();
   return sim;
 }

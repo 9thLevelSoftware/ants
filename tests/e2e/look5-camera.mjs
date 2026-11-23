@@ -37,9 +37,12 @@ export default async ({ page, log, out }) => {
     }
     const flanks = [];
     for (const p of sim.world.prims) {
-      if (p.shape !== 'ellipsoid' || p.size.x < 15 || p.size.y < 8) continue;
+      // a stone (flower heads are ellipsoids too and read as polka dots up close: not a slope to test on); the 45 degree point of its
+      // x-y section: slope -(b2 x)/(a2 y) = -1 at x = a2 / hypot(a, b), y = b2 / hypot(a, b)
+      if (p.shape !== 'ellipsoid' || p.material !== 'stone' || p.size.x < 20 || p.size.y < 10) continue;
       const d = Math.hypot(p.pos.x - sp[0], p.pos.z - sp[2]);
-      if (d < 3000) flanks.push({ id: p.id, d, mat: p.material, x: p.pos.x + 0.5 * p.size.x, y: p.pos.y + 0.707 * p.size.y, z: p.pos.z + 0.5 * p.size.x, rx: p.size.x, ry: p.size.y });
+      const a = p.size.x, b = p.size.y, h = Math.hypot(a, b);
+      if (d < 8000) flanks.push({ id: p.id, d, mat: p.material, x: p.pos.x + (a * a) / h, y: p.pos.y + (b * b) / h, z: p.pos.z, rx: p.size.x, ry: p.size.y });
     }
     flanks.sort((a, b) => b.rx - a.rx);
     // the nest: entrance and chamber of the player's colony

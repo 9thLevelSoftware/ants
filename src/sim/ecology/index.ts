@@ -11,6 +11,7 @@ import {
   nearestSource as nearestSourceImpl, sourceDef, sourcesSystem, takeFromSource, type SourceFilter,
 } from './sources';
 import { herdTendingSystem, initPlants, plantCommandHandlers, plantsSystem } from './plants';
+import { ECOLOGY_TIER } from '@/sim/balance/ecology';
 
 // Source-related API (owner: sources-core). The full API lives in ./sources (re-exported below).
 export * from './sources';
@@ -69,9 +70,9 @@ export function freeSlots(sim: Sim, sourceId: number): number {
  * Creates the initial ecology entities (sources from food anchors, plant states, herds) at New Game.
  * Sources: sources-core; plant states and herds: ecology-plants; creatures: creatures.
  */
-export function initEcology(ctx: EntityCtx, world: WorldData): void {
-  initSources(ctx, world);
-  initPlants(ctx, world);
+export function initEcology(ctx: EntityCtx, world: WorldData, tier: number = ECOLOGY_TIER): void {
+  initSources(ctx, world, tier);
+  initPlants(ctx, world, tier);
 }
 
 // ---- commands owned by this module ----

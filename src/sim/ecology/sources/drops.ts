@@ -35,7 +35,7 @@ export function zonePlots(world: WorldData): Record<ZoneType, number> {
 }
 
 /** Adds this step's expected carrion drops to the accumulators and places the whole ones. */
-export function runCarrionDrops(sim: Sim, dtGd: number): number {
+export function runCarrionDrops(sim: Sim, dtGd: number, tier: number = ECOLOGY_TIER): number {
   const acc = sim.state.ecology.carrionAcc;
   const season = calendarNow(sim).season;
   const mult = CARRION_MULT[sim.state.config.difficulty.preset];
@@ -48,9 +48,9 @@ export function runCarrionDrops(sim: Sim, dtGd: number): number {
       if (plots[zone] <= 0) continue;
       const k = vi * ZONE_TYPES.length + zi;
       if (k >= acc.length) continue;
-      acc[k] += carrionDropsPerGd(vi, zone, plots[zone], season, mult) * dtGd;
+      acc[k] += carrionDropsPerGd(vi, zone, plots[zone], season, mult, tier) * dtGd;
       while (acc[k] >= 1) {
-        if (!dropCarrion(sim, rng, CARRION_DROP_VARIANTS[vi], zone)) break; // no spot this hour: retry next hour
+        if (!dropCarrion(sim, rng, CARRION_DROP_VARIANTS[vi], zone, tier)) break; // no spot this hour: retry next hour
         acc[k] -= 1;
         placed++;
       }
@@ -62,7 +62,7 @@ export function runCarrionDrops(sim: Sim, dtGd: number): number {
 const antScratch: number[] = [];
 
 /** Places one carrion source of the variant at a random surface point of the zone, away from ants. */
-function dropCarrion(sim: Sim, rng: RngState, variant: FoodVariant, zone: ZoneType): boolean {
+function dropCarrion(sim: Sim, rng: RngState, variant: FoodVariant, zone: ZoneType, tier: number): boolean {
   const p = v3Zero();
   for (let t = 0; t < CARRION_DROP_TRIES; t++) {
     if (!randomPointInZone(sim.world, rng, zone, p)) return false;
@@ -71,7 +71,7 @@ function dropCarrion(sim: Sim, rng: RngState, variant: FoodVariant, zone: ZoneTy
     if (sim.index.queryAnts(p, CARRION_DROP_MIN_ANT_BU * sim.world.bu, antScratch).length > 0) continue;
     const up = v3Zero();
     sim.field.normal(p, up);
-    createSource(sim, { variant, pos: p, up, carcass: variant === 'large-carcass' ? carcassType(rng) : undefined });
+    createSource(sim, { variant, pos: p, up, carcass: variant === 'large-carcass' ? carcassType(rng) : undefined, tier });
     return true;
   }
   return false;
@@ -132,9 +132,9 @@ export function isCrumbHour(sim: Sim): boolean {
 }
 
 /** Re-places 30 % of the consumed T1 crumb clusters (stochastic rounding), up to the live-cluster cap. */
-export function replaceCrumbs(sim: Sim): number {
+export function replaceCrumbs(sim: Sim, tier: number = ECOLOGY_TIER): number {
   const consumed = sim.state.worldDelta.consumedAnchors;
-  const variants = anchorVariants(sim.world);
+  const variants = anchorVariants(sim.world, tier);
   const crumbIds = consumed.filter((id) => {
     const v = variants.get(id);
     return v === 'crumb-starch' || v === 'crumb-protein';
@@ -152,7 +152,7 @@ export function replaceCrumbs(sim: Sim): number {
   for (const id of chosen) {
     const a = byId.get(id);
     const v = variants.get(id);
-    if (a && v) sourceFromAnchor(sim, a, v);
+    if (a && v) sourceFromAnchor(sim, a, v, tier);
     consumed.splice(consumed.indexOf(id), 1);
   }
   return chosen.length;

@@ -9,13 +9,16 @@ import { isAvoidedBy } from './discovery';
 import { isCrumbHour, replaceCrumbs, runCarrionDrops } from './drops';
 import { updateSource } from './lifecycle';
 
-/** One hourly step of every source, the carrion drops and the T1 crumb rule. */
-export function runSources(sim: Sim, dtGd: number): void {
+/**
+ * One hourly step of every source, the carrion drops and the T1 crumb rule, under the rules of `tier`. The game runs
+ * ECOLOGY_TIER (R1); tests of the Tier 1 rules pass 1 (gate-sim-2, integrator ruling 1).
+ */
+export function runSources(sim: Sim, dtGd: number, tier: number = ECOLOGY_TIER): void {
   const list = sim.stores.sources.list;
   const n = list.length; // sources created during the step wait for the next one
-  for (let i = 0; i < n; i++) updateSource(sim, list[i], dtGd);
-  runCarrionDrops(sim, dtGd);
-  if (ECOLOGY_TIER === 1 && isCrumbHour(sim)) replaceCrumbs(sim);
+  for (let i = 0; i < n; i++) updateSource(sim, list[i], dtGd, tier);
+  runCarrionDrops(sim, dtGd, tier);
+  if (tier === 1 && isCrumbHour(sim)) replaceCrumbs(sim, tier);
   syncAvoidBits(sim);
 }
 
@@ -30,8 +33,13 @@ export function syncAvoidBits(sim: Sim): void {
   }
 }
 
-/** Source renewal, decay, carrion stages, drops and the T1 crumb rule. */
-export const sourcesSystem: System = {
-  name: 'sources', phase: 'ecology', every: HOURLY_EVERY, offset: SOURCES_OFFSET,
-  run: (sim) => runSources(sim, HOURLY_EVERY / TICKS_PER_DAY),
-};
+/** The sources system under the rules of `tier` (same name, cadence and offset at every tier). */
+export function makeSourcesSystem(tier: number = ECOLOGY_TIER): System {
+  return {
+    name: 'sources', phase: 'ecology', every: HOURLY_EVERY, offset: SOURCES_OFFSET,
+    run: (sim) => runSources(sim, HOURLY_EVERY / TICKS_PER_DAY, tier),
+  };
+}
+
+/** Source renewal, decay, carrion stages, drops and the T1 crumb rule, at the game's tier. */
+export const sourcesSystem: System = makeSourcesSystem();

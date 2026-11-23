@@ -50,8 +50,11 @@ viable. kd #3 again raises no worker (7 larvae starved: item 4's defect, reverte
 
 - **R22** (spring >= 0.7 x winter 1): 4 of 5 -> **5 of 5** (bar 4 of 5, met). sg #2 no longer loses its queen to
   starvation over the winter (sweep 15: queen:starvation 1, worker:starvation 9, winter C 0; final: winter C 8.0,
-  no starvation death). That is the winter-path fix (`queen.ts winterPathRamp`): sweep 15's sg #2 entered winter
-  with no carbohydrate.
+  no starvation death): sweep 15's sg #2 entered winter with no carbohydrate. **No single change is credited with
+  this** (correction after review): the winter-path change (`queen.ts winterPathRamp`) is a no-op on the default
+  28-day year that life.ts runs (`defaultYearDoy` = `floor(d * 28 / daysPerYear) + 1` equals `dayOfYear` at 7-day
+  seasons, `src/sim/time.ts`; no Lasius hash change), so the difference is variant f or the chaos of one run per tree
+  (direction 13); no paired run separates them.
 - **R24** (first year-2 egg): sg #2 "-" -> doy 3; the other four unchanged (3, 6, 5, 3).
 - **R34** (second winter >= 1.0 x / >= 1.5 x winter 1): 3 of 5 -> **4 of 5** at 1.0 x (bar 4 of 5, met); 0 of 5 ->
   0 of 5 at 1.5 x (bar 3 of 5, not met; a growth bar, a known limit per the integrator note). kd #3 still fails
@@ -79,12 +82,12 @@ given).
 | 3 | `behaviours/outdoor/appendixE23` | round 15 (variant e) | the retrace's consumption cut the carrion trail | defect (variant e) | item 2: variant f | green |
 | 4 | `behaviours/nest/sfaReview.verify` (marker removed mid-window) | before round 15 | fixture expects the board built by tick 2 of a window; nurses no longer read the board every tick (think cadence) | stale fixture | waits for a window whose board is built, then removes the marker; all assertions kept | green |
 | 5 | `behaviours/nest/stall.soak` | since viab-loco item 6 | idle ants dozing in a crowded room (designed standing, `locomotion/system.ts dozing`) counted as "moving at speed 0": 7722 of 7784 stalled ant-ticks (`tools/sim/probe/g2-stall.ts`) | stale | dozed ticks (`locoStats().dozed`) taken out of the count; limit unchanged (1 %) | green |
-| 6 | `nest/escapeDig` case 1 (closed nest reopened within 2.5 game h) | at least Nov 22 06:25 (`git archive` bisect: red at 9c2e6ea (never opened in 8 h), 1dc8d36, 9de71c1, 0a54841 (opened after 870 ticks = 3.5 h)) | the 16-worker test nest's escape dig is chaotic: 520 ticks when written, 870 on Nov 22 trees, green once in this task's first folder run, red again on the final tree | left red (not one change; an execution-speed bound) | owner nest (escape dig: one face of a 2 BU shaft at a time sets the time; R14's 4 h bound is not built as a rule) | red |
+| 6 | `nest/escapeDig` case 1 (closed nest reopened within 2.5 game h) | at least Nov 22 06:25 (`git archive` bisect: red at 9c2e6ea (never opened in 8 h), 1dc8d36, 9de71c1, 0a54841 (opened after 870 ticks = 3.5 h)); red on the hand-over tree 6cd38ed (reviewer) | **opens at 2190 ticks = 8.76 game h** on the final tree (reviewer's `nest/escapeDigLong.verify`; 520 ticks when written, 870 on Nov 22 trees; 2.2 x R14's 4 h). Red in three repeat runs on one tree: not nondeterminism (the "green once" of the first folder run was on a tree changing under it). Mechanism traced (gate-sim-2 fix, section 6 item 8): the shaft's top sphere keeps 2 of its 18 target samples, both at the ground surface, just below open (98 and 125 of 128) from 4.6 h to 8.6 h, so it stays under `SPHERE_DONE` 0.9 and the entrance cannot open through them | left red (dig rule; a Lasius-wide change needs a sweep) | owner nest (plans / bite at the surface) | red |
 | 7 | `nest/flood/readersCost.verify` | written red (sweep-8 review, Nov 22) | flood readers rebuild the spill geometry per carve (F1: save / load equality) while the model rebuilds per 5 s; measured cost 0.04 ms/tick (colony-life ledger) | left red (design trade-off) | owner nest/flood: needs a determinism-preserving cache design | red |
 | 8 | `nest/architect/layout` 50 ms | timing | 76.9 ms at load 6-7 (the existing guard skips at load > 8) | timing | guard already present; not widened | red (timing) |
 | 9 | `locomotion/perf` criterion 7 | timing | 5.9 ms > 5 (2 x budget) under load | timing | `heavyLoad()` guard added, strict mode kept | red (timing at load ~6; guard only above load 8) |
 | 10 | `ants/actions/runner.test` failure codes | before round 15 | `mill-seed` gained a `who` hook (Messor minors); the runner read any `who` as "the species has it" and answered `caste` for a Lasius worker (GDD 01 §7.1: `species`) | defect | `ActionDef.whoWithinSpecies` on species-module caste exceptions (mill-seed, cut-leaf, process-leaf); runner answers `species` for them | green |
-| 11 | `ecology/sources` x12 (budget x3, drops x4, integration, lifecycle T1 carrion, season T1 flowers, tier1 spill x2) | Nov 16 (R1) | they test Tier 1 rules; `ECOLOGY_TIER` is the constant 2 since R1 (f55c559), so the T1 paths cannot be reached by a game or a test | left red (unreachable code) | owner ecology/sources: needs a per-game tier switch (test seam) or the T1 rules retired with the tests | red |
+| 11 | `ecology/sources` x12 (budget x3, drops x4, integration, lifecycle T1 carrion, season T1 flowers, tier1 spill x2) | Nov 16 (R1) | they test Tier 1 rules with the default tier; `ECOLOGY_TIER` is the constant 2 since R1 (f55c559). (The first report said the T1 paths "cannot be reached by a test": wrong, several already took the tier as an argument, see the reviewer's `tierReach.verify`.) | stale (integrator ruling 1) | gate-sim-2 fix: the running rules take the tier as an argument defaulting to `ECOLOGY_TIER` (`makeSourcesSystem(tier)`, `updateSource`, `isInSeason`, `runCarrionDrops`, `replaceCrumbs`, `carrionFromItem`, `sourceFromAnchor`, budget `OfferOptions.tier`, `initEcology`, `createNewGame(..., { ecologyTier })`, `makeTestSim({ ecologyTier })`, `makeSourceSim({ tier })`); the game passes nothing; the 12 tests pass tier 1 (D39); hash check section 0b | **green** (118 / 118) |
 | 12 | `src/sim/time.test` no hard-coded season length | round 10 (R35) | `PROSPECTIVE_WINTER_FROM_DOY = 7` and `winterPathC` read the calendar's own doy: with 5- or 10-day seasons the winter path started in another season | defect | `queen.ts winterPathRamp(doy28)` on the default-year day; constant = `DEFAULT_SEASON_LENGTH_DAYS`; test `colony/winterPathSeason.test.ts` (red without); no Lasius hash change at 7-day seasons | green |
 | 13 | `tests/docs/docs-final` | ? | see after-run | - | - | green (8 / 8) |
 | 14 | `src/sim/services.test` CP diggability | species-carpenter | GDD 07 §5.2.6 "no soil nests" made CP's loam 0 | stale | restated to the constant (D36) | green |
@@ -285,6 +288,13 @@ can only be bounded by a day.
   P +0.05 -> +3.05); `handoverStomach.verify` case 1 restated to R2's intent; GDD 07 larval costs
   (`species/derive.test`: CP major 2.33 -> 1.55 P, CP gyne 10.1 -> 6.7 P, MB major 3.0 -> 2.0 P, AT major 6.7 ->
   5.0 FL; `speciesData.verify`: AT gyne by the mass rule 42 -> 31.5 FL).
+- Added by the gate-sim-2 fix (review findings): **R43** split (its own part of the worked example: larval P 2.40 ->
+  1.60 per larva and gd at the chapter's 0.5 gd stage); **D37** (the worked example's 0.5 gd larval stage against the
+  species devRate's 0.44 gd at 25 C, r(25) = 1.364: pre-existing, misfiled under R43 before); **D38** (`types/ids.test`
+  alert count 37 -> 38 for the additive `founding-flooding`; `stall.soak` share 0.324 with dozing counted -> dozed
+  ticks left out, about 0.26 %, limit 1 % unchanged); **R39** row extended (`testing/gate1b/seams` tend demand = Σ
+  slots, 6 in its fixture -> R39's bounds min(slots, keep) <= d <= slots, d > 0); **D39** (the Tier 1 rules reached by
+  a tier argument, ruling 1).
 - Not deviations (defects fixed at their cause, the GDD's rule unchanged): the winter path read on
   the default year (`queen.ts winterPathRamp`), the runner's failure code (`whoWithinSpecies`).
 
@@ -298,21 +308,39 @@ can only be bounded by a day.
    1.06 x without it, 0.74 x with it). Needs a ruling: fix it and accept, or rule the winter-carbohydrate limit first.
 2. **Colonies that end short of winter carbohydrate (R27)** — the colony-life limit, unchanged: three of the first close
    sweep's misses were 0.97 x, 0.98 x and 0.74 x of the need; needC does not carry the winter need (R41, withdrawn).
-3. **sg #2 save -> load continuation differs** from the in-process run on the same tree (first close sweep's tree:
-   in-process final hash cf83827c, NOT viable; restored from the same hand-over fddce888, viable). sg #3 restores
-   exactly. A restore-equality gap like round 14's; not traced; it makes every paired claim on sg #2 that compares a
-   restored run with an in-process one unsafe.
+3. **sg #2 save -> load continuation differed on the item-4 tree only.** First close sweep's tree (55c4dfff, item 4
+   in): in-process final hash cf83827c, NOT viable; restored from the same hand-over fddce888, viable. Integrator
+   ruling 2 item 5 was answered by the reviewer's two runs (`test-output/gate-sim-2-review/`): on the hand-over tree
+   (`scratch-r15e`) from sweep 15's hand-over, restored = 633b09ce = sweep 15's in-process hash; on a copy of the
+   final tree (43fbaf86) from the close sweep's hand-over, restored = e112bd51 = sweep2's in-process hash. So the
+   gap is not older than this task and not on the closing tree: it was seen only with item 4 in. A likely mechanism
+   (not traced): item 4's `climbToFree` reads `sim.field.gradient`, so any field term that a restore does not
+   rebuild exactly (a pile / mound overlay) would steer it differently after a load. If item 4 is ever taken back, a
+   restore-equality check of item 4 comes first. First differing day: not measured.
 4. **Foragers loop between a standing alarm and the way home** (`behaviours/outdoor/review.verify` "lasting threat"):
    62-159 flee runs per forager, over the trip bound on 1-2 of 6 seeds with either retrace variant.
 5. **Diggers holding a pellet in `dig.stow` for up to 1.5 gd** (sg #2 of sweep 15, gd 9.5-11, three of four diggers;
    the plan got no pellets for 1.25 gd while the colony's carbohydrate ran out). Suspected stow -> fail -> claim ->
    stow loop; not traced (item 5).
 6. **Growth bars** R19 (P intake, first workers >= 9, no-lost), R34 — see the sweep tables; not chased (spec).
-7. **Tier 1 food rules are unreachable** (`ECOLOGY_TIER` constant 2): 12 red tests in `ecology/sources` test code the
-   game cannot run. Retire them or add a per-game tier switch.
-8. **Escape dig of a closed nest** takes 3.5 h or more in the test nest (`nest/escapeDig`), against 2.5 h in its test
-   and 4 h in R14; R13 / R14 are still not built as checked rules, and the sweep JSONs cannot show either (no
-   flooded share, day resolution only).
+7. **Tier 1 food rules: reached by a tier argument, not by the game** (fixed after review, integrator ruling 1; D39):
+   the 12 `ecology/sources` tests are green with tier 1 passed explicitly. Still on the game's tier (no argument):
+   the season checks in `ecology/sources/harvest.ts` and `discovery.ts`, and the plants' `nectarTier()`; a T1 game
+   would need those too.
+8. **Escape dig of a closed nest opens after 8.76 game h** in the test nest (`nest/escapeDig` red, 2.5 h asked;
+   reviewer's `nest/escapeDigLong.verify` logs 2190 ticks; R14's bound is 4 h; red on the hand-over tree 6cd38ed and
+   in three repeat runs). Trace (gate-sim-2 fix, probe archived as
+   `test-output/gate-sim-2-fix/zzEscapeProbe.tmp.test.ts.txt`, output `escape-probe.txt`): the 7-sphere shaft plan
+   has 4 spheres done at 3.0 h and 6 at 4.6 h; the top-but-one sphere (centre 1.3 mm above the ground) then keeps 2
+   of its 18 target samples closed for 4 game hours, both on the ground surface (substrate 0.0) and both just below
+   open (98 and 125 of `OPEN_MIN` 128), so it stays at 16 / 18 < `SPHERE_DONE` 0.9 while the diggers' bites land
+   beside them; the entrance opens only once those surface samples open (8.6 h). Experiment (reverted): counting
+   substrate-0 samples as open air (`plans/targets.ts sampleInOpenAir`, `>= 0`) completes the plan at 3.0 h, but the
+   entrance then never opens in 10 h: the slow step is cutting the last surface samples from below (bite aim /
+   capsule at the surface, `plans/frontier.ts planDigAim`, `PLAN_AIM_MAX_DEG` 85), not the plan's bookkeeping. Not
+   fixed: a bite or aim change alters every Lasius dig and needs a sweep (none is left in this task). Owner nest.
+   R13 / R14 are still not built as checked rules, and the sweep JSONs cannot show either (no flooded share, day
+   resolution only); the R14 probe over the 15 hand-overs (section 3) passed.
 9. **Flood readers rebuild the spill model per carve** (`nest/flood/readersCost.verify`, by design for save / load
    equality; 0.04 ms/tick measured in colony-life).
 10. **Worldgen reds not traced here:** `place/outdoor` (floating leaves, climb routes stuck, impassable / useless
@@ -335,6 +363,12 @@ can only be bounded by a day.
 
 None in `src/sim/types/**` or `src/core/**`. Additive within owned module APIs: `ActionDef.whoWithinSpecies?`
 (`src/sim/ants/actions/types.ts`), `winterPathRamp(doy28)` (new export, `src/sim/colony/queen.ts`). No new persisted state.
+Added by the gate-sim-2 fix (ruling 1), all optional with defaults that keep the game's behaviour: `createNewGame(cfg,
+world?, opts?: NewGameOptions)` with `ecologyTier?` (`src/sim/createGame.ts`); `TestSimOptions.ecologyTier?`
+(`src/sim/testing/testWorld.ts`); `initEcology(ctx, world, tier?)`; in `src/sim/ecology/sources`: `makeSourcesSystem(tier?)`
+(new export; `sourcesSystem` = `makeSourcesSystem()`), a trailing `tier?` on `runSources`, `updateSource`, `isInSeason`,
+`runCarrionDrops`, `replaceCrumbs`, `carrionFromItem`, `sourceFromAnchor`, `OfferOptions.tier?`, `SourceSimOptions.tier?`.
+The tier is not persisted (the game never sets it: R1).
 
 
 ## 8. Evidence paths

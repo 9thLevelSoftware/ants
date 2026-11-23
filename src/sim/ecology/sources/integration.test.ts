@@ -11,7 +11,7 @@ describe('sources in the full simulation', () => {
     world.placements.foodAnchors = [
       anchor('nectar', 800, 800), anchor('honeydew', 1200, 900), anchor('crumb', 1000, 1400), anchor('sugar', 1500, 1500),
     ].map((a, id) => ({ ...a, id }));
-    const sim = makeTestSim({ world });
+    const sim = makeTestSim({ world, ecologyTier: 1 }); // the T1 anchor set (R1: the game is T2; ruling 1 of gate-sim-2)
     expect(sim.systems.some((s) => s.name === 'sources')).toBe(true);
     expect(sim.stores.sources.count).toBe(4);
     for (let i = 0; i < TICKS_PER_DAY; i++) {

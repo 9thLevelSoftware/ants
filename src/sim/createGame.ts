@@ -193,8 +193,14 @@ export function initialState(config: GameConfig, world: WorldData): SimState {
   };
 }
 
+/** Test-only creation options; the game passes none. */
+export interface NewGameOptions {
+  /** Ecology rules tier the initial sources and plants are made at (default ECOLOGY_TIER = 2, R1). */
+  ecologyTier?: number;
+}
+
 /** Creates a new game. Pass `world` to use a prepared world (tests); otherwise it is generated from config. */
-export function createNewGame(cfg: GameConfig, world?: WorldData): { state: SimState; world: WorldData } {
+export function createNewGame(cfg: GameConfig, world?: WorldData, opts: NewGameOptions = {}): { state: SimState; world: WorldData } {
   // A generated world follows the rules; a prepared world (tests) keeps the params it was built with.
   const config = world ? cfg : syncWorldParams(cfg);
   startCalendarTick(config); // refuses an invalid start (winter) before the world is generated
@@ -230,7 +236,7 @@ export function createNewGame(cfg: GameConfig, world?: WorldData): { state: SimS
   colony.queenId = queen.id;
   colony.queens.push({ antId: queen.id, lifespanDays: null }); // senescence draw: overwinter-repro
 
-  initEcology(ctx, w);
+  initEcology(ctx, w, opts.ecologyTier);
   initRivals(ctx, w);
   return { state, world: w };
 }

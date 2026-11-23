@@ -162,3 +162,19 @@ happens to those colonies **after** the winter, which the long runs measure (sg 
    `scratch-r15e` from the same hand-over if a slot is free while the long runs go (is it older than this task?);
    report with the first differing day either way. Do not chase it further here.
 Ruling 1 (the `ecology/sources` tier argument) still stands; do it after the last run has started, with the hash check.
+
+## Integrator ruling 3 (22:30 UTC Nov 23) - item 4 is kept; its restore gap
+- **Item 4 is kept** (your keep rule: 105 against 94 workers at the second winter, largest lapse loss 14.3 %, no queen
+  lost; R34 on the item-4 tree 4 of 5 at 1.0 x and 1 of 5 at 1.5 x). The report states the close tree's year-one count
+  by the letter (first sweep: 12 of 15, suburban-garden 1 of 3, bar not met; R27 ratios 0.97 / 0.74 / 0.98) beside the
+  reverted tree's 13 of 15, and both long tables. sg #2 on the item-4 tree enters its second winter with 28 workers and
+  0.5 C: say so - it is known limit 7 (needC does not carry the winter need) made sharper by a larger colony.
+- **The restore gap exists only with item 4** (reviewer: sg #2 restores exactly on the round-15 tree and on the
+  reverted tree; in-process cf83827c against restored fddce888 on the item-4 tree). Find the first tick at which the
+  restored run differs and the term `climbToFree` reads that a save does not restore exactly (the reviewer's lead: a
+  field term such as a pile overlay in `sim.field.gradient`). Fix it if the cause is a term not restored or rebuilt
+  in a different order, with a test that runs sg #2's save / restore equal (the 36000-tick equality of round 14 is the
+  model). **Timebox: one hour from when you read this.** If it is not fixed by then, item 4 stays in, the gap is
+  written into the report's "still wrong" list with the first differing tick and what was ruled out, and the next task
+  (`opening-fix.md`) inherits it. No new sweep for this.
+- Then close. The next sim task starts as soon as you return.

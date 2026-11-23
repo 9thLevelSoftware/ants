@@ -30,6 +30,8 @@ export interface OfferOptions {
   radiusMm?: number;
   /** Season for the drop rates (default: now). */
   season?: Season;
+  /** Rules tier (default ECOLOGY_TIER; tests of the T1 rules pass 1). */
+  tier?: number;
 }
 
 function emptyOffer(): FoodOffer {
@@ -70,10 +72,11 @@ function expectedDrops(sim: Sim, o: FoodOffer, opts: OfferOptions): void {
   const plots = zonePlotsWithin(sim, opts.center, opts.radiusMm);
   const season = opts.season ?? calendarNow(sim).season;
   const mult = CARRION_MULT[sim.state.config.difficulty.preset];
+  const tier = opts.tier ?? ECOLOGY_TIER;
   CARRION_DROP_VARIANTS.forEach((v, vi) => {
-    const d = sourceDef(v);
+    const d = sourceDef(v, tier);
     for (const z of ZONE_TYPES) {
-      const n = carrionDropsPerGd(vi, z, plots[z], season, mult);
+      const n = carrionDropsPerGd(vi, z, plots[z], season, mult, tier);
       if (n > 0) add(o, v, n * d.c * d.units[0], n * d.p * d.units[0]);
     }
   });
@@ -87,7 +90,7 @@ function inRange(pos: Vec3, opts: OfferOptions): boolean {
 export function dayOffer(sim: Sim, opts: OfferOptions = {}): FoodOffer {
   const o = emptyOffer();
   for (const s of sim.stores.sources.list) {
-    if (!s.alive || !inRange(s.pos, opts) || !s.variant || !isInSeason(sim, s)) continue;
+    if (!s.alive || !inRange(s.pos, opts) || !s.variant || !isInSeason(sim, s, opts.tier)) continue;
     add(o, s.variant, s.units * s.c + s.refillPerGd * s.c, s.units * s.p + s.refillPerGd * s.p);
   }
   expectedDrops(sim, o, opts);
@@ -98,15 +101,16 @@ export function dayOffer(sim: Sim, opts: OfferOptions = {}): FoodOffer {
 export function sustainedOffer(sim: Sim, opts: OfferOptions = {}): FoodOffer {
   const o = emptyOffer();
   for (const s of sim.stores.sources.list) {
-    if (!s.alive || !inRange(s.pos, opts) || !s.variant || s.refillPerGd <= 0 || !isInSeason(sim, s)) continue;
+    if (!s.alive || !inRange(s.pos, opts) || !s.variant || s.refillPerGd <= 0 || !isInSeason(sim, s, opts.tier)) continue;
     add(o, s.variant, s.refillPerGd * s.c, s.refillPerGd * s.p);
   }
-  if (ECOLOGY_TIER === 1) {
-    const variants = anchorVariants(sim.world);
+  const tier = opts.tier ?? ECOLOGY_TIER;
+  if (tier === 1) {
+    const variants = anchorVariants(sim.world, tier);
     for (const a of sim.world.placements.foodAnchors) {
       const v = variants.get(a.id);
       if ((v !== 'crumb-starch' && v !== 'crumb-protein') || !inRange(a.pos, opts)) continue;
-      const d = sourceDef(v);
+      const d = sourceDef(v, tier);
       const mean = (d.units[0] + d.units[1]) / 2;
       add(o, v, CRUMB_REPLACE_FRACTION * mean * d.c, CRUMB_REPLACE_FRACTION * mean * d.p);
     }

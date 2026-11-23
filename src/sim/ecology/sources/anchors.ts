@@ -44,10 +44,10 @@ export function anchorVariant(a: FoodAnchor, crumbIndex: number, tier: number = 
 }
 
 /** Creates the source of one anchor. */
-export function sourceFromAnchor(ctx: EntityCtx, a: FoodAnchor, variant: FoodVariant): FoodSource {
+export function sourceFromAnchor(ctx: EntityCtx, a: FoodAnchor, variant: FoodVariant, tier: number = ECOLOGY_TIER): FoodSource {
   return createSource(ctx, {
     variant, pos: a.pos, up: a.up, objectId: a.hostObjectId, anchorId: a.id, seasonMask: a.seasonMask,
-    empty: a.initialState.split(/[\s,;:]+/).includes(EMPTY_STATE),
+    empty: a.initialState.split(/[\s,;:]+/).includes(EMPTY_STATE), tier,
   });
 }
 
@@ -81,7 +81,7 @@ export function initSources(ctx: EntityCtx, world: WorldData, tier: number = ECO
   for (const a of world.placements.foodAnchors) {
     const v = variants.get(a.id);
     if (!v) continue;
-    sourceFromAnchor(ctx, a, v);
+    sourceFromAnchor(ctx, a, v, tier);
     made++;
   }
   return made;
