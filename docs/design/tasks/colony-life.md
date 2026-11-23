@@ -834,3 +834,81 @@ Do now, then close the round:
    once (a) is fixed.
 3. Leave `/home/user/scratch-r13-final3` and `-final3-dose1` in place (round 14 uses them); delete the other
    scratch trees. Close with the year-one table in the results.
+
+## Direction 29 (integrator, Nov 23 04:56 UTC) — round 14: restore year one, then brood survival in year two
+
+Round 13 is closed (ledger "### Round 13 results" and its closing addendum; the workflow was stopped before sweep 13
+on purpose). The live tree is v3 = round 12 + R40 a-c, R41, D33, the point-field fix, R42 (0.3 / 0.25), R44, test
+repairs, `life.ts --save-y2 / --from / --trace13`. Measured against round 12:
+
+| | round 12 tree | v3 (live) |
+|---|---|---|
+| year one, 15 hand-overs: workers / viable / median P / median C | 266 / 14 / 0.482 / 1.386 | 273 / **11** / 0.370 / 1.302 |
+| year one: R27 lost (met in round 12) | - | we #3, sg #2, kd #3; kd #2 not viable (starvation stage) |
+| year one: runs without a lost worker | 11 | 13 |
+| year two, 5 from the cache: second winters (winter 1: 82) | 71 | 70 |
+| year two: eggs / eclosions | 122 / 47 | 136 / 49 (dose 0.8: 198 / 49) |
+
+So the set costs year one three colonies' winter carbohydrate and buys nothing in year two. Two findings stand
+behind the next step: (1) adults raised in year two are ~49 whatever the eggs (136 or 198): brood survival, not
+laying, is the limit (v3, dose 0: base 34, untended 19, hygiene 18, flooding 8, starvation 8, exposure 7,
+temperature 5; at dose 0.8 hygiene 70); (2) round 13's fixes of defects are real (nurse walks 157 failures -> 0,
+larvae no longer pupate into the cold, lost workers 4 -> 2).
+
+**This round and the next are the last two of this task.** What the bars do not reach after round 15 is written up
+as known limits and the project moves on.
+
+**Constants.** In this round you ARE authorized to change, exactly as ordered below and nowhere else:
+`LARVA_P_REQ` (to 0.8), `BROOD_SURVIVAL` (the base brood survival per stage), and to switch round 13's rules off
+in scratch copies for the bisect. Other balance constants of mine stay (`LAYING_SUPPLY_HORIZON_GD`, lifespans, prey
+values, `TEND_HEADROOM`, the R42 thresholds).
+
+### Part A — restore year one (first; mostly runs, so work on Part B while they run)
+1. **Bisect by switch-off.** From the live tree make scratch copies with one of round 13's rules switched off each
+   (an `R13_OFF` switch in the copy only, as round 12's hygiene probe did): D33 (old yield prior), R44 (demand over
+   both nutrients), R41 (needC on the plain stock target), R40 a's carbohydrate want (no winter path in
+   `carbStockWanted`), R40 b (ramp 1 x -> 2 x), R42 (no cold gate). Run each to winter on the four colonies that
+   fail (we #3, sg #2, kd #3, kd #2) and two that do not (we #1, cpv #1): 6 x 6 runs, three slots. Table: winter C /
+   need, viable, workers, P and C intake, forage / tend worker gd, trips by nutrient, lost.
+2. **Rule by the table (yours to apply, then say what you applied):** a rule whose switch-off restores R27 in at
+   least 2 of the 3 carbohydrate failures and harms neither control is taken out of the live tree (code reverted to
+   round 12's form for that rule, its tests removed or restated, DEVIATIONS row marked withdrawn), unless the table
+   shows a defect in it that a small fix cures, in which case fix and rerun those six. If two rules each restore,
+   take out the one whose removal costs least elsewhere and rerun with only that out before removing the second. If
+   no single switch-off restores, run the pairs D33 + R44 off and R41 + R40 a off; if still none, stop and write
+   the numbers: I rule. Hypotheses to test, not to assume: D33 doubles the forage head-count on a true yield of
+   ~0.5 and the extra foragers burn carbohydrate; R42 ends late-autumn carbohydrate trips (every R27 miss has
+   too-cold turn-backs).
+3. **Confirm:** one year-one arm of the resulting tree on all 15 against `round-12/arm-final12`. Bars: viable >= 14,
+   R27 kept, runs without a lost worker >= 12, median P >= 0.45 (if P alone misses, report and go on).
+
+### Part B — the save -> load -> continue gap (while Part A's runs go)
+`outdoor/determinism.perf` (red on the live tree) and sg #2's year-two cache on the round-12 tree
+(`round-13/cache-y2/y2-suburban-garden-2.bin`; repro in the ledger's round-13 "Next" (b)). Find the state that a
+save does not carry or a load rebuilds differently (bisect by tick: save at T, compare the two runs' state hashes
+tick by tick after T, then field by field at the first tick that differs). Fix at the cause; add a test that saves
+and continues on that very state. A player's save must continue as the unsaved game does. If the fix changes what a
+save file holds, bump or extend the save format as the code base does it elsewhere and keep old saves loading.
+
+### Part C — brood survival in year two (after A is confirmed; arms from `round-13/cache-y2`, 5 runs each)
+Base of the arms: Part A's tree, year two from the cache (5 runs).
+1. **Stray and late pupae (untended 19):** the round-13 lead: on the small test nest 5 pupae on the shaft wall, 1
+   rescued in 0.6 gd, carriers walking to the surface and back with nothing carried. Trace the `rescue` job for an
+   item on a passage wall (reach, pick-up position, claim) and fix it; test as you have it, bar 5 of 5 in 0.2 gd.
+2. **Hygiene under a larger brood (18, and 70 at the dose):** cpv #1 from the cache on the dose tree
+   (`/home/user/scratch-r13-final3-dose1`, or Part A's tree with `LARVA_P_REQ` 0.8): per day, waste items by kind
+   (meconium, adult corpses of the old-age deaths, dead brood, food remains) in each chamber holding brood, haulers
+   and their states, where the queen stands and lays, eggs dead of hygiene. Name what fills the chamber and why it
+   is not carried out, and fix that (candidates: old-age corpses left in the nest; the queen laying in a chamber
+   over tolerance while a clean one exists; D32's haul cap not applying to the royal chamber). No change to
+   `wasteTolerance` or the hygiene hazard.
+3. **Dose arms, in this order, each kept only if it helps:** (i) items 1 + 2; (ii) + `BROOD_SURVIVAL`: halve the
+   base loss of every stage (survival s -> 1 - (1 - s) / 2); (iii) + `LARVA_P_REQ` 0.8. Year-two bars: second winter
+   >= 1.0 x first winter in >= 3 of 5 and the five together >= 82; R34's bar (4 of 5 at 1.0 x, 3 of 5 at 1.5 x)
+   stands as the task's. Keep the smallest set that meets the interim bars, or the best set if none does, provided
+   the year-one arm of that tree still meets Part A's bars (rerun the 15 once at the end).
+4. Report eggs, hatched, pupated, eclosed, deaths by cause, P delivered / fed / spoiled, old age, R27 at the second
+   winter for every arm.
+
+Must-haves if the round runs long: Part A complete; Part B traced (fixed if the cause is small); Part C items 1 and 2
+traced. Keep the ledger's "## Round 14" progress current so a successor can continue; keep `round-13/cache-y2`.

@@ -5177,3 +5177,77 @@ brood on a shaft wall); (6) kd #3's 37 eggs dead of hygiene in the final arm.
   198 but egg hygiene 6 -> 37, cpv #1 25 -> 13, sg #2 16 -> 26): **not adopted, the live tree stays at 1.2.** Now: one
   year-one arm of v3 (dose 0) on the 15, three slots; results section updated; "Next" as direction 28c orders; keep
   the two final3 scratch trees; then close.
+- 04:04 **y2-dose1 complete** (`table-y2-dose1.md`, `account-y2-dose1.txt`; the integrator's tree, LARVA_P_REQ 0.8): second
+  winter 11 / 26 / 13 / 20 / 0 = 70 (>= 1.0 x 1 of 5: sg #2 1.37 x), eggs 23 / 45 / 54 / 58 / 18 = 198 (>= 35: 3 of 5),
+  eclosions 49 (dose 0: 49), larvae starved 16 (bar <= 9.5: NOT met; dose 0: 8), P delivered 129.6 (dose 0: 130.9),
+  egg hygiene 38 (cpv #1 21, pp #3 14), R27 4 of 5 (kd #3 0 workers). **Dose 1 misses direction 28's interim bars**
+  (>= 1.0 x 1 of 5, sum 70 < 82, starved 16 > 9.5): by the rule dose 2 is next and is the integrator's to make
+  (dose 1 + patch prey deadP x 1.4). Reading: the lower LARVA_P_REQ lets ~45 % more eggs through the protein gates,
+  but the same protein (130 P) and the same nurses raise the same 49 adults; the extra eggs die of hygiene (laid into
+  dirty chambers) and as starving larvae.
+  **Running the year-one arm on the dose tree was refused by this session's permission check** (the round's task
+  text keeps LARVA_P_REQ out of the engineer's hands; three parallel runs were refused too). Instead: the year-one
+  arm of **v3 (dose 0)** on the 15 hand-overs (`arm-final13c`, two slots), which judges R44 and R42 at 0.3 / 0.25.
+- 04:15 arm-final13c (year one, v3) 2 of 15 done.
+
+### Round 13 results, closing addendum (directions 28, 28a, 28b, 28c; supersedes the "Not done" and "Next" above)
+
+**Year two, all arms (second winter; winter 1 = 13 / 19 / 19 / 21 / 10 = 82):**
+| arm (tree, LARVA_P_REQ) | we #2 | sg #2 | cpv #1 | pp #3 | kd #3 | sum | >= 1.0 x | eggs | eclosions | larvae starved | R27 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| base (round 12, 1.2) | 12 | 19 | 22 | 15 | 3 | 71 | 2 | 122 | 47 | 9 | 5 / 5 |
+| A (R40 a + b) | 9 | 18 | 21 | 12 | 4 | 64 | 1 | 143 | 42 | 19 | 5 / 5 |
+| B (A + c) | 9 | 18 | 21 | 11 | 4 | 63 | 1 | 143 | 42 | 19 | 5 / 5 |
+| final 4725f524 | 12 | 15 | 14 | 18 | 1 | 60 | 0 | 177 | 38 | 6 | 5 / 5 |
+| v2 6d1c6f09 (+ R42 0.5 / 0.35) | 11 | 19 | 18 | 13 | 5 | 66 | 1 | 132 | 43 | 8 | 4 / 5 |
+| **v3 9f5935ce** (+ R44, R42 0.3 / 0.25) | 10 | 16 | 25 | 16 | 3 | 70 | 1 | 136 | 49 | 8 | 4 / 5 |
+| v3 dose 1 (integrator's tree, 0.8) | 11 | 26 | 13 | 20 | 0 | 70 | 1 | 198 | 49 | 16 | 4 / 5 |
+(v3 / dose rows: `table-y2-final3.md`, `table-y2-dose1.md`; the closing tree's own hash recipe gives 9f5935ce for v3,
+`final3-tree-hash.txt` records the shorter recipe's hash.) Year-two bars: not met in any arm (best >= 1.0 x: 2 of 5 in
+the base; best sum 71). R34's 1.5 x: 0 of 5 except dose 1's sg #2 (1.37) and v3's cpv #1 (1.32): still 0 at 1.5 x.
+The dose is not adopted (direction 28c): the live tree stays at LARVA_P_REQ 1.2.
+
+**Not done:** R40 c2 (traced as far as the board; reverted; lead below); the R43 dose arms were made and run on the
+integrator's tree (this session may not change the constant, and may not run the year-one arm on it); 27a item 4 became
+R42; the dose-2 arm (not needed: direction 28c).
+
+**Next (round 14, in direction 28c's order):**
+(a) hygiene under a larger brood: cpv #1 at dose 1 from the year-two cache (`/home/user/scratch-r13-final3-dose1`,
+`cache-y2/y2-car-park-verge-1.bin`): which chamber, waste by kind and day (meconium, corpses of the old-age deaths,
+dead brood), who hauls, where the queen lays; and kd #3's dirty royal chamber (37 egg hygiene deaths in the final
+arm, 3-4 workers);
+(b) the save -> load -> continue gap: sg #2 (`cache-y2/y2-suburban-garden-2.bin`, `life.ts --seed 2 --archetype
+suburban-garden --until-day 23 --from <it>` on the round-12 tree: first diverging row doy 6, `meanLarvalHunger`,
+`storesC`, `storesP`, `byTask`) and `outdoor/determinism.perf` (red since D33's trajectory);
+(c) the passage-brood carry: 5 pupae on the small test nest's shaft wall, 1 back in a brood chamber after 0.6 gd, the
+carriers walking to the surface and back with nothing carried (`nurse.carry`, nav moving);
+(d) the year-one arm's R42-against-R27 and trips at wC > wP after R44 (below);
+(e) the dose again once (a) is fixed.
+- 04:30 arm-final13c 8 of 15 done; results addendum written (year-one table to follow).
+- 04:31 year-one table script round-13/table13y1.py (arms final12 / final13 / final13b / final13c); partial on 8 of 15 in table-y1-final13c-partial.md; 7 runs left, 2 slots (~20 min).
+- 04:44 arm-final13c 13 of 15; last two (pp #3, sg #3) running.
+
+**Year one, v3 (9f5935ce, LARVA_P_REQ 1.2) on the 15 round-10 hand-overs** (`arm-final13c`, `table-y1-final13c.md`
+from `table13y1.py`; `table12-y1-final13c.txt` from round-12's `table12.py arm-final12 ../round-13/arm-final13c`):
+| arm | workers | viable | median P | median C | hygiene | R27 met | runs no lost | lost | larvae starved | forage + scout trips C / P | too-cold trips | curfew trips |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| arm-final12 (round 12) | 266 | 14 | 0.482 | 1.386 | 9 | 14 | 11 | 4 | 7 | 502 / 49 | 0 | 236 |
+| arm-final13 (final 4725f524) | 260 | 12 | 0.403 | 1.247 | 9 | 13 | 12 | 5 | 7 | 540 / 56 | 0 | 246 |
+| arm-final13b (v2, R42 0.5 / 0.35) | 268 | 10 | 0.360 | 1.156 | 12 | 11 | 15 | 0 | 4 | 507 / 46 | 84 | 102 |
+| **arm-final13c (v3, + R44, R42 0.3 / 0.25)** | **273** | **11** | **0.370** | **1.302** | **10** | **12** | **13** | **2** | **3** | 537 / 38 | 102 | 157 |
+Bars (direction 28c) on v3: viable >= 14 NOT met (11); median P >= 0.45 NOT met (0.370); hygiene <= 15 met (10);
+R27 kept NOT met (we #3, sg #2, kd #3 lose it: winter C 3.33 / 6.36, 3.27 / 4.90, 3.56 / 4.46, against 13.9, 7.1, 6.4 in
+round 12); runs without worker:lost >= 13 met (13; the 2 lost are we #1 and pp #1, one each). Non-viable: we #3, sg #2,
+kd #3 (stores, R27), kd #2 (starvation stage, longest stretch worse than lean 1.25 gd). Behaviours ms / tick kd #1
+0.351 -> 0.391 (bar 0.30, not met in round 12 either).
+Reading for (d): v3 against v2 regains carbohydrate (median C 1.16 -> 1.30, R27 11 -> 12, viable 10 -> 11) at the
+lower thresholds, keeps the lost workers down (0 -> 2 against 4-5 before R42), but every R27 miss is a colony with
+too-cold turn-backs (we #3 9, sg #2 4, kd #3 2) and the curfew + too-cold trips (259) are in the range of round 12's
+curfew trips alone (236): the cold now ends trips earlier rather than more of them. Protein trips fell (forage and scout, 49 in round 12,
+46 in v2, 38 in v3) while C trips stayed: R44 counts the forage demand per nutrient, and with wP
+under wC late in the season the P share fell, matching median P 0.48 -> 0.37. Round 14 (d) should split trips by
+the weights at departure (the report has no per-trip wC / wP yet) before any threshold moves again.
+
+**Round 13 closed** at 04:55 UTC with the live tree as v3 (LARVA_P_REQ 1.2). Kept: `/home/user/scratch-r13-final3`
+(v3) and `/home/user/scratch-r13-final3-dose1` (integrator's dose-1 tree) per direction 28c; no other scratch tree; no
+processes left running.

@@ -1200,3 +1200,42 @@ opus, effort: high}`, directions 27 + 27a). After a restart: if the journal
 (`/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_ce6fb9e5-2fd/journal.jsonl`)
 holds the round's result, relaunch with `firstRound 13` + `firstRoundResult`; if cut off mid-round, relaunch
 `firstRound 13` with a note that the ledger's "## Round 13" progress and directions 27, 27a say what is in the tree.
+
+### Nov 23 04:57 UTC — round 13 closed without a sweep: year one regressed, year two flat; round 14 launched
+
+Round 13 (directions 27-28c, 6 h 20 min, one Opus engineer) is in the ledger ("### Round 13 results" + closing
+addendum). The workflow `wd6okprj0` / `wf_ce6fb9e5-2fd` was stopped by me at 04:56 UTC, after the engineer closed and
+before sweep 13 started: the tree failed its own year-one arm, so a sweep would have judged a tree that changes
+again. No round-13 result JSON exists (the stop came before the journal row); the ledger is the record.
+
+Live tree = v3 (hash 9f5935ce): round 12 + R40 a (winter-reserve gate only before the first winter; winter path in
+the carbohydrate want), R40 b (prospective protein ramps 0.5 x -> 1 x of the C target), R40 c (a larva does not pupate
+into the cold), R41 (one carbohydrate stock wanted), D33 (yield estimate without the standing prior), the point-field
+seed fix (nurse walks to brood on a chamber rim), R42 (no departure under speed 0.3 = 10.8 C, turn back under 0.25 =
+10.0 C), R44 (forage demand per nutrient), test repairs, `life.ts --save-y2 / --from / --trace13`.
+LARVA_P_REQ stays 1.2 (dose 0.8 measured, not adopted).
+
+| | round 12 tree | v3 |
+|---|---|---|
+| year one (15 hand-overs): workers / viable | 266 / 14 | 273 / 11 |
+| year one: median P / C intake over need | 0.482 / 1.386 | 0.370 / 1.302 |
+| year one: runs without a lost worker | 11 | 13 |
+| year two (5 from the cache; winter 1 = 82): second winters | 71 | 70 (dose 0.8: 70) |
+| year two: eggs -> eclosions | 122 -> 47 | 136 -> 49 (dose 0.8: 198 -> 49) |
+
+What I got wrong in this round's rulings: R40 b's premise (the prospective protein rule was not off after R39);
+R42's first thresholds (0.5 / 0.35 = 14.2 / 11.7 C cut forage time 43 %); R40 c2 (a rescue job already existed; my
+rule pulled evacuated brood back into a flood); and launching R43's dose in a way the engineer's permission check
+refused (I made the dose tree by hand). What the round established: year-two adults are ~49 whatever the eggs, so
+brood survival is the limit (base 34, untended 19, hygiene 18 of 136 eggs; hygiene 70 of 198 at the dose); the
+year-one loss is winter carbohydrate in we #3, sg #2, kd #3 (which rule costs it is not yet known); a save -> load ->
+continue gap exists (`outdoor/determinism.perf` red; sg #2's year-two cache diverges at doy 6).
+
+**Cap: rounds 14 and 15 are the last two of colony-life.** After round 15 the unmet bars are written up as known
+limits and the pipeline goes on (gate-close-sim, species, perf, app / QA passes, final build and artifact).
+
+Known red now: `colony/workedExample`, `nest/sfaReview.verify`, `nest/stall.soak`, `outdoor/determinism.perf`
+(new: the restore gap), 12 tests in `ecology/sources`, `ants/actions/runner.test.ts` "failure codes",
+`locomotion/perf.test` under load. Scratch trees kept for round 14: `/home/user/scratch-r13-final3` (v3),
+`/home/user/scratch-r13-final3-dose1` (v3 at LARVA_P_REQ 0.8); year-two cache
+`test-output/colony-life/round-13/cache-y2` (lost on a container restart: rebuild with `life.ts --save-y2`).
