@@ -1103,3 +1103,18 @@ done): three run slots are yours.
    single runs. No extra arms to chase it. Sweep 15's fresh long runs are the judgement.
 7. Nothing else is added to the round. After the close: known-limits section, DEVIATIONS rows, known-red list, probes
    archived, scratch trees of this round deleted (keep `scratch-r14-P`, `scratch-r14-P3b` and the final tree).
+
+### Direction 30c (integrator, 14:03 UTC Nov 23) - item 3 variant e accepted; the mask probe is dropped
+
+1. **Item 3 variant e accepted** (crumbs recorded on the way home again; a retrace starts at the nearest crumb and
+   consumes the crumbs it has passed). The r15d arm found the first version's cost (we #3, sg #3 short of winter
+   carbohydrate; 2 of 2 restored on r15e). **The final tree is r15e; the close arms now running on it are the close.**
+2. **The mound-mask probe of 30b item 5 is dropped** - do not start it. The item-3 detour used its timebox, the year-one
+   arm on r15d already has median trip success 52.8 % (bar 50 %), and another sim change would need the 19 close runs a
+   third time. Round 14's cavity-only probe stays; the A/B table (trip success, kd #3's brood flooding) and the
+   proposed substrate-only probe go into the known limits as the first thing to try after colony-life.
+3. 30b items 3 and 4 stand (restate the six R43-red tests with old / new numbers in R43; fix the fixtures of burst26 /
+   hygiene26). They are test-only and need no arms; do them while the arms run.
+4. Then close as direction 30 item 6 says: tables against `arm-y1P3b` / `y2-P3b` (r15d as a middle column),
+   known-limits section, DEVIATIONS rows, known-red list, probes archived, scratch trees deleted except
+   `scratch-r14-P`, `scratch-r14-P3b`, `scratch-r15e`. Nothing else is added.

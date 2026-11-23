@@ -5908,3 +5908,51 @@ start = HEAD ec35477, `git status` clean (tree P, LARVA_P_REQ 1.2). Evidence: `t
   limits; **build the deterministic wide mound-mask probe now** (adopt only with the four restore / determinism tests
   green, 36000 equal ticks, and the three A/B hand-overs not worse; timebox 14:20 UTC; if adopted the close arms are
   rerun on r15d + probe, else the round-14 probe stays and the mask is a known limit). No extra year-two arms.
+- 13:10 we #1 / we #3 on r15d from sweep 14's hand-overs: **we #1 viable** (25 workers, C 13.3 for an R27 need of
+  6.0, P 0.535, trips 44.8 %, deliver share 1.1 %, lost 1); **we #3 not viable** (18 workers, C 4.95 for 7.18 = 0.69
+  of it; sweep 14: 0.42; P 1.08, trips 68.9 %). Year-one arm 15 still running (tree r15d). `tools/sim/probe/r15-sugar.ts`
+  archived (`round-15/probes/`) and removed from the tree; tsc clean. Scratch trees of the round except r15d deleted.
+- 13:25 **Year-one arm done** (`round-15/arm-y1-r15d`, table `round-15/table-y1.md` by `round-13/table13y1.py`,
+  medians `round-15/r19-arms.txt`): workers 277 (arm-y1P3b 280), **viable 11** (13), median P 0.377 (0.450), C 1.297
+  (1.430), hygiene 4 (5), R27 met 11 (13: we #3 3.35 / 7.46 and sg #3 6.45 / 6.96 newly short), runs without a lost
+  worker **13** (12), lost 2 (4), larvae starved 1 (8), median trip success **52.8 %** (47.4), median eclosions 9 (8).
+  In the two new R27 misses the forage trips to carbohydrate fell (we #3 forage:C 48 -> 23, sg #3 40 -> 9) and trips with
+  no source rose. Running now: those two colonies with item 4 off (`scratch-r15d-no4`, hunt.ts of tree P) and with
+  item 3 off (`scratch-r15d-no3`, crumbs / system / transitions of tree P, the deliver reset kept) ->
+  `round-15/arm-y1-no4`, `arm-y1-no3` (`jobs-g-*.txt`). Then the close.
+- 13:35 **Check of the two new R27 misses** (we #3, sg #3 of the year-one arm; round-10 hand-overs):
+
+  | tree | we #3 C / R27 need | sg #3 C / R27 need | forage:C trips we #3 / sg #3 |
+  |---|---|---|---|
+  | arm-y1P3b (round 14) | 12.71 / 6.59 ok | 13.93 / 6.26 ok | 48 / 40 |
+  | r15d (final) | 3.35 / 7.46 MISS | 6.45 / 6.96 MISS | 23 / 9 |
+  | r15d without item 4 (`no4`) | 5.57 / 6.21 MISS | 6.45 / 6.96 MISS (same hash: item 4 never acts) | 26 / 9 |
+  | r15d without item 3 (`no3`) | **9.37 / 6.42 ok** | **14.26 / 5.70 ok** | 33 / 35 |
+
+  So **item 3 costs these two colonies their winter carbohydrate** (2 of 2), item 4 does not. Item 3 has three parts
+  (no crumbs while homing; retrace from the nearest crumb; route re-prepared only on the first turn home): running
+  r15d without the route guard (`nG`) and without the nearest-crumb start (`nN`) on the same two colonies.
+- 13:48 Item 3's parts on the same two colonies: without the route guard (`nG`): identical to r15d (both MISS, same
+  stores: the guard never acts); with the newest-crumb start instead of the nearest (`nN`): we #3 C 0 for 5.54 (worse),
+  sg #3 not run to the end. So the cost is **"no crumbs while homing"**: a retrace that records as it walks gets its
+  index reset by loop erasure each time she nears an older crumb, and each reset re-runs the shortcut search - the
+  walk home is shorter (reading, not traced). Fix in place of it (variant e): crumbs are recorded on the way home as
+  before; **a retrace consumes the crumbs it has passed** (`crumbLen` = target index + 1, so what she recorded behind
+  her on this walk is dropped) and starts at the nearest crumb. A retrace resumed after a flee then finds the flee
+  crumbs and the trail she had reached, not a reversed way home. Building it in the live tree, then removal.verify,
+  the unit test and the two colonies; if they hold, the year-one and year-two arms are rerun on it.
+- 13:47 **Variant e built in the live tree** (`locomotion/crumbs.ts retraceTarget`: start at the nearest crumb, then
+  `crumbLen = target + 1` each step; `locomotion/system.ts` records crumbs always again; `AntFlag.HOMING` kept only for
+  the resumed-return route guard, doc restated). `retraceResume15.test.ts` rewritten (half-way home, a flee, resume:
+  farthest 241 > 207 mm limit on the old code, red; nearest start: 60.5 > 36 BU on the old code, red; both green now);
+  `outdoor/removal.verify` green (visits per ant [1 x4]); tsc clean; DEVIATIONS D34 restated. Frozen as
+  **`/home/user/scratch-r15e`**; running we #3 and sg #3 (round-10 hand-overs) and we #1 (sweep 14's) on it
+  (`jobs-i-*.txt`).
+- 13:55 **Variant e restores both colonies**: we #3 C 7.32 for 6.31 (1.16 x, viable), sg #3 14.88 for 6.24 (2.38 x,
+  viable); we #1 from sweep 14's hand-over viable (C 28.2 for 6.4). **Close arms rerun on r15e** (19 runs,
+  `jobs-j-*.txt`): year two -> `round-15/y2-r15e`, we #3 h14 -> `round-15/h14-r15e`, year one (13 more) ->
+  `round-15/arm-y1-r15e`. The r15d arms stay as the record of the first version of item 3.
+- 14:03 **INTEGRATOR NOTE:** Direction 30c is at the tail of `colony-life.md`: **variant e accepted, r15e is the final
+  tree and the arms running on it are the close; the mound-mask probe (30b item 5) is dropped - do not start it**
+  (known limit with the A/B table); 30b items 3 and 4 (restate the six R43-red tests; fix the burst26 / hygiene26
+  fixtures) stand and are done while the arms run; then the close per direction 30 item 6.

@@ -1340,3 +1340,13 @@ deliver share 28.6 % -> 1.7 %; buried spoiled food placed on the floor and lifte
 - Year-two arm on r15d (items 1-4 + 0.8): 79 against 82 at winter 1, 1 of 5 at >= 1.0 x (cpv #1 30 = 1.58 x, the
   first colony over 1.5 x); the 0.8 baseline arm had 83 / 3 of 5. Single runs; sweep 15 judges.
 - Next: round 15 returns -> sweep 15 (final) -> close colony-life with known limits -> gate-close-sim.
+
+### Nov 23 ~14:03 UTC — round 15 check-in: item 3 reworked (variant e), mask probe dropped (30c)
+
+- Year-one arm on r15d (items 1-4 + 0.8): workers 277, viable 11 (baseline arm 13), trip success 52.8 % (47.4),
+  no-lost 13 (12). Two new misses (we #3, sg #3) traced to item 3's "no crumbs while homing" (2 of 2 restored
+  without it; item 4 not involved).
+- Variant e (crumbs recorded again; a retrace starts at the nearest crumb and consumes passed crumbs): both colonies
+  viable again (C 1.16 x and 2.38 x of the R27 need), `removal.verify` green. Frozen as `scratch-r15e`; all close
+  arms rerun on it (19 runs).
+- 30c: variant e accepted; the mound-mask probe is dropped (timebox used by the item-3 detour; known limit).

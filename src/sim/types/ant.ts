@@ -38,8 +38,8 @@ export const AntFlag = {
   INJURED: 1 << 13,
   /**
    * On its way home this trip (set by the outdoor behaviours when the ant turns home, cleared when it enters or
-   * leaves a nest or heads out again): no breadcrumbs are recorded, so the crumb trail stays the way out
-   * (GDD 02 §9.1-9.2; colony-life round 15, locomotion/crumbs.ts retraceTarget).
+   * leaves a nest or heads out again): a later turn home on the same trip (after a flee or a chase) is a resumed
+   * return, not a new turn at the source (colony-life round 15, outdoor/transitions.ts startReturn).
    */
   HOMING: 1 << 14,
 } as const;
