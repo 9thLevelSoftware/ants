@@ -8,7 +8,7 @@ import { navTo } from '@/sim/locomotion';
 import { perceiveNow, homeHere } from '@/sim/ants/perception';
 import { PC } from '@/sim/ants/perception/keys';
 import { bestHeading } from './phaseScout';
-import { announce, forageScenario, run } from './testkit';
+import { forageScenario } from './testkit';
 
 describe('passive home marks (GDD 02 §8.2) and the scout bias (§10.1)', () => {
   it('an ant walking outside lays HOME_DEPOSIT_PER_BU ph per BU on its colony home channel', () => {
@@ -34,22 +34,23 @@ describe('passive home marks (GDD 02 §8.2) and the scout bias (§10.1)', () => 
     expect(sim.phero.sample(col.id, 'home', a.pos)).toBeGreaterThan(0);
   });
 
-  it('the colony marks the ground around its entrance; a scout there turns away from home', () => {
-    const { sim, entrance, col, sources } = forageScenario({
-      workers: 30, seed: 5, holdStores: { c: 2, p: 0.3 },
-      sources: [{ kind: 'sugar', variant: 'sugar-granules', distBu: 40, bearingDeg: 0, units: 400 }],
-    });
+  it('a scout on home-marked ground near the entrance turns away from home (memory and position set by the test)', () => {
+    // direction 28: the scout's surroundings are set here, not by a run of free foraging, so the assertion does not
+    // move with every change of trajectory: home marks laid around the entrance as the colony's walking lays them,
+    // the whole map explored (the scout's frontier term is then the same in every direction), one scout at the probe
+    const { sim, entrance, col } = forageScenario({ workers: 4, seed: 5 });
     const bu = sim.world.bu;
-    for (const src of sources) announce(sim, col, src);
-    const workers = sim.stores.ants.list.filter((x) => x.caste === 'worker');
-    workers.forEach((w) => { requestTask(sim, w, 'forage', 'job:test'); w.activation = 5; });
-    run(sim, 4000); // under 7 game minutes of foraging from this entrance
-    // a probe spot on the foragers' way out, 8 BU from the entrance; a scout there heading back toward the entrance
+    for (let r = 2; r <= 20; r += 2) for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * 2 * Math.PI, x = entrance.pos.x + r * bu * Math.cos(a), z = entrance.pos.z + r * bu * Math.sin(a);
+      sim.phero.deposit(col.id, 'home', { x, y: sim.field.height(x, z), z }, 40 * HOME_DEPOSIT_PER_BU);
+    }
+    col.exploredBits = new Uint8Array(Math.max(col.exploredBits.length, 1 << 16)).fill(255);
     const probe = { x: entrance.pos.x + 8 * bu, y: 0, z: entrance.pos.z };
     probe.y = sim.field.height(probe.x, probe.z);
     const home = sim.phero.sample(col.id, 'home', probe);
     expect(home, 'home ph near the entrance').toBeGreaterThan(HOME_EXPLORED);
-    const s = workers[0];
+    const s = sim.stores.ants.list.find((x) => x.caste === 'worker')!;
+    requestTask(sim, s, 'scout', 'job:test');
     sim.enqueue({ type: 'cheat.teleport', antId: s.id, pos: probe });
     sim.tick();
     perceiveNow(sim, s);

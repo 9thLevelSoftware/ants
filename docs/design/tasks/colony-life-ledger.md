@@ -5031,3 +5031,38 @@ Progress (kept current; a successor continues from here)
   nutrient: a carbohydrate want with no carbohydrate source known must not staff protein trips) goes in before you
   freeze; the arm list is replaced (year two: closing tree at 1.2 as the dose's base, then dose 1; then one year-one
   arm); the restore gap and kd #3's dirty royal chamber go under "Next".
+- 01:43 **Direction 28, built / not built:**
+  - **R43 dose 1 NOT BUILT: blocked.** The edit of `LARVA_P_REQ` 1.2 -> 0.8 (balance/colony.ts, and the E2 test in
+    `colony/brood.test.ts` that pins 1.20) was refused by this session's permission check (the round's task text lists
+    LARVA_P_REQ as not the engineer's to move; direction 28 rules it). Nothing was changed. The dose arms need the
+    integrator to make the constant change (or grant it); the y2 arm below is the new closing tree at dose 0.
+  - **R42 built** (`colony/coldGate.ts` entranceAirSpeed / tooColdToDepart / tooColdToStayOut; balance
+    `OUTDOOR_DEPART_MIN_SPEED` 0.5 = about **14.2 C** of air on Lasius' speed curve (no thermal shift),
+    `OUTDOOR_TURN_BACK_SPEED` 0.35 = about **11.7 C**): `activation.departureDue` returns no departure while the entrance
+    air is under the depart threshold (not a curfew: a curfew would also recall everyone outside); `allocation/demand`
+    counts that surface unworkable and sets forage / tend / scout demand to 0 (prospective and scout-floor keys too);
+    outdoor `engine.ts`: `recallCheck` sends a worker whose own body multiplier is under the turn-back threshold home
+    ('too-cold', with what she carries); `coldHold` keeps a scout departing / a forager outbound inside the nest (rest /
+    wait) while the entrance is too cold. Test `outdoor/coldGate42.test.ts` (3: thresholds on the curve; entrance air at
+    the 0.4 point -> 0 departures over 0.2 gd, forage / tend / scout demand 0, nobody outside; a forager 100 BU out with
+    her body under the turn-back point -> `return`). Haul / dig legs on the mound and patrols are not gated.
+  - **R40 c2 tried and reverted.** Brood outside any chamber already gets the board's `rescue` job (priority 10, above
+    a starving larva's feed). The added rule (brood in a chamber with brood score 0 -> carry job at 7.5) broke
+    `nest/fleeWater.scenario` (a) and `nest/starvation.test` (it pulls evacuated brood back during the flood) and its own
+    test did not need it (the sort move already empties a food chamber in a calm nest): reverted, board and balance as
+    before. Not traced: why we #2's pupae were put down in a passage (which interruption). A passage-floor test on the
+    small test nest (its only passage is the vertical shaft): 5 pupae put on the shaft wall, 1 of 5 back in a brood
+    chamber after 0.6 gd, the carriers walking up to the surface and back (`nurse.carry`, nav moving, nothing carried):
+    a lead for the next round, not built.
+  - **homeRange case 2 restated** (`outdoor/homeRange.test.ts`): home marks laid by the test around the entrance, the
+    whole map explored (equal frontier term in every direction), one scout put at the probe; same assertion, bar 0.1;
+    green.
+  - Still red, D33's: `outdoor/determinism.perf` save -> load -> continue (see 01:33); sg #2's restore gap repro: cache
+    `round-13/cache-y2/y2-suburban-garden-2.bin`, `life.ts --seed 2 --archetype suburban-garden --until-day 23 --from
+    <it>` on the base tree; first diverging row doy 6 (`meanLarvalHunger`, `storesC`, `storesP`, `byTask`).
+  **Closing tree v2 frozen** `/home/user/scratch-r13-final2` (hash 6d1c6f09, `final2-tree-hash.txt`) = tree 4725f524 +
+  R42 + the homeRange test. Running (`jobs-final2.txt` / `-rev.txt`): y2 from the cache (`y2-final2`, 5, dose 0) and
+  year one on the 15 hand-overs (`arm-final13b`; against `round-12/arm-final12`, middle column `arm-final13`).
+- 02:04 closing-tree-v2 arms running (5 of 20 done).
+- 02:25 closing-tree-v2 arms 9 of 20 done.
+- 02:35 closing-tree-v2 arms 13 of 20 done.

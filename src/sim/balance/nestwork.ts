@@ -8,6 +8,7 @@ import type { ChamberType } from '@/sim/types';
 /** Job priorities; feed = FEED_BASE + FEED_URGENCY x urgency; tend = TEND + TEND_URGENT when untended long. */
 export const JOB_PRIORITY = {
   rescue: 10, evacuate: 9, assistEclosion: 6, feedBase: 5, feedUrgency: 3, move: 3, moveMarker: 4, tend: 2,
+
   tendUrgent: 4, groom: 1,
   /**
    * A hungry larva with a move target: one job, carry then feed, at its feed priority plus moveHungryBonus, at most
