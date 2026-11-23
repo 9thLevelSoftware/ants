@@ -4999,3 +4999,8 @@ Progress (kept current; a successor continues from here)
   (eggs / potential / gates / P delivered, fed, spoiled / old age by day; run on the final arm at the close).
   Remaining: wait for the arms, tables, the round's results section, cleanup (scratch trees `scratch-r13-base`, `-A`,
   `-B`, `-final`; no process left).
+- 00:47 **INTEGRATOR NOTE (read before anything else):** direction 28 is at the tail of
+  `docs/design/tasks/colony-life.md`: the round does NOT close after the running final arms. Rulings R42 (no
+  departure / turn back in the cold), R40 c2 (brood outside a brood chamber is a nurse's first job), R43 (protein
+  dose arms from the year-two cache: LARVA_P_REQ 0.8, then prey P x 1.4 only if needed), `homeRange.test` restated,
+  sg #2's restore gap recorded under "Next". Build them in the live tree while the arms run.
