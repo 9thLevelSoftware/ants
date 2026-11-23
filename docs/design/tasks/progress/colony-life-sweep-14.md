@@ -42,6 +42,20 @@ Started 09:27 UTC Nov 23. No earlier progress file; fresh start.
 - Test strength (`sweep-review/vitest-strength-prefix.txt`, scratch copy with the old code): pointFieldRestore,
   moundMaskHeights, moundRestore14, wasteFall case 2 all RED without their fixes. Scratch files restored.
 - Sweep 8 of 15 done at 09:56 (we #1 NOT viable: starvation stage 2.25 gd, P 0.03).
+- 10:23 **sweep done** (09:27-10:23, 15/15 on 1543bf21). Table `round-14/sweep-table.md` (sweep-table.py vs
+  round-12/sweep), `sweep-review/bars-from-md.txt`: viability NOT met 13/15 (we 1/3: we #1 starvation stage 2.25 gd,
+  we #3 R27 C 2.55 of 6.09 with P 8.6); R19 4/7 (P 0.427, trips 48.1 %, no-lost 12/15 fail). First workers = sweep
+  12 in 15/15. sums.txt: winter 249 -> 255, eclosions 97 -> 102, hygiene 23 -> 2, starved 11 -> 3, flooding 7 -> 20,
+  crushed 5 -> 8, lost 5 -> 3. cost.txt: behaviours 0.245 median (kd #1 0.297), all systems ~10 % slower (load: the
+  integrator runs `round-14/sweep-p08` alongside, 2 more life runs).
+- we #1 mechanism (`probe-deliver-we1*.txt`, `probe-trace-we1-7725.txt`): deliver share 0.286 of worker time (others
+  <= 0.054): 2-7 foragers with full crops sit 2 BU from the open entrance at (3432.09, 5.32, 1199.02) BU in
+  forage.deliver / tend.deliver toChamber, nav failed "leg" on nest:4936:chamber:5664, re-requested forever (DELIVER_MAX_S
+  resets the phase, they never move). Same hand-over with the old mound mask: still stuck (mean 3.0); with round 13's
+  pointField: 0.13 (single A/B, trajectories diverge); round 12's hand-over on this tree: 0.
+- we #3: 91 hunting trips (75 ok, prey P 20.3) while C 1.9-4 under the winter need; 2 crumb sources known by the end
+  with 14.7 C left, 3 items taken.
+- Long runs started 10:23 (we:2, sg:2 first).
 
 ## Remaining
 - sweep table (`python3 tools/sim/sweep-table.py round-14/sweep round-12/sweep`), bars by script, regressions
