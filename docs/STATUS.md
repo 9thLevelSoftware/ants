@@ -1547,3 +1547,6 @@ Results: `docs/design/tasks/reviews/gate-sim-2.json`, `look-pass-5.json`; report
 **Launched** (`wf-build.js`): `opening-fix` (Opus / Opus; `docs/design/tasks/opening-fix.md`) and `look-pass-6`
 (Sonnet / Opus verify, visual; `docs/design/tasks/look-pass-6.md`: in-nest possession camera, night visibility, real
 outcome framing, smaller items). Scratch trees r14-P3b, r15e and keep-gate2-item4 deleted.
+- wf-build launched 23:39 UTC Nov 23: task `wihfa2h2v`, run `wf_f0cca05a-1b1` (opening-fix opus / opus; look-pass-6
+  sonnet / opus verify, visual). Journal:
+  `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_f0cca05a-1b1/journal.jsonl`.
