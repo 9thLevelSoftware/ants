@@ -5497,3 +5497,27 @@ Progress (kept current; a successor continues from here)
   (winter 1: 82), >= 1.0 x 1 of 5, eggs 16 / 31 / 36 / 37 / 23, R27 5 of 5; brood hygiene deaths large: pp #3 23
   (larva 10, pupa 8, egg 5), kd #3 10, sg #2 6, cpv #1 7. Tree P so far (with `wasteFall`): kd #3 hygiene 2 (egg
   flooding 10 now leads), cpv #1 21 workers (P2: 21). Waiting.
+- 08:32 **Part C base and dose (ii) complete** (`round-14/table-y2-P-P2.md`, `account-y2-P.txt`, `account-y2-P2.txt`;
+  winter 1 = 13 / 19 / 19 / 21 / 10 = 82):
+  | arm (tree) | we #2 | sg #2 | cpv #1 | pp #3 | kd #3 | sum | >= 1.0 x | eggs | eclosions | R27 at winter 2 | brood deaths (largest) |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | round 13 v3 (`y2-final3`) | 10 | 16 | 25 | 16 | 3 | 70 | 1 | 136 | 49 | 4 / 5 | - |
+  | tree A (`y2-baseA`) | 9 | 15 | 23 | 9 | 5 | 61 | 1 | 143 | 37 | 5 / 5 | hygiene 46 (pp #3 23) |
+  | **base = P** (items 1 + 2 = dose (i)) | 12 | 17 | 21 | 21 | 3 | **74** | **2** | 138 | 58 | 3 / 5 (pp #3 2.1 / 5.2, kd #3 1.0 / 1.9) | egg flooding 16, egg base 12, larva base 8, pupa untended 8; hygiene 9 |
+  | (ii) P + base loss halved | 12 | 18 | 21 | 15 | 4 | 70 | 1 | 128 | 52 | 5 / 5 | egg flooding 11, larva base 11, egg untended 11, larva starvation 9 |
+  Bars (>= 1.0 x in 3 of 5, sum >= 82): not met by either. **(ii) does not help** (sum 74 -> 70, >= 1.0 x 2 -> 1; pp #3
+  21 -> 15 with 7 larvae starved): not kept. (iii) = P + LARVA_P_REQ 0.8 (`/home/user/scratch-r14-P3b`, `y2-P3b`)
+  running on three slots (a P2 + 0.8 arm started on a guess was killed before any run finished, output deleted).
+  P's brood hygiene deaths fell to 9 (tree A 46) with `wasteFall`.
+- 08:43 (iii) 3 of 5 in (sg #2 21, cpv #1 23, kd #3 5 at the second winter, against P's 17 / 21 / 3); the year-one arm
+  of 15 started on the P3b tree in the free slot ahead of the decision (`arm-y1P3b`, `jobs-y1P3b-{0,1,2}.txt`; the other
+  slots join after (iii)); if (iii) is not kept, it reruns on P.
+- 08:53 **Dose (iii) complete** (`table-y2-P-P3b.md`, `account-y2-P3b.txt`): P + LARVA_P_REQ 0.8 ->
+  second winters **15 / 21 / 23 / 19 / 5 = 83** (winter 1: 82), **>= 1.0 x 3 of 5** (we #2 1.15, sg #2 1.11, cpv #1
+  1.21), 1.5 x 0 of 5, eggs 25 / 34 / 39 / 37 / 22 = 157 (P: 138), eclosions 56 (P: 58), R27 at winter 2 4 of 5 (kd #3
+  2.1 / 2.4; P had 3 of 5), brood deaths: larva base 23, pupa untended 14, egg base 11, larva starvation 7 (pp #3),
+  hygiene 5; adults: old age 38. **The direction-29 interim year-two bars are met** (3 of 5 at 1.0 x, sum 83 >= 82);
+  R34 (4 of 5 at 1.0 x, 3 of 5 at 1.5 x) is not. Kept set = P + LARVA_P_REQ 0.8 ((ii) not kept), provided its year-one
+  arm meets Part A's bars: that arm is running (`arm-y1P3b`, three slots).
+- 09:05 Year-one arm on P3b, 7 of 15: viable 5 (pp #3 C 1.71 / 7.45, failed in round 12 too; sg #2 4.26 / 4.55),
+  median P 0.450, hygiene 2, no worker lost. we #3, kd #3, kd #2 over R27. Waiting for the other 8.
