@@ -5436,3 +5436,64 @@ Progress (kept current; a successor continues from here)
   depart gate withdrawn; sg #2 / kd #2: day-row comparison first, then one batch on tree A depart-gate-off: R40 c off,
   round-12 `pointField`, turn-back-only (pp #3, sg #2, kd #2); rule by the batch as written there; then freeze the Part A
   tree (+ `wasteFall`, accepted) and run Part C's base and dose arms on that tree, not on tree A.
+- 07:15 **Direction 29b read** (07:03): R42's depart gate withdrawn; C1 / C2 / C3 arms on tree A stopped (their two
+  running y2-C1 runs killed, outputs unused; `y2-baseA` finishing). **Step 2 (model-free, `round-14/step2.py` ->
+  `step2.txt`, doy 11-19, round 12 vs tree A R42 off vs tree A):**
+  - sg #2: **no larva is held**: larvae 7 on doy 12, 0-2 on doy 13, 0 from doy 14 in all three (12-13 hatched, 9-12
+    pupated); `diapauseAtEnd` 0 in all. So R40 c holds nothing in sg #2 and its protein deliveries (tree A R42 off:
+    3.08 P on doy 14, 1.52 on doy 17; round 12 0.77 / 0.52) are not for held larvae. P in store 2.8 -> 4.7 (round 12
+    1.8 -> 3.1) while C falls 4.8 -> 2.6 (round 12 rises 4.5 -> 8.6); P need rate 0.14-0.57 on doy 15-19 against
+    round 12's 0.04-0.21 with no larvae: the protein stock's spoilage term (needs.ts rateP includes spoil).
+  - kd #2: 2-3 larvae stay larvae on doy 14-19 in tree A (brood at 10.7 -> 5.0 C, the cold-chamber clause), 1 in
+    diapause at the end (round 12: larvae 1 -> 0 by doy 16). Larvae in diapause carry no need and take no food:
+    `brood.ts broodStep` adds no food rate and no digestion while DIAPAUSE, `wantsFeed` is false, and `economy.ts`
+    leaves them out of the remaining protein need (line 114) - so no defect of that kind.
+  **Step 3 batch running** (`jobs-batch29b*.txt`, three slots; base B0 = tree A with the depart gate off
+  (`/home/user/scratch-r14-B0`, `tooColdToDepart` false, turn-back on); Ba = B0 + R40 c off (`pupationIntoCold` false);
+  Bb = B0 + round 12's `locomotion/nests.ts` (no wide field)): (a) Ba sg #2, kd #2 -> `b29-R40c-off`; (b) Bb sg #2,
+  kd #2 -> `b29-pf12`; (c) B0 pp #3, sg #2, kd #2 -> `b29-turnback`. Reference for (c): tree A R42 off (both halves
+  off, `arm-y1A-r42off`).
+- 07:25 **R42's depart gate removed from the live tree** (direction 29b item 1): `activation.ts` and
+  `allocation/demand.ts` are round 12's files again; `outdoor/engine.ts` keeps only the turn-back check (`coldHold`
+  removed); `colony/coldGate.ts` holds `tooColdToStayOut` only; `balance/colony.ts` `OUTDOOR_DEPART_MIN_SPEED` removed;
+  `coldGate42.test` keeps the threshold and turn-back cases (the departure case removed); DEVIATIONS R42 row: depart
+  half withdrawn, turn-back on trial until batch (c). tsc clean; coldGate42 2 / 2, docs 8 / 8. Waiting for the batch.
+- 07:28 **Part C item 1, in game** (`round-14/passage14.py`: `--trace13` late-brood day rows outside every chamber and
+  not carried): tree A base (`y2-baseA`, 4 of 5 so far): 0 of 86 traced brood; v3 (`round-13/y2-final3`): 3 of 101,
+  each seen on one day row (pp #3 a pupa on doy 17 -> died of temperature doy 21; sg #2 two, -> untended / exposure).
+  Passage brood is rare in these runs; the gate test stays.
+- 07:31 **Batch 29b, 5 of 7** (winter C / R27 need, viable):
+  | colony | round 12 | tree A | A, R42 off | B0 (turn-back on) | (a) R40 c off | (b) round-12 pointField |
+  |---|---|---|---|---|---|---|
+  | sg #2 | 7.11 / 4.54 v1 | 0 / 4.62 v0 | 1.80 / 4.39 v0 | 0.58 / 4.13 v0 | 0.58 / 4.13 v0 (= B0: R40 c never fires) | 1.88 / 4.54 v0 |
+  | kd #2 | 11.10 / 4.70 v1 | 1.20 / 4.23 v0 | 2.76 / 3.97 v0 | running | **13.95 / 4.35** v0 (starvation stage 1.1 gd) | **14.58 / 4.09 v1** |
+  | pp #3 | 0.80 / 7.36 v0 | 7.45 / 8.13 v0 | 14.09 / 7.56 v1 | running | - | - |
+  Neither switch alone restores both (kd #2 by either, sg #2 by neither), so by item 3 (d) the pair a + b runs on sg #2
+  and kd #2 (`/home/user/scratch-r14-Bab`, `b29-ab`).
+- 07:45 **Batch 29b complete except a + b on kd #2** (redundant, below):
+  | colony | A, R42 off (both halves off) | B0 = turn-back on | (a) R40 c off | (b) round-12 pointField | (d) a + b |
+  |---|---|---|---|---|---|
+  | sg #2 | 1.80 / 4.39 v0 | 0.58 / 4.13 v0 (15 too-cold trips) | 0.58 / 4.13 v0 (= B0) | 1.88 / 4.54 v0 | 1.88 / 4.54 v0 (= b) |
+  | kd #2 | 2.76 / 3.97 v0 | 13.95 / 4.35 v0 (starvation 1.1 gd) | 13.95 / 4.35 v0 (= B0) | 14.58 / 4.09 **v1** | running |
+  | pp #3 | 14.09 / 7.56 v1 | 10.76 / 7.74 v1 (14 too-cold) | - | - | - |
+  **Rulings applied (direction 29b item 4):** R40 c changes nothing in either colony (Ba's runs are B0's to the last
+  digit: no larva met the cold-pupation clause there), so it stays as built. The round-12 point field gives kd #2 its
+  viability but not sg #2 (1.88 against 4.54), so it does not restore both: it stays (a correctness fix). With neither
+  restoring both, sg #2 / kd #2 are **trajectory noise at this sample**: recorded, going on. (c) turn-back on is worse
+  than off for sg #2 (0.58 against 1.80) and pp #3 (10.76 against 14.09): **all of R42 is withdrawn** - live tree:
+  `outdoor/engine.ts` = round 12's file, `colony/coldGate.ts` and `coldGate42.test.ts` deleted,
+  `OUTDOOR_TURN_BACK_SPEED` removed, DEVIATIONS R42 withdrawn. tsc clean, docs 8 / 8.
+  **Part A tree frozen**: `/home/user/scratch-r14-P` (hash **e45f2148**, `round-14/treeP-hash.txt`) = round 12's
+  economy + R40 a's gate + R40 c + the point-field fixes (wide field, round-14 restore fix) + the mound-mask fix +
+  `wasteFall` + round-13 tooling and restated tests. Live src/sim, src/worldgen, src/core differ from round 12
+  (5be00d8) only by those. **Part C running** (three slots, `jobs-yP*.txt`): base = P from the cache (`y2-P`), and
+  dose arm (ii) = P + BROOD_SURVIVAL base loss halved (egg 0.95, larva 0.925, pupa 0.975; `/home/user/scratch-r14-P2`,
+  `y2-P2`) side by side. Dose (i) (items 1 + 2) is the base itself (item 1 needed no code; item 2's fix is in P).
+- 07:48 kd #2 a + b: 14.58 / 4.09 viable (= (b) to the digit: R40 c never fires there). Outdoor folder on the live tree
+  (R42 gone): 36 / 37 files, red only `removal.verify` (the round-15 lead). Dose (iii) trees prepared:
+  `/home/user/scratch-r14-P3` (P2 + LARVA_P_REQ 0.8) and `/home/user/scratch-r14-P3b` (P + 0.8), used by whether (ii)
+  is kept. Part C base and (ii) running (10 runs, three slots, ~40 min).
+- 08:05 Tree A's year-two base complete (`y2-baseA`, not the dose base): second winters 9 / 15 / 23 / 9 / 5 = **61**
+  (winter 1: 82), >= 1.0 x 1 of 5, eggs 16 / 31 / 36 / 37 / 23, R27 5 of 5; brood hygiene deaths large: pp #3 23
+  (larva 10, pupa 8, egg 5), kd #3 10, sg #2 6, cpv #1 7. Tree P so far (with `wasteFall`): kd #3 hygiene 2 (egg
+  flooding 10 now leads), cpv #1 21 workers (P2: 21). Waiting.

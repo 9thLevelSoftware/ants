@@ -435,16 +435,6 @@ export const SCOUT_MIN_ACTIVITY = 0.1;
 export const WASTE_SUPPORTED_BU = 0.25;
 export const WASTE_FALL_MAX_BU = 6;
 /**
- * Ruling R42 (colony-life direction 28): no worker starts an outdoor trip while the surface air at the entrance gives
- * a thermal speed multiplier under this (Lasius: about 10.8 C on SPEED_CURVE; direction 28b lowered 0.5 -> 0.3), and
- * the allocator does not count such a surface as workable; a worker outside whose own multiplier falls under
- * OUTDOOR_TURN_BACK_SPEED (10 C; 0.35 -> 0.25)
- * ends her trip and homes at once. Round 13's trace: workers that set out at 7-9 C moved at 0.1-0.2 x, stalled near
- * the entrance and died `lost`.
- */
-export const OUTDOOR_DEPART_MIN_SPEED = 0.3;
-export const OUTDOOR_TURN_BACK_SPEED = 0.25;
-/**
  * Small colonies forage (viab-economy R3; GDD 02 §6.2 gives an incipient colony 1-2 scouts and a forage demand
  * capped by the sources it knows, so 7-16 first workers sent 1-2 ants out). Below SMALL_COLONY_N workers, while
  * the stores are under their target and the surface is workable (surfaceActivity >= SCOUT_MIN_ACTIVITY), the
