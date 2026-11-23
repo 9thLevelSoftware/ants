@@ -13,6 +13,7 @@ import { processAntDeath } from '@/sim/ants/lifecycle';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { avoidMarkerNear, perceiveNow } from '@/sim/ants/perception';
 import { reserveCap } from '@/sim/colony';
+import { tooColdToDepart, tooColdToStayOut } from '@/sim/colony/coldGate';
 import { departFilter } from './choice';
 import { curfewNow, num, phaseOf, thinkIn } from './common';
 import { fleeCheck } from './flee';
@@ -22,7 +23,7 @@ import { updateCollect } from './phaseCollect';
 import { rationStep, updateDeliver, updateRest, updateWait } from './phaseNest';
 import { startDepart, updateDepart, updateExplore, updateInvestigate } from './phaseScout';
 import { updateOutbound, updateQueue, updateReturn, updateSearch } from './phaseTravel';
-import { dropAction, homePlanner, startDeliver, startOutbound, startReturn, startWait } from './transitions';
+import { dropAction, homePlanner, startDeliver, startOutbound, startRest, startReturn, startWait } from './transitions';
 import { stopLaying } from './trail';
 import { huntCheck, updateHunt } from './hunt';
 
@@ -74,6 +75,8 @@ function recallCheck(sim: Sim, ant: Ant, fl: Flavour): boolean {
   const crop = ant.cropC + ant.cropP;
   if (num(ant, K.recall, 0) === 1) { startReturn(sim, ant, fl, crop >= SUCCESS_CROP, 'surplus'); return true; }
   if (col && curfewNow(sim, col)) { startReturn(sim, ant, fl, crop >= SUCCESS_CROP, 'curfew'); return true; }
+  // R42: a worker the cold has slowed under OUTDOOR_TURN_BACK_SPEED ends her trip and homes with what she has
+  if (tooColdToStayOut(sim, ant)) { startReturn(sim, ant, fl, crop >= SUCCESS_CROP, 'too-cold'); return true; }
   if (ant.cropC < HUNGER_RETURN_CROP && ant.energy < HUNGER_RETURN_RESERVE_FRAC * reserveCap(ant) && phaseOf(ant) !== PHASE.collect
     && (col?.stores.c ?? 0) >= HUNGER_RETURN_POOL_MIN_C) {
     startReturn(sim, ant, fl, crop >= SUCCESS_CROP, 'hungry');
@@ -114,7 +117,23 @@ function situate(sim: Sim, ant: Ant, fl: Flavour): void {
   startReturn(sim, ant, fl, crop >= SUCCESS_CROP, 'job:home');
 }
 
+/**
+ * R42: a worker still inside on her way out (a scout departing, a forager or tender outbound) stays in while the
+ * entrance air is too cold to walk in: the scout rests, the others wait. True when the think is over.
+ */
+function coldHold(sim: Sim, ant: Ant, fl: Flavour): boolean {
+  if (ant.nestId < 0) return false;
+  const p = phaseOf(ant);
+  if (p !== PHASE.depart && p !== PHASE.outbound) return false;
+  const col = sim.stores.colonies.get(ant.colony);
+  if (!col || !tooColdToDepart(sim, col)) return false;
+  if (fl.scout) startRest(sim, ant, fl, 'too-cold');
+  else startWait(sim, ant, fl, 'too-cold');
+  return true;
+}
+
 function dispatch(sim: Sim, ant: Ant, fl: Flavour): void {
+  if (coldHold(sim, ant, fl)) return;
   switch (phaseOf(ant)) {
     case PHASE.wait: updateWait(sim, ant, fl); return;
     case PHASE.rest: updateRest(sim, ant, fl); return;

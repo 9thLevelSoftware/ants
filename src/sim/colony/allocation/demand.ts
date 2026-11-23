@@ -22,6 +22,7 @@ import { type Census, itemCounts } from '../census';
 import { surfaceActivityOf } from '../envAdapter';
 import { carbStockWanted, forageRates, intakeTarget, targetDays } from '../needs';
 import { queenOf } from '../queen';
+import { tooColdToDepart } from '../coldGate';
 import { digDemand as nestDigDemand, entranceToUnplug, haulPelletLoad } from '@/sim/nest';
 import { herdMarked, herdWorkable, tendersWanted } from '@/sim/ecology/plants/demand';
 import { productionPerGd, tendersNeeded, tendSlots } from '@/sim/ecology/plants/herdMath';
@@ -307,7 +308,9 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census, broodAmongWast
   const items = itemCounts(sim).byColony.get(col.id);
   d[T('store')] = (foragers >= 1 ? Math.max(1, STORE_PER_FORAGER * foragers) : 0) + (items ? items.spoiled / SPOILED_ITEMS_PER_STORE : 0);
 
-  const workable = surfaceActivityOf(sim, col.species) >= SCOUT_MIN_ACTIVITY;
+  // R42: a surface too cold to walk on is not workable, and nobody is asked to go out on it
+  const outdoorOk = !tooColdToDepart(sim, col);
+  const workable = outdoorOk && surfaceActivityOf(sim, col.species) >= SCOUT_MIN_ACTIVITY;
   if (workable) {
     const shortfall = scoutShortfall(col, known);
     d[T('scout')] = Math.min(SCOUT_MAX_FRAC * n, Math.max(1, SCOUT_BASE_FRAC * n) + SCOUT_SHORTFALL_FRAC * n * shortfall);
@@ -325,6 +328,10 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census, broodAmongWast
   core.acc[PROSPECTIVE_FORAGE_KEY] = d[T('forage')] - plainForage;
   // R39: tenders for the carbohydrate the colony wants, at most Σ tenderSlots over its workable herds (GDD 02 §6.2)
   d[T('tend')] = tendDemand(sim, col, known, workable);
+  if (!outdoorOk) {
+    d[T('forage')] = 0; d[T('scout')] = 0; d[T('tend')] = 0;
+    core.acc[PROSPECTIVE_FORAGE_KEY] = 0; core.acc[SCOUT_FLOOR_KEY] = 0;
+  }
   d[T('dig')] = digDemand(sim, col);
   // pellets: the nest's lying in-nest pellets weighted by haul urgency (spoil nearing tamping age counts more)
   const pellets = haulPelletLoad(sim, col.id);

@@ -16,6 +16,7 @@ import { recordDelivery as recordSourceDelivery } from '@/sim/ecology';
 import { daysToTicks, TICKS_PER_SECOND } from '@/sim/time';
 import { accAdd, coreOf } from './core';
 import { chamberRh, isStorm, surfaceActivityOf } from './envAdapter';
+import { tooColdToDepart } from './coldGate';
 import { recruitAcceptance } from './needs';
 import { countDelivery } from './population';
 import { deposit, type FoodMove } from './stores';
@@ -208,6 +209,9 @@ export function departureDue(sim: Sim, a: Ant, dtTicks = 1): 'recruited' | 'spon
   if (!col || !isWaitingForager(a)) return null;
   const gate = gateOf(sim, col);
   if (gate.curfew) return null;
+  // R42: no departure while the entrance air would slow a worker under OUTDOOR_DEPART_MIN_SPEED (not a curfew: a
+  // curfew also recalls the workers outside, the cold only turns back those it has slowed, engine.ts recallCheck)
+  if (tooColdToDepart(sim, col)) return null;
   if (a.activation >= ACTIVATION_DEPART) return 'recruited';
   const need = Math.max(col.needs.needC, col.needs.needP);
   const rate = spontaneousRate(need, gate.fEnv, hasLiveRoute(sim, a), antSpontMultiplier(sim, col, a, gate.spont));

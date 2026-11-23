@@ -736,3 +736,44 @@ constant (the `workedExample` red is known; say whether the new constant moves i
    the middle column. Bars as direction 27 (viable >= 14, median P intake / need >= 0.45, brood hygiene <= 15, R27
    kept) plus: runs without a lost worker >= 13 of 15.
 Then tables, the round's results section, cleanup, close.
+
+## Direction 28a (integrator, Nov 23 01:35 UTC) — the final arms read; R44 goes in before you freeze
+
+Read at 01:35 from your 01:33 entry. Year one regressed on the 00:19 tree (viable 14 -> 12, P 0.482 -> 0.403, C 1.386 ->
+1.247, trips 62 -> 53 %, we #3 and sg #2 miss R27) and your day rows name the mechanism: with D33 the yield estimate
+sits at its floor, the forage head-count is 5-11 against 1-7, and in doy 15-21 those foragers bring protein while
+wC > wP and carbohydrate falls to 0. D33 is right (the old prior hid the true yield); what it exposed is that **one
+nutrient's want staffs trips for the other**: `computeDemand` sizes `forage` as min(intakeTarget / yield,
+known.ants + 1) over both nutrients together, so a carbohydrate want with no carbohydrate source known sends the
+head-count to the only sources there are (prey patches), and every such trip burns carbohydrate.
+
+### R44 — the forage demand is counted per nutrient
+`forage` demand = sum over the two nutrients of min(the nutrient's forage want / the yield a forager realises,
+the forager-equivalents of the known live sources that carry that nutrient), plus the single +1 as now (not one per
+nutrient). `KnownCapacity` already splits loads by nutrient (`loadsC`, `loadsP`); split the forager-equivalents the
+same way (a source carrying both counts toward each by its share of loads). The prospective part (R32b / R35) is
+protein want and is capped by the protein side only. A want with no known source of its nutrient asks for scouts
+(R38 / R41's floor), not foragers. The R39 tenders are unchanged (herds are not in `known`). Tests: 15 workers,
+carbohydrate want 6 loads / gd, no carbohydrate source known, one prey patch good for 4 foragers, protein want 0.5
+loads / gd -> forage demand is the protein side only (about 1-2 with the +1), not 5; the same with a flower good
+for 3 foragers known -> carbohydrate side min(want / yield, 3) + the protein side; both wants covered by sources ->
+as before.
+Also check where the departing forager picks her nutrient: at wC > wP with no carbohydrate candidate she should
+not take a protein trip that the protein side of the demand did not ask for; if `forage` over its per-nutrient
+count is impossible after R44, nothing to do; if it still happens (a carbohydrate-demand forager waiting takes a
+protein trip), say how often in the year-one arm and stop: I rule.
+
+### Order and arms (replaces direction 28's arm list)
+Build order: R44, R42, R40 c2 (trace first), `homeRange.test`; freeze = closing tree at LARVA_P_REQ 1.2.
+1. year two from the cache, closing tree at 1.2 (5 runs): the proper base for the dose (it tells R44 + R42 + R40 c2
+   from the dose); compare with `y2-final`.
+2. year two, dose 1 (LARVA_P_REQ 0.8) on the same tree (5 runs); dose 2 only by direction 28's rule. Both slots can
+   run 1 and 2 side by side.
+3. one year-one arm of the chosen tree (15) against `round-12/arm-final12`, `arm-final13` as the middle column.
+   Bars: viable >= 14, median P intake / need >= 0.45, hygiene <= 15, R27 kept (we #3 and sg #2 back over their
+   need), runs without a lost worker >= 13.
+Not this round's (record under "Next" with the repro): the save -> load -> continue gap (`outdoor/determinism.perf`
+red with D33's trajectory, sg #2's cache): it is round 14's first item, with a fresh context; and kd #3's eggs laid
+into a royal chamber over its waste tolerance (37 egg hygiene deaths in a colony of 3-4 workers).
+If your context is short, the must-haves are R44 + R42 with their tests, arms 1-3 at dose 1, and the ledger; R40 c2
+may go to round 14 as traced-not-built.

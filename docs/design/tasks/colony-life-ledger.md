@@ -5004,3 +5004,30 @@ Progress (kept current; a successor continues from here)
   departure / turn back in the cold), R40 c2 (brood outside a brood chamber is a nurse's first job), R43 (protein
   dose arms from the year-two cache: LARVA_P_REQ 0.8, then prey P x 1.4 only if needed), `homeRange.test` restated,
   sg #2's restore gap recorded under "Next". Build them in the live tree while the arms run.
+- 00:59 Final arms 9 of 20 done (y2: we #2 12, sg #2 15, cpv #1 14 at the second winter; year one 6). Waiting.
+- 01:14 Final arms 15 of 20 done. Waiting.
+- 01:33 **Final arms complete** (tree 4725f524). Read direction 28 (00:46) only now (the round goes on). Results =
+  the base of direction 28's arms:
+  - **y2-final** (`table-y2-final.md`, `account-y2-final.txt`, R40 d table `measure-d-final.md`): second winter 12 / 15
+    / 14 / 18 / 1 (we, sg, cpv, pp, kd) = 60 against 82 (base 71, A 64); >= 1.0 x 0 of 5; eggs 29 / 38 / 24 / 37 / 49
+    (>= 35: 3 of 5, bar met); eclosions 8 / 10 / 6 / 14 / 0; P delivered 29.9 / 36.5 / 28.3 / 33.9 / 8.2; R27 at the
+    second winter 5 of 5. Brood: egg hygiene 41 (kd #3 37: eggs laid into a dirty royal chamber), egg flooding 16,
+    larva hygiene 16, base 28, larva starvation 6 (A 19). Gates (gd while potential > 0): brood-need 13.65, larval
+    hunger 10.9, released 9.1, p-days 6.2. R40 d: on the warm days the potential is 18-32 eggs / gd against 1-4 P / gd
+    delivered (1.2 P an egg): the protein gates hold, as direction 28 reads.
+  - **year one, arm-final13** (`table13-year1.txt`, against `round-12/arm-final12`): workers 266 -> 260 (better 7,
+    worse 7), viable 14 -> 12 (we #3 and sg #2 miss R27: C at winter 1.01 / 0.58 x need; kd #1 loses viability),
+    median P 0.482 -> 0.403, C 1.386 -> 1.247, trip success 62 -> 53 %, hygiene 9 -> 9, forage time 643 -> 728 wgd.
+    Bars: viable >= 14 NOT met (12), P >= 0.45 NOT met, hygiene <= 15 met, R27 kept NOT met (we #3, sg #2). Day rows of
+    those two (doy 15-21): wC 0.8-2.2 > wP 0.2 (R41 does what it says) yet the foragers bring 0.6-2.7 P against 0-2 C a
+    day while C falls 7.4 -> 0 (sg #2) and 7.7 -> 4.5 (we #3); the yield estimate sits at its floor 0.5 (D33) and the
+    forage head-count is 5-11 against 1-7 in the base: more foragers, and they go to protein whatever the weights.
+  - New red on the live tree: `outdoor/determinism.perf` (save -> load -> continue != uninterrupted, hash 576095ae vs
+    d3620895): green with D33's old yield form (so D33's trajectory meets a restore gap, as sg #2's did); green on
+    tree B. Not traced yet.
+  **Now (direction 28):** build R42, R40 c2 (trace first), R43 dose 1, `homeRange` restated; freeze; arms: y2 dose 1
+  (5, from the cache), dose 2 only by the rule, then one year-one arm (15). Then close.
+- 01:35 **INTEGRATOR NOTE:** direction 28a is at the tail of `colony-life.md`: **R44** (forage demand counted per
+  nutrient: a carbohydrate want with no carbohydrate source known must not staff protein trips) goes in before you
+  freeze; the arm list is replaced (year two: closing tree at 1.2 as the dose's base, then dose 1; then one year-one
+  arm); the restore gap and kd #3's dirty royal chamber go under "Next".
