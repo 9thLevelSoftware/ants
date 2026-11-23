@@ -1,0 +1,283 @@
+{
+ "implReport": {
+  "summary": "All 8 items of look-pass-5 are implemented or reported, but acceptance 3 and 4 are only partly met. The opening still cannot be played to its end in a browser on either test seed: seed 1 stops after the outcome card, seed 2 floods. The low-quality triangle count is +5.2 % against the 5 % line. Typecheck is clean and the tests are green per touched folder. The full report with picture paths is docs/design/tasks/look-pass-5-report.md.\n\n1. The founding time-lapse, outcome card and failure card now use a dedicated elevated shot with a slice cut through the cell. The pictures on seeds 1 and 2 show the cell above the card with the queen and workers in it. In a real hand-dug founding the queen lays in the shaft throat, so the real time-lapse shows an almost empty cell.\n2. Backdrop white speckle: fixed by a per-primitive fuzz flag, so flat faces no longer get the hashed-alpha fuzz. The speckled band along the horizon is the rim haze and is unchanged.\n3. Kitchen-door wall foot: the streaks came from interpolated varyings (a 250 mm face tested just under 250 on thin pixel lines), fixed with flat varyings. The pale veil came from the 65 mm vent-course bands getting no fogKeep, fixed in faceDetail. The weep-vent bars still read as white ticks.\n4. Moulded plastic: new plastic finish with orange-peel stipple, part line, worn edges and foot dirt. It is visible close up; the foot dirt is subtle.\n5. Resolved alert under a blocking card: a resolved card now leaves at once while a blocking card is up. This is covered by unit tests only; the debug-injected alert is dropped by the sim, so I could not take a browser before picture.\n6. Inspector pictures taken on a live colony (queen, egg, larva, pupa, chamber):\n   - Fixes: unit strings with raw floats (\"14.774999999999999\") are rounded; a queen's meaningless \"callow (0 game days)\" row is hidden; \"1 game days\" is now singular; a pinned egg gets a ring in the colony view.\n   - The brood is a labelled stand-in: `cheat.spawnBrood`.\n   - Possession-camera pictures: nest shaft at three depths, the chamber, a 12 degree stone top and a 16 degree slope. The seed 1 start has no 45 degree ground, so that case is untested.\n7. First hour: a real firstplay run passes beats 1-12 on seed 1 and 1-10 on seed 2, then fails for sim causes. Beats 13-25 were seen only with the opening cheated (stand-in run with soft failures). controls, views, lifecycle, stage1a strict, save (second run) and panels pass; panels used 2 labelled stand-ins. The report lists the causes and a most-serious-first \"still unfinished\" list citing pictures. I also fixed the queen panel title hidden behind the chamber meter in beats 07 and 08, verified in `firstplay/seed1-hudfix`.\n8. MANUAL.md and README.md corrected and extended with the known problems; tests/docs pass.",
+  "filesTouched": [
+   "src/render/camera/foundingShot.ts",
+   "src/render/camera/foundingShot.test.ts",
+   "src/render/camera/constants.ts",
+   "src/render/camera/index.ts",
+   "src/game/views/viewDirector.ts",
+   "src/game/views/foundingShot.test.ts",
+   "src/game/views/colony/markerScene.ts",
+   "src/game/flows/founding/shotSubject.ts",
+   "src/game/flows/founding/shotSubject.test.ts",
+   "src/game/flows/founding/flow.ts",
+   "src/game/uiBridge/inspectSlice.ts",
+   "src/game/uiBridge/inspectSlice.look5.test.ts",
+   "src/ui/hud/alerts/feed.ts",
+   "src/ui/hud/alerts/feed.test.ts",
+   "src/ui/hud/alerts/store.ts",
+   "src/ui/panels/inspect/rows.ts",
+   "src/ui/panels/inspect/rows.look5.test.ts",
+   "src/ui/screens/founding/founding.css",
+   "src/render/world/boundary/meshBuilder.ts",
+   "src/render/world/boundary/boundaryRenderer.ts",
+   "src/render/world/boundary/edgeHaze.ts",
+   "src/render/world/boundary/fuzz.test.ts",
+   "src/render/world/materials/surfacePatch.ts",
+   "src/render/world/materials/faceDetail.ts",
+   "src/render/world/materials/faceDetail.test.ts",
+   "src/render/world/dressing/finishes.ts",
+   "src/render/world/dressing/finishGlsl.ts",
+   "src/render/world/dressing/tuning.ts",
+   "src/render/world/dressing/looks.ts",
+   "src/render/world/dressing/looks.test.ts",
+   "src/render/world/dressing/plasticFinish.test.ts",
+   "tests/e2e/look5-outcome.mjs",
+   "tests/e2e/look5-backdrop.mjs",
+   "tests/e2e/look5-footprobe.mjs",
+   "tests/e2e/look5-props.mjs",
+   "tests/e2e/look5-inspect.mjs",
+   "tests/e2e/look5-camera.mjs",
+   "tests/e2e/firstplay.mjs",
+   "tests/e2e/lib/firstplay-steps.mjs",
+   "docs/MANUAL.md",
+   "README.md",
+   "docs/design/tasks/look-pass-5-report.md",
+   "docs/design/tasks/progress/look-pass-5-impl.md"
+  ],
+  "verification": [
+   "npm run typecheck: clean (22:38, and after the final TS fix).",
+   "vitest per folder, all green: src/render/camera 72, src/game/views 148, src/game/flows 26, src/game/uiBridge 74, src/ui/panels/inspect 5, src/ui/hud 111 (one timing-sensitive minimap test failed once under load, then passed alone 6/6), render/world boundary 38, materials 30, dressing 33, primitives 39, src/content 109, tests/docs 8.",
+   "firstplay.mjs seed 2 (real): beats 01-10 pass, fails at beat 11 (flood, 'Water filled the burrow'). Seed 1 (real): beats 01-12 pass, then 'first workers did not reopen the entrance' (reopening).",
+   "firstplay seed 1 AUTOFOUND stand-in, FIRSTPLAY_CONTINUE=1: beats 13-25 reached, 2 soft failures (load handover, dig plan anchor-not-in-nest).",
+   "e2e at test-output/look5/e2e: controls PASS, views PASS, lifecycle PASS, stage1a STRICT PASS, panels PASS (2 labelled stand-ins), save first run timeout then PASS on rerun (473 s).",
+   "Item 6: look5-inspect.mjs and look5-camera.mjs run; pictures in item6/inspect and item6/camera all looked at.",
+   "Item 1 final pictures: item1/final2-s1, final2-s2, final2-fail-s2 looked at.",
+   "Queen-panel overlap fix verified: firstplay/seed1-hudfix/07 and 08 looked at.",
+   "frametime.mjs N=2 seed 1: low 74/579291, medium 108/731114, high 119/1004640 against 80/550555, 114/718214, 125/990950.",
+   "Every item's before/after pictures and all firstplay pictures (seed1 01-12, seed2 03/05/07/09/11, continue 13-25 except 22) looked at with Read."
+  ],
+  "acceptance": [
+   {
+    "criterion": "1. Typecheck clean on my paths; tests green per touched folder",
+    "status": "met",
+    "evidence": "npm run typecheck clean; vitest green in all touched folders. One minimap timing test failed once under load and passed alone."
+   },
+   {
+    "criterion": "2. Before/after pictures for items 1-6 under test-output/look5/, each looked at",
+    "status": "met",
+    "evidence": "item1/{before-s2,final2-s1,final2-s2,final2-fail-s2}, item2/after-*, item3/{probe,after*}, item4/{before,final-*}, item1/final2-s2 for the alert, item6/{inspect-before,inspect,camera}. Limits written in the report: no 45 degree slope in seed 1, alert before-state not reproducible, stand-in brood for the inspector."
+   },
+   {
+    "criterion": "3. Item 7 scripts pass or are reported with failing beat and cause, plus the still-unfinished list citing pictures",
+    "status": "partial",
+    "evidence": "The real firstplay runs fail at beat 13 (seed 1, sim: entrance stuck in reopening) and beat 11 (seed 2, sim: flood). Beats 13-25 were seen only with a cheated opening. The other scripts pass (save on rerun; panels with 2 labelled stand-ins). The 12-item most-serious-first list with picture paths is in the report."
+   },
+   {
+    "criterion": "4. Draw calls and triangles at low/medium/high on the seed 1 colony do not rise by more than 5 %",
+    "status": "partial",
+    "evidence": "Draw calls fell 5-7.5 % at every level; triangles rose +5.2 % at low (579,291 against 550,555), +1.8 % at medium, +1.4 % at high. The low figure is 0.2 points over the line. No render change adds geometry, and the scene differs (64 ants against 82, a different tick), but I could not prove the excess is scene variance."
+   },
+   {
+    "criterion": "5. Report docs/design/tasks/look-pass-5-report.md with picture paths",
+    "status": "met",
+    "evidence": "Written with the acceptance table, per-item before/after paths, the item 7 run table, the causes, the still-unfinished list, cost numbers, decisions and the needs from others."
+   }
+  ],
+  "notDone": [
+   "The 45 degree possession-camera case: the seed 1 start has no 45 degree surface (steepest 15.9 degrees; the stone flank settled at 12 degrees) and I did not build a ramp.",
+   "The before/after browser picture for the resolved-alert rule (item 5): the debug cheat.raiseAlert alert is dropped by the sim next tick; the rule is covered by unit tests only.",
+   "A full uninterrupted real firstplay run past beat 12 on either seed: blocked by sim causes (entrance reopening at seed 1, flood at seed 2).",
+   "Proof that the +5.2 % low-quality triangle count is scene variance rather than my change.",
+   "Investigation and fix of the coarse screen-door dot pattern on the queen and nearby soil when the possession camera sits close inside the nest.",
+   "Fixing the night-dark scenes, the grey square in the seed 2 shaft, the site read-out 'Poor' versus its full dot rows, the roster 'Where' truncation, and the left-rail overlap in the time-lapse; all listed in the report.",
+   "Process slip: I ran vitest on tests/docs while the seed1-hudfix harness run was active (the rule is never both). Disclosed in the report; the tests are text-only and passed."
+  ],
+  "contractChanges": [
+   "ViewDirector gains setFoundingShot(source|null) / foundingShotOn; new pure module src/render/camera/foundingShot.ts (FoundingShotSubject, makeFoundingShot, foundingShotAt) and FSHOT_* constants; additive.",
+   "FeedContext gains an optional cardUp flag in src/ui/hud/alerts/feed.ts; additive.",
+   "MeshBuilder gains a per-primitive fuzz attribute (aBdFuzz) used by the boundary shader; additive.",
+   "New FINISH.plastic finish id (20); WR_FOOT is now also defined for the look materials; surfacePatch cache key moved to v7 and edgeHaze to v8.",
+   "inspectSlice exports tidyUnit (units rounded to one decimal); the queen's age row is omitted from her card."
+  ],
+  "needsFromOthers": [
+   "Simulation engineer: the entrance stays in 'reopening' after a hand-dug opening at seed 1, so the first workers never walk out.",
+   "Simulation engineer: rain floods the founding chamber at seed 2 although the site read-out says flood safety is 'Raised'.",
+   "Simulation engineer: harvest-liquid keeps running with a full crop, and a possessed forager's delivery adds less to the stores than she carried.",
+   "Simulation engineer: the chamber record the founding queen is registered in is about 2.5 BU (18 mm) from the carved open cell, and she lays in the shaft throat; this breaks the time-lapse subject, brood positions and chamber occupancy.",
+   "Simulation engineer: a queen's physioAgeGd stays 0; the chamber card writes raw floats into unit strings; 'Crowding roomy' shows at 7 adults of 6.8.",
+   "Whoever owns dig-plan placement: the preview is invalid ('anchor-not-in-nest') off the founding cell at seed 1; I could not tell whether the script's anchor or the app/sim test is wrong.",
+   "GDD owner: add to GDD 08 section 6.3 that a Resolved alert card does not stay under a blocking card."
+  ],
+  "notesForIntegrator": [
+   "Pictures are under test-output/look5/ (git-ignored); the report cites each by path.",
+   "The task names docs/manual/**, but the only manual is docs/MANUAL.md (the old folder is gone); I edited that one and README.md.",
+   "The stand-in runs (seed1-standin, seed1-continue, panels' two stand-ins, the inspector's spawnBrood) are labelled as stand-ins in the logs and in the report and must not be counted as passes.",
+   "tests/e2e/look5-*.mjs are repro and picture scripts for this pass; the run commands are in each file's header.",
+   "Cost numbers come from a different scene than the old baseline (ants 64 against 82); re-measure on a controlled state if the 5 % line matters."
+  ]
+ },
+ "review": {
+  "verdict": "fail",
+  "checksRun": [
+   "npm run typecheck: clean (run twice, 22:57 and 23:40)",
+   "vitest on the touched folders src/render/camera, src/game/flows/founding, src/game/uiBridge, src/ui/hud/alerts, src/ui/panels/inspect and src/render/world/{boundary,materials,dressing}: 48 files, 302 passed, 1 skipped",
+   "vitest src/game/views: 23 files, 148 passed",
+   "Read the full diff 6cd38ed..working tree of every owned file the implementer touched, plus GDD 08 6.3, 7.10 and App E, GDD 06 5.11 and the implementer's report and logs",
+   "Harness (real hand-dug founding, no cheat): FIRSTPLAY_SEED=00000001 FIRSTPLAY_UNTIL=11 with tests/e2e/look5-verify-shot.mjs, output in test-output/look5-review/shot-s1/. Beats 01-11 pass. I looked at 11-timelapse.png and r11-lapse-as-shipped.png: the queen and eggs are visible in the cell. Probe: queen y +4.55 (shaft throat), soil 8.2 mm above her, cut plane 2.4 mm above her in open space",
+   "Cost A/B on one snapshot tree: tests/e2e/frametime.mjs FRAMETIME_N=2, seed 1. B (with look-pass-5) low 74/579291, medium 108/731114, high 119/1004640, identical to the implementer's numbers. A (look-pass-5 app diff reverted with patch -R) low 74/579291, medium 108/730820, high 119/1004052. Logs in test-output/look5-review/cost-{A,B}.log",
+   "Looked at the implementer's pictures test-output/look5/item1/final2-s1/outcome-card.png and firstplay/seed1-until12b/{11-timelapse,12-outcome-card}.png, and read the shot-at-lapse and shot-at-outcome numbers in seed1-until12{,b}.log",
+   "Checked the docs diff (docs/MANUAL.md, README.md) against the code"
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "Founding shot camera jumps tens of millimetres in one frame when the subject sphere changes",
+    "where": "src/game/flows/founding/shotSubject.ts:42-46 and src/game/views/viewDirector.ts updateRig (the shot branch: f.pose = this.shot.pose, with no easing)",
+    "detail": "The shot's subject radius is the largest distance from the centroid to the queen, the loose brood and any colony worker within WORKER_REACH_BU (10 BU). Nothing smooths it. When a worker steps across the 10 BU line, the radius jumps from 0.4 mm to 40.3 mm, and the camera distance (proportional to the radius, never below the 4.5 BU minimum) jumps with it in the same frame. The same happens when a nurse picks up a brood item (carried brood is dropped from the centroid) or when brood is put down higher (cutY jumps). This is the 'no frame-to-frame jumps' rule of CAM_MAX_REL_SPEED_L, and it applies at the outcome card, exactly when the first workers walk in and out of the cell. Reproduction: src/game/flows/founding/shotSubject.verify.test.ts 'moves continuously' fails (radius change 39.9 mm for a 0.2 mm step). src/game/views/foundingShot.verify.test.ts 'does not jump the camera in one frame' fails (camera moved 82.6 mm in one 1/60 s frame against an allowance of 3.3 mm). Fix idea: ease the radius, centre and cutY, or the pose, in ViewDirector, or give the reach a smooth weight."
+   },
+   {
+    "severity": "major",
+    "title": "Workers above the cut plane still widen the frame, so the real outcome card shows a tiny cell",
+    "where": "src/game/flows/founding/shotSubject.ts:42-45 (the worker loop)",
+    "detail": "Workers within 10 BU count toward the radius even when they are above cutY. Those workers are cut away with the soil cap and can never be seen. In the implementer's own real run (test-output/look5/firstplay/seed1-until12b.log, 'shot at outcome'), workers up the shaft at y +5.8 and +6.5 (22 mm above the queen at -16.66, cutY -14.26) pushed the subject radius to 33 mm. The card picture seed1-until12b/12-outcome-card.png therefore shows a cell about 150 px across with one speck of an ant at its rim, and task item 1 ('queen, first workers and brood all in view') is not met on the real path. The good card picture item1/final2-s1 comes from a cheat-completed opening. Reproduction: shotSubject.verify.test.ts 'does not widen the frame for a worker above the cut plane' fails (radius 31.3 mm against 4 mm)."
+   },
+   {
+    "severity": "major",
+    "title": "Report blames the sim (queen lays in the shaft throat) for the empty real time-lapse; the evidence says otherwise",
+    "where": "docs/design/tasks/look-pass-5-report.md item 1, still-unfinished #4, needs-from-others #4; docs/MANUAL.md:822",
+    "detail": "The report says the real time-lapse shows an almost empty cell because the queen lays in the shaft throat. Two runs contradict this. (a) My real seed-1 run (test-output/look5-review/shot-s1/11-timelapse.png) has the queen in the throat (y +4.55, chamber centre y -11.1): the cut is 2.4 mm above her in open space (field +0.82; soil starts 8.2 mm above her), and the picture shows her and the eggs clearly. (b) The run the report cites for the empty cell (seed1-until12b) logged the queen at y -16.16, on the chamber's low edge, not in the throat: about 8 mm from the record centre and just outside the fitted ellipsoid. The cut sat at a fixed 0.6 BU above her (cutY -13.76). The frame centre, where queen and brood are, is soil and grey rim in 11-timelapse.png, so she was probably under the cap. Likely cause, in the app and fixable inside owned paths: FSHOT_CUT_ABOVE_BU puts the plane 0.6 BU above the animals without checking the carve field, so under a low roof the plane is above the ceiling. A fix could test field(q.x, cutY, q.z) > 0, or set the plane between the queen and the first solid sample above her. The sim request 'record against carve breaks the time-lapse subject' (needs #4) is not supported as the cause of the shot problem, and the MANUAL sentence 'because she lays in the shaft throat' repeats the wrong cause."
+   },
+   {
+    "severity": "minor",
+    "title": "Reduced motion: the time-lapse shows one static still; no crossfade every 3 s",
+    "where": "src/game/views/viewDirector.ts update() (shotYaw is frozen under reducedMotion); GDD 08 section 7.10 and App E 18",
+    "detail": "GDD 08 7.10 says that with reduced motion the camera is static and the view crossfades between stills every 3 real s, and App E 18 checks this. The new shot only stops the orbit, so the whole 75 s lapse is one still. src/game/views/foundingShot.test.ts asserts the static camera but not the crossfade. This was missing before the task as well, but the new shot now owns the lapse camera. GDD 06 5.11's 'warm dim light, constant (no day/night flicker)' is also not done: the implementer's lapse pictures are night-dark."
+   },
+   {
+    "severity": "minor",
+    "title": "Resolved alerts are dropped during normal play too (hand-over banner, intro card, winter banner, flight prompts), not just under centre cards",
+    "where": "src/ui/hud/alerts/store.ts:26 (cardUp: blockingCardUp()), src/ui/hud/blockingCard.ts:13-19; docs/MANUAL.md:252",
+    "detail": "The feed's cardUp uses isBlockingCardUp. That is also true for the founding hand-over banner, which stays up to HANDOVER_BANNER_MAX_S = 45 s of ordinary play in the top band, and for the winter banner and the flight prompts. During those times a clearing alert skips GDD 08 6.3's 4 s 'Resolved' state. The report and the MANUAL say the rule covers only 'the time-lapse, its result card and the winter report'. The root cause of the original symptom (a Resolved card staying up across a 75 s lapse, longer than its 4 s lifetime) was also never found; a flapping raise/clear would explain it, and the new rule would hide it rather than fix it."
+   },
+   {
+    "severity": "minor",
+    "title": "MANUAL drift that item 8 should have corrected",
+    "where": "docs/MANUAL.md:152, docs/MANUAL.md:822",
+    "detail": "Line 152 says the time-lapse 'can stop for a choice: step in (E) or let it play'. Interrupt beats are T2 and never raised (src/sim/colony/founding/commands.ts respond(): 'no interrupt is raised yet'). Line 822 still opens with 'Night at ground level reads like an overcast day' and the same paragraph then says night scenes 'are almost black'. The implementer's own report names this contradiction and leaves it in."
+   },
+   {
+    "severity": "minor",
+    "title": "shotSubject comment claims no per-call allocation, but two closures are allocated every frame",
+    "where": "src/game/flows/founding/shotSubject.ts:2,25,38",
+    "detail": "The header says 'nothing allocated per call but the out record', yet core() and widen() are new closures on every call, and the call runs every frame (twice when peekPose runs). The cost is small; the comment is wrong. Each call also scans all ants and all brood: fine during the founding, but the shot stays on in the observer view until Continue."
+   }
+  ],
+  "testsAdded": [
+   "src/game/flows/founding/shotSubject.verify.test.ts (4 tests; 2 FAIL on purpose: radius continuity across the 10 BU reach, a worker above the cut widening the frame)",
+   "src/game/views/foundingShot.verify.test.ts (3 tests; 1 FAILS on purpose: camera jump in one frame against CAM_MAX_REL_SPEED_L; null-source fallback and colony-view clear pass)",
+   "src/render/camera/foundingShot.verify.test.ts (5 tests, pass: subject projects at the lift, sphere stays in frame behind the card, pitch, near plane, slice reach, minimum radius for 0 or negative, no allocation)",
+   "src/render/world/dressing/plasticFinish.verify.test.ts (3 tests, pass: WR_FOOT and the flat vWrFoot declared in every looks shader, none without looks, flat qualifiers match between stages)",
+   "tests/e2e/look5-verify-shot.mjs (harness probe: a real firstplay to beat 11, then measures the cut plane against the carve field at the queen and renders the frame; result in test-output/look5-review/shot-s1/)"
+  ]
+ },
+ "fixReport": {
+  "summary": "Of the eight review findings, six were real and are fixed. One was partly real, and one turned out to be a mistake in my own earlier report. The real seed-1 browser run now frames the cell about twice as large, lit as late afternoon at a night clock. The roof clamp has only unit-test evidence. One cause is still open: why a Resolved alert card was seen standing across the lapse.",
+  "filesTouched": [
+   "src/render/camera/foundingShot.ts",
+   "src/render/camera/constants.ts",
+   "src/render/camera/index.ts",
+   "src/render/camera/foundingShot.test.ts",
+   "src/render/index.ts",
+   "src/render/slots/worldSlot.ts",
+   "src/game/Game.ts",
+   "src/game/views/viewDirector.ts",
+   "src/game/views/foundingShot.test.ts",
+   "src/game/flows/founding/shotSubject.ts",
+   "src/game/flows/founding/shotSubject.test.ts",
+   "src/ui/hud/blockingCard.ts",
+   "src/ui/hud/blockingCard.test.ts",
+   "src/ui/hud/alerts/store.ts",
+   "docs/MANUAL.md",
+   "docs/design/tasks/look-pass-5-report.md",
+   "docs/design/tasks/progress/look-pass-5-fix.md"
+  ],
+  "verification": [
+   "npm run typecheck: no errors in src/game, src/render, src/ui or tests (filtered output empty), run after the last code change.",
+   "npx vitest run src/render/camera src/game/flows: 21 files, 111 tests passed. This run included the reviewer's tests: shotSubject.verify (4, both previously failing now pass), render/camera foundingShot.verify (5) and plasticFinish.verify.",
+   "npx vitest run src/game/views: 24 files, 154 passed. foundingShot.verify 'does not jump the camera in one frame' now passes.",
+   "npx vitest run src/ui/hud: 18 files, 114 passed.",
+   "npx vitest run src/render/slots: 9 files, 38 passed, after the lightHour change.",
+   "npx vitest run tests/docs src/game/views/foundingShot src/game/flows: 13 files, 50 passed, after the MANUAL edits.",
+   "Harness: FIRSTPLAY_SEED=00000001 FIRSTPLAY_UNTIL=12 node tools/harness/play.mjs --query 'test=1&quality=test' --script tests/e2e/look5-verify-shot.mjs --out test-output/look5-fix/shot-s1. Exit 0. I looked at 11-timelapse.png and 12-outcome-card.png.",
+   "11-timelapse.png: clock 01:40 but the world is lit as late afternoon, so the constant-light change works. The cell is about 300 px across; the queen and the eggs sit at its rim.",
+   "12-outcome-card.png: the cell is about twice as wide as in the reviewed run, with the queen at the rim and one worker below her. The logged subject radius is 10.2 mm; the reviewed run had 33 mm.",
+   "The roof clamp did not trigger in the real run (cut -14.26 mm in open space, queen at y -16.66 mm). It is covered by unit tests only.",
+   "No harness or browser process left running (pgrep checked)."
+  ],
+  "acceptance": [
+   {
+    "criterion": "Finding 1: camera does not jump when the subject sphere changes",
+    "status": "met",
+    "evidence": "The ViewDirector now frames an eased subject (easeShotSubject: 0.5 s exponential approach, speed caps on radius and centre; the card's lift and fill ease too). The reviewer's camera-jump test and 'moves continuously' pass. New tests cover easing and arrival, the rate cap, and the slice following the source at once."
+   },
+   {
+    "criterion": "Finding 2: workers above the cut plane do not widen the frame",
+    "status": "met",
+    "evidence": "Worker weight is 1 up to 7 BU from the centre, fading to 0 at 10 BU, times 1 at the plane fading to 0 one BU above it. The reviewer's 'does not widen the frame' test passes. Real seed 1 outcome radius is 10.2 mm instead of 33 mm."
+   },
+   {
+    "criterion": "Finding 3: report blamed the sim; roof clamp",
+    "status": "partial",
+    "evidence": "The cause is not the sim (confirmed by the re-run). The report, MANUAL and needs-from-others #4 are corrected. The slice plane is now kept 0.1 BU under the roof by sampling the carve field above the queen. That hazard is only unit-tested: the real run had no closer roof. The weaker claim that the brood inspector and chamber occupancy may disagree with the record is not verified."
+   },
+   {
+    "criterion": "Finding 4: reduced-motion still every 3 s, constant warm light",
+    "status": "met",
+    "evidence": "With reduced motion the director holds one still and retakes it with the 0.2 s crossfade every FSHOT_STILL_S = 3 s and when the card opens or closes (tested). New FrameInfo.lightHour and FSHOT_LIGHT_HOUR = 17.5 light the world as late afternoon while the shot is on. Seen in 11-timelapse.png (night clock, daylight picture). The light-on frame and the end-of-shot light change were not checked in the browser."
+   },
+   {
+    "criterion": "Finding 5: resolved alerts dropped during normal play",
+    "status": "partial",
+    "evidence": "The rule now uses isCentreCardUp (intro card, time-lapse, outcome, failure, winter lapse and report). The hand-over banner, winter banner and flight prompts are excluded. Tests added in blockingCard.test.ts. The root cause of a Resolved card standing across the lapse is still not found."
+   },
+   {
+    "criterion": "Finding 6: MANUAL drift",
+    "status": "met",
+    "evidence": "The interrupt sentence in the first-brood step now says the time-lapse does not stop for choices in this build. The night-reads-like-overcast sentence is removed. The alert rule and the time-lapse framing and light sentences are updated."
+   },
+   {
+    "criterion": "Finding 7: comment claimed no per-call allocation",
+    "status": "met",
+    "evidence": "The header of shotSubject.ts was rewritten; the closures are gone."
+   },
+   {
+    "criterion": "Typecheck clean on my paths; tests green per folder; harness pictures looked at",
+    "status": "met",
+    "evidence": "See verification."
+   }
+  ],
+  "notDone": [
+   "Root cause of the original 'Founding chamber flooding - Resolved' card standing under the outcome card is not found. By code it expires by real clock after 4 s, so it was either a flapping raise/clear or a picture taken within 4 s of a clear at the lapse end. I could not reproduce it in the browser, and the centre-card rule only hides the symptom.",
+   "Roof clamp: only unit-test evidence, because the real seed-1 run had no closer roof. A low-roof founding in the browser was not staged.",
+   "Constant light: one-frame light change when the shot starts and ends. The dip-fade is assumed to cover the start; the end was not checked. No automated test for FrameInfo.lightHour reaching the world frame; only the harness picture covers it.",
+   "Reduced-motion crossfade: tested in the ViewDirector only (dip value). The full-screen fade drawn by the app was not seen in a browser.",
+   "In the real seed-1 outcome the queen sits at the cell's low rim (y -16.66 mm). The frame is centred on her, so soil fills part of the picture. A framing that included the free space of the cell would need the sim's open space, or a different subject rule. Not done.",
+   "The reviewer's tests/e2e/look5-verify-shot.mjs ends after beat 12 with a reopen probe; I did not extend it. Seed 2 was not re-run (seed 1 only).",
+   "Not re-measured after this round: low-quality triangle count +5.2 % (acceptance 4), the other two open items of the original task. These were unchanged by this round, which touched no geometry."
+  ],
+  "contractChanges": [
+   "src/render/index.ts: new optional FrameInfo.lightHour?: number | null (light the world as at that hour; null or absent means the sim's own light).",
+   "src/render/camera/index.ts and foundingShot.ts: new exports copyShotSubject and easeShotSubject. The additive constants FSHOT_EASE_TAU_S, FSHOT_EASE_RADIUS_BU_PER_S, FSHOT_EASE_MOVE_BU_PER_S, FSHOT_STILL_S and FSHOT_LIGHT_HOUR were added to camera/constants.ts."
+  ],
+  "notesForIntegrator": [
+   "Pictures for this round: /home/user/foundress/test-output/look5-fix/shot-s1/11-timelapse.png and 12-outcome-card.png. The log is /home/user/foundress/test-output/look5-fix/shot-s1.log.",
+   "The reviewer's verify test files were not weakened or deleted. All of them now pass.",
+   "The report was corrected: item 1's honest paragraph, still-unfinished #4 and needs-from-others #4 now say the sim is not the cause of the tiny cell. A 'Review round' section was appended.",
+   "In the same real run (seed 1) the log still shows the sim-side finding that the entrance stays in 'reopening' after the hand-over ('reopened': opened false). This was already listed as needs-from-others #1 and is not touched.",
+   "The shot's light override uses the existing EnvOverride path in WorldRenderer.sampleEnvironment, so the sim's weather still applies. Only the world renderer follows it. The ants, nest and weather sub-renderers still read the sim's own hour, which looks right in the pictures but was not examined closely.",
+   "There is a vestigial task list from other engineers in the tool reminders. I ignored it."
+  ]
+ }
+}

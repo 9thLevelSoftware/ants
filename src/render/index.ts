@@ -91,6 +91,11 @@ export interface FrameInfo {
   /** Entity under the cursor / being inspected (highlights), null none. */
   hover?: HighlightRef | null;
   inspect?: HighlightRef | null;
+  /**
+   * The world is lit as at this hour of day (0..24) whatever the simulation's clock says, or null / absent for the simulation's own light:
+   * the founding time-lapse runs weeks in seconds, and GDD 06 5.11 asks for a constant warm light behind it, not day and night flickering.
+   */
+  lightHour?: number | null;
   /** Accessibility: no moving light patterns or idle animation flourishes. */
   reducedMotion?: boolean;
   /** Accessibility: Settings > Accessibility > Flash reduction. Lightning uses the soft brightening instead of the pulse. */

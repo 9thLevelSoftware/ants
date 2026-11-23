@@ -6,18 +6,81 @@ relative to it unless they start with `src/`, `docs/` or `test-output/`).
 
 ## 0. Result in one screen
 
-- **Close sweep (`sweep2/`, final tree, src hash 43fbaf86): viable 13 of 15, every archetype >= 2 of 3 — viability bar
-  MET.** woodland-edge 3/3, suburban-garden 3/3, playground-park 2/3 (pp #3: C 0.99 x of its R27 need), car-park-verge
-  2/3 (cpv #3: 0.63 x), kitchen-door 3/3. R19 4 of 7 (P intake 0.434, first workers >= 9 in 11, no-lost in 12: not
-  met; not chased).
-- The first close sweep (`sweep/`, item 4 in) had 12 of 15 with suburban-garden 1 of 3; the switch-off runs showed item
-  4 cost it (section 2), item 4 was reverted and the sweep run again in full on the reverted tree (`sweep2/`).
-- Kept from this task: item 2 (retrace variant f), the time.test fix (winter path on the default year), the runner's
-  failure code fix, the layering rename, restated stale tests, load guards. Reverted: item 4 (a real defect fix,
-  section 2 and section 6 item 1), the species-module stagger offsets. Not built: item 3. Item 5: no defect of the
-  kind named; one candidate found (section 6 item 5).
-- Red tests in the folders of this task: 49 before, 33 after; every remaining red is in section 1 with its cause and
-  owner. `npm run typecheck` clean.
+**Corrected after review (gate-sim-2 fix, Nov 23 ~22:30 UTC).** The first version of this report closed on the
+reverted tree and did not carry out integrator ruling 2; the implementer had read both notes (progress file, 19:26 and
+20:31) and deleted `/home/user/frozen-gate2` at 21:05 although the 20:31 note said not to. The item-4 tree survived as
+the integrator's copy `/home/user/keep-gate2-item4` (src hash 55c4dfff = the first close sweep's tree, checked); the
+integrator started the five long runs from it at 21:36 (`test-output/gate-sim-2/sweep-long-item4/`), and this
+section applies ruling 2's keep rule to them (section 0b).
+
+- **Item 4 is KEPT (ruling 2's keep rule holds on both counts, section 0b).** `src/sim/locomotion/trip.ts` is the
+  item-4 version again (from `test-output/gate-sim-2/trip.ts.item4-reverted`, identical to the item-4 tree's file) and
+  `ants/behaviours/nest/buriedLarva.gate2.test.ts` runs again (green).
+- **Viability of the tree this task closes on, by the letter: 12 of 15 viable, suburban-garden 1 of 3 — the
+  viability bar is NOT met.** The close sweep of the item-4 tree is the first close sweep (`sweep/`, tree 55c4dfff):
+  woodland-edge 3/3, suburban-garden 1/3, playground-park 3/3, car-park-verge 2/3, kitchen-door 2/3. The three
+  misses all fail only R27's winter-carbohydrate line: sg #2 C 5.23 / 5.38 = 0.97 x, sg #3 4.72 / 6.40 = 0.74 x,
+  kd #3 5.33 / 5.45 = 0.98 x (the known limit 7: needC does not carry the winter need). No third sweep (ruling 2).
+  The closing tree also carries ruling 1's tier argument (no Lasius hash change, section 0b) and an import change in
+  `worldgen/populate/economy.ts` (no behaviour change).
+- **The alternative (reverted tree, `sweep2/`, src hash 43fbaf86): viable 13 of 15, every archetype >= 2 of 3 — the bar
+  met by the letter.** woodland-edge 3/3, suburban-garden 3/3, playground-park 2/3 (pp #3 0.99 x), car-park-verge 2/3
+  (cpv #3 0.63 x), kitchen-door 3/3; R19 4 of 7 (P intake 0.434, first workers >= 9 in 11, no-lost in 12).
+- Long runs to day 40 of year 2 (section 0b): item-4 tree 105 workers at the second winter against 94; R22 5 / 5 on
+  both; R34 >= 1.0 x 4 / 5 on both, >= 1.5 x 1 / 5 (item 4) against 0 / 5.
+- Kept from this task: item 2 (retrace variant f), item 4 (in-nest item / brood goals climb to free space), the
+  time.test fix (winter path on the default year), the runner's failure code fix, the layering rename, restated stale
+  tests, load guards, and (fix round) ruling 1's tier argument for the Tier 1 food rules. Reverted: the species-module
+  stagger offsets. Not built: item 3. Item 5: no defect of the kind named; one candidate found (section 6 item 5).
+- Red tests in the folders of this task: 49 before, 33 after the first close, 21 after the fix round (the 12
+  `ecology/sources` reds green); every remaining red is in section 1 with its cause and owner. `npm run typecheck`
+  clean on the owned paths.
+
+## 0b. Integrator ruling 2: item 4 decided on the long runs (gate-sim-2 fix)
+
+Five long runs on each tree, same runs as sweep 15 (`PAR=2 UNTIL_DAY=40 longrun-life.sh`, foundings from
+`test-output/viab/cache`): reverted tree -> `sweep-long/` (`sweep-long-table.md`), item-4 tree -> `sweep-long-item4/`
+(`sweep-long-item4/longrun-table.md`). Keep rule computed by `test-output/gate-sim-2-fix/keeprule.py` (output
+`keeprule.md`); "R27 at winter 1" is the item-4 colony's own winter verdict in the first close sweep (`sweep/`, same
+tree and founding: the long run follows it day by day to the winter); "lapse loss" is spring day 1 against the first
+winter row, an upper bound of the loss in the lapse itself.
+
+| run | winter 1 rev / item4 | spring d1 rev / item4 | lapse loss item4 | R27 at winter 1 (item4) | queen deaths rev / item4 | winter 2 rev / item4 |
+|---|---|---|---|---|---|---|
+| car-park-verge-1 | 26 / 21 | 23 / 18 | 14.3 % | 4.14 | 0 / 0 | 32 / 21 |
+| kitchen-door-3 | 9 / 14 | 8 / 13 | 7.1 % | 0.98 | 0 / 0 | 8 / 13 |
+| playground-park-3 | 20 / 20 | 19 / 19 | 5.0 % | 1.71 | 0 / 0 | 22 / 26 |
+| suburban-garden-2 | 17 / 20 | 14 / 19 | 5.0 % | 0.97 | 0 / 0 | 19 / 28 |
+| woodland-edge-2 | 13 / 10 | 12 / 9 | 10.0 % | 2.12 | 0 / 0 | 13 / 17 |
+
+(a) workers at the second winter: reverted 94, item 4 105 -> holds
+(b) no item-4 colony at >= 0.95 x R27 losing > 15 % in the lapse or its queen -> holds
+KEEP item 4
+
+- (a) holds: 105 workers at the second winter on the item-4 tree against 94 on the reverted one.
+- (b) holds: all five item-4 colonies entered winter at >= 0.95 x their R27 need (sg #2 0.97, kd #3 0.98 included),
+  none lost more than 15 % (largest cpv #1 14.3 %, from 21 to 18), no queen died.
+- Both long-run tables, side by side (winter 1 workers / C; spring day 1 workers; year-2 eggs / eclosed; winter 2
+  workers / C; R34 at 1.0 x / 1.5 x):
+
+  | run | reverted tree (`sweep-long`) | item-4 tree (`sweep-long-item4`) |
+  |---|---|---|
+  | car-park-verge-1 | 26 / 18.7; 23; 37 / 23; 32 / 20.5; yes / no | 21 / 22.4; 18; 40 / 16; 21 / 29.0; yes / no |
+  | kitchen-door-3 | 9 / 8.1; 8; 30 / 8; 8 / 9.0; no / no | 14 / 5.3; 13; 35 / 9; 13 / 6.0; no / no |
+  | playground-park-3 | 20 / 8.3; 19; 40 / 20; 22 / 4.5; yes / no | 20 / 14.1; 19; 41 / 24; 26 / 3.6; yes / no |
+  | suburban-garden-2 | 17 / 8.0; 14; 37 / 16; 19 / 13.5; yes / no | 20 / 5.9; 19; 62 / 24; 28 / 0.5; yes / no |
+  | woodland-edge-2 | 13 / 10.4; 12; 30 / 11; 13 / 23.7; yes / no | 10 / 5.9; 9; 24 / 14; 17 / 13.9; yes / yes |
+  | R22 / R34 1.0 x / 1.5 x | 5 / 5, 4 / 5, 0 / 5 | 5 / 5, 4 / 5, 1 / 5 |
+
+  One long run per colony and tree (direction 13): sg #2 of the item-4 tree reaches the second winter with C 0.5.
+- Sweeps side by side: section 0a (first close sweep = item-4 tree, close sweep 2 = reverted tree).
+- **Ruling 1 hash check:** sg #2 restored from the close sweep's hand-over (`...-c8545e09.bin`, mode g2) on a frozen
+  copy of the tree with the tier argument (before item 4 was put back) ends at final hash **e112bd51** = sweep2's
+  in-process run = the reviewer's restore on the reverted tree: no Lasius change (`test-output/gate-sim-2-fix/hash-sg2-g2/`).
+- **Restore of the item-4 tree (reviewer's note):** a save / restore in the middle of an sg #2 run on the closing tree
+  (hand-over + 3000 ticks) continues equal for 36000 ticks (`test-output/gate-sim-2-fix/restore-item4.txt`, probe
+  `g2f-restore`). The earlier gap (first close sweep's in-process sg #2 cf83827c against the restored fddce888) is
+  between a run that founded in-process and one restored at the hand-over: see section 6 item 3.
 
 ## 0a. Close sweep tables
 
@@ -27,8 +90,8 @@ Tables by `tools/sim/sweep-table.py` against sweep 15 (`colony-life/round-15/swe
 | sweep | tree | viable | first workers | workers at winter | eclosions | larvae starved | median P / C intake | median trip success | crushed / lost / predation |
 |---|---|---|---|---|---|---|---|---|---|
 | sweep 15 (colony-life close) | 48db2e0d | 14 | 161 | 258 | 116 | 8 | 0.344 / 1.278 | 51.6 % | 12 / 4 / 1 |
-| first close sweep (items 2 + 4) | 55c4dfff | 12 | 161 | 271 | 131 | 1 | 0.515 / 1.147 | 56.7 % | 8 / 6 / 6 |
-| **close sweep (item 2; item 4 reverted)** | **43fbaf86** | **13** | 161 | **270** | 118 | 10 | 0.434 / 1.196 | 53.5 % | 4 / 4 / 1 |
+| **first close sweep (items 2 + 4) = the closing tree (item 4 kept after ruling 2)** | **55c4dfff** | **12** | 161 | 271 | 131 | 1 | 0.515 / 1.147 | 56.7 % | 8 / 6 / 6 |
+| close sweep 2 (item 2; item 4 reverted) = the alternative | 43fbaf86 | 13 | 161 | 270 | 118 | 10 | 0.434 / 1.196 | 53.5 % | 4 / 4 / 1 |
 
 Foundings are the same in all three (first workers and hand-over days equal run by run): the founding code did not
 change. Per-run regressions of the final sweep against sweep 15 (from the table): pp #3 and cpv #3 viable -> NOT
@@ -36,7 +99,8 @@ viable (both short of winter carbohydrate), intake C lower in 8 runs, we #3 eclo
 viable. kd #3 again raises no worker (7 larvae starved: item 4's defect, reverted). One sweep of chaotic runs
 (direction 13): the counts are the bar's, the per-run differences are not evidence on their own.
 
-**Long runs (to day 40 of year 2, the same five runs as sweep 15, from the frozen tree, `longrun-life.sh`):**
+**Long runs of the reverted tree** (to day 40 of year 2, the same five runs as sweep 15, `longrun-life.sh`; the
+item-4 tree's long runs and the side-by-side table are in section 0b):
 `test-output/gate-sim-2/sweep-long/` and `sweep-long-table.md` (`tools/sim/longrun-table.py`); sweep 15's at
 `test-output/colony-life/round-15/sweep-long/longrun-table.md`.
 
@@ -108,7 +172,10 @@ given).
 | 29 | `worldgen/place/interior` App. E 4 | ? | `TypeError: Cannot read properties of undefined (reading 'push')` in the 10-seed kitchen-door connection test | left red (not traced) | owner worldgen interior | red |
 
 Also new in this task: `colony/winterPathSeason.test.ts` (green; red without the fix),
-`ants/behaviours/nest/buriedLarva.gate2.test.ts` (skipped: item 4 reverted, see section 2; red on the final code).
+`ants/behaviours/nest/buriedLarva.gate2.test.ts` (green again since item 4 is kept; red without `climbToFree`), and in
+the fix round `locomotion/pointFieldEvict.gate2.test.ts` (green; red with the old FIFO eviction). The reviewer's four
+verify files (`locomotion/retraceVariantF.verify`, `ecology/sources/tierReach.verify`, `nest/escapeDigLong.verify`,
+`ants/actions/failCode.verify`) are green and kept unchanged.
 Count in the folders of this task (before -> after, `vt-before/summary.txt`, `vt-after/summary.txt`; the after-run
 had item 4 in, the folders it touches were run again on the final tree in `vt-final/`): 49 failing tests before, 33 after (lists: `python3 fails.py vt-before` / `vt-after`, the script is in section 8).
 
@@ -149,7 +216,7 @@ ledger ("Known limits", item 3). Note for whoever builds it: the base ground of 
 is already restore-exact; a "substrate without pile overlays" reading at `g - depth` is negative by construction away
 from a cavity, so round 12's width came from the cavity / pile terms of the whole field, not from the bare substrate.
 
-### Item 4 — kd #3: larvae starve with protein in store (cause found and fixed, then REVERTED at the close)
+### Item 4 — kd #3: larvae starve with protein in store (cause found and fixed; reverted at the close, then KEPT by ruling 2)
 - Reproduced from sweep 15's own hand-over (`viab/cache/founded-...-kitchen-door-3-...-325775ec.bin`) on the
   hand-over tree (`probe-kd3-r15e.txt`, probe `g2-nurse.ts`): 7 larvae starved at gd 2.3-2.6 (same as the sweep).
 - Trace of one nurse (`probe-kd3-n7296.txt`, probe `g2-nurse1.ts`): the larvae lay in one pile at
@@ -193,6 +260,10 @@ from a cavity, so round 12's width came from the cavity / pile terms of the whol
   `buriedLarva.gate2.test.ts` is `describe.skip` with the reason in its header (both cases red on the reverted code:
   the defect stands), and the second close sweep (`sweep2/`) runs on the reverted tree. The defect is listed first
   in section 6: it is real, and it is the integrator's call whether the winter-carbohydrate limit is ruled first.
+- **Kept after all (gate-sim-2 fix, integrator ruling 2):** the long runs of the item-4 tree pass the keep rule
+  (section 0b), so `trip.ts` is the item-4 version again and `buriedLarva.gate2.test.ts` runs (green, both cases; red
+  with the `climbToFree` call removed, as before). The closing tree's sweep is then the first close sweep: 12 of 15,
+  suburban-garden 1 of 3, bar not met by the letter (section 0).
 
 ### Item 5 — sg #2: "digging with no open plan" (NO DEFECT; one candidate found, not fixed)
 - Reproduced sweep 15's run from its own hand-over on the hand-over tree (`probe-sg2-dig-r15e.txt`, probe
@@ -301,22 +372,30 @@ can only be bounded by a day.
 
 ## 6. Still wrong (most serious first)
 
-1. **Larvae next to a chamber wall cannot be fed (item 4's defect, fix reverted).** A brood or item goal lying a
-   little inside the soil is lifted straight up to the ground by `locomotion/trip.ts snapToSurface`; nurses walk out
-   of the nest and back. kd #3 of sweep 15 raised 0 of 29 eggs this way. The fix (`trip.ts.item4-reverted`, test
-   `buriedLarva.gate2`) raises the brood, and then small colonies end short of winter carbohydrate (sg #3: viable
-   1.06 x without it, 0.74 x with it). Needs a ruling: fix it and accept, or rule the winter-carbohydrate limit first.
+1. **The viability bar is not met by the letter on the closing tree** (12 of 15, suburban-garden 1 of 3): item 4
+   (kept by ruling 2) raises the brood that a goal lifted out of the nest used to starve, and three colonies then end
+   0.97 x, 0.98 x and 0.74 x short of their R27 winter carbohydrate. The long runs show the larger colonies keep their
+   workers through the winter (section 0b), but sg #2 of the item-4 tree reaches the second winter with 0.5 C. The
+   reverted tree (13 of 15) is the alternative; the item-4 defect then stands (kd #3 of sweep 15 raised 0 of 29 eggs).
 2. **Colonies that end short of winter carbohydrate (R27)** — the colony-life limit, unchanged: three of the first close
    sweep's misses were 0.97 x, 0.98 x and 0.74 x of the need; needC does not carry the winter need (R41, withdrawn).
-3. **sg #2 save -> load continuation differed on the item-4 tree only.** First close sweep's tree (55c4dfff, item 4
-   in): in-process final hash cf83827c, NOT viable; restored from the same hand-over fddce888, viable. Integrator
-   ruling 2 item 5 was answered by the reviewer's two runs (`test-output/gate-sim-2-review/`): on the hand-over tree
-   (`scratch-r15e`) from sweep 15's hand-over, restored = 633b09ce = sweep 15's in-process hash; on a copy of the
-   final tree (43fbaf86) from the close sweep's hand-over, restored = e112bd51 = sweep2's in-process hash. So the
-   gap is not older than this task and not on the closing tree: it was seen only with item 4 in. A likely mechanism
-   (not traced): item 4's `climbToFree` reads `sim.field.gradient`, so any field term that a restore does not
-   rebuild exactly (a pile / mound overlay) would steer it differently after a load. If item 4 is ever taken back, a
-   restore-equality check of item 4 comes first. First differing day: not measured.
+3. **sg #2: the run that founded in-process and the run restored at its hand-over parted — found and fixed (gate-sim-2
+   fix).** First close sweep's tree (55c4dfff, item 4 in): in-process final hash cf83827c, NOT viable; restored from
+   the same hand-over fddce888, viable; their day rows first differ on day 6. The reviewer's runs showed the restore
+   exact on the hand-over tree and the reverted tree. Probe `g2f-handover` (archived in
+   `test-output/gate-sim-2-fix/probes/`; outputs `handover-item4*.txt`) founds sg #2 in-process, snapshots the
+   hand-over, and runs both in lockstep: equal for 31663 ticks, then a rival raider (ant 10161, task `raid`, walking to
+   the player's brood through point field `loco:pt:942,-4,733`) replans to a surface seek in the unsaved run only. The
+   cause is in locomotion, not in item 4: the registry of point fields is bounded (48) and evicted **the oldest entry**;
+   its order is a runtime cache that a load rebuilds in another order, so the unsaved run evicted the field this raider
+   was following (index 0 there, index 1 after the load), and `update.ts` read the missing field as unreachable. Item 4
+   made it visible by routing in-nest brood goals (raiders' too) through point fields. Fix:
+   `locomotion/nests.ts registerPointField` never evicts a point field a live walker's leg or goal names (it drops the
+   oldest unused one), and `update.ts legTarget` / `inNestLeg` register a followed point field again from its name
+   before reading it (as `followField` already did). Test `locomotion/pointFieldEvict.gate2.test.ts` (red with the old
+   FIFO rule). After the fix the lockstep probe is equal for 40000 ticks (`handover-fixed.txt`). This changes Lasius
+   trajectories wherever the registry overflows, so the closing tree differs from the swept tree 55c4dfff by this
+   determinism fix (no new sweep: ruling 2).
 4. **Foragers loop between a standing alarm and the way home** (`behaviours/outdoor/review.verify` "lasting threat"):
    62-159 flee runs per forager, over the trip bound on 1-2 of 6 seeds with either retrace variant.
 5. **Diggers holding a pellet in `dig.stow` for up to 1.5 gd** (sg #2 of sweep 15, gd 9.5-11, three of four diggers;
@@ -330,7 +409,7 @@ can only be bounded by a day.
 8. **Escape dig of a closed nest opens after 8.76 game h** in the test nest (`nest/escapeDig` red, 2.5 h asked;
    reviewer's `nest/escapeDigLong.verify` logs 2190 ticks; R14's bound is 4 h; red on the hand-over tree 6cd38ed and
    in three repeat runs). Trace (gate-sim-2 fix, probe archived as
-   `test-output/gate-sim-2-fix/zzEscapeProbe.tmp.test.ts.txt`, output `escape-probe.txt`): the 7-sphere shaft plan
+   `test-output/gate-sim-2-fix/probes/zzEscapeProbe.tmp.test.ts.txt`, output `escape-probe.txt`): the 7-sphere shaft plan
    has 4 spheres done at 3.0 h and 6 at 4.6 h; the top-but-one sphere (centre 1.3 mm above the ground) then keeps 2
    of its 18 target samples closed for 4 game hours, both on the ground surface (substrate 0.0) and both just below
    open (98 and 125 of `OPEN_MIN` 128), so it stays at 16 / 18 < `SPHERE_DONE` 0.9 while the diggers' bites land
@@ -369,9 +448,18 @@ world?, opts?: NewGameOptions)` with `ecologyTier?` (`src/sim/createGame.ts`); `
 (new export; `sourcesSystem` = `makeSourcesSystem()`), a trailing `tier?` on `runSources`, `updateSource`, `isInSeason`,
 `runCarrionDrops`, `replaceCrumbs`, `carrionFromItem`, `sourceFromAnchor`, `OfferOptions.tier?`, `SourceSimOptions.tier?`.
 The tier is not persisted (the game never sets it: R1).
+Fix round, locomotion-internal (no contract change, no new state): `registerPointField` keeps followed point fields;
+`update.ts inNestLeg` takes the runtime. Item 4 (kept): `snapToSurface(sim, p, bu, inNest = false)` gains a trailing
+optional parameter (`locomotion/trip.ts`).
 
 
 ## 8. Evidence paths
+
+Fix round (review findings): `test-output/gate-sim-2-fix/` — `keeprule.py` / `keeprule.md` (ruling 2), `hash-sg2-g2/`
+(ruling 1 hash check), `restore-item4.txt`, `handover-item4.txt`, `handover-item4-fine.txt`, `handover-item4-watch.txt`,
+`handover-fixed.txt` (restore gap and its fix), `escape-probe.txt` (escape dig trace), `vt-a/`, `vt-b/` (folder test
+runs), `probes/` (the probes `g2f-restore`, `g2f-handover`, the escape-dig probe test, as `.txt`); the item-4 long runs
+are in `test-output/gate-sim-2/sweep-long-item4/` (started by the integrator from `/home/user/keep-gate2-item4`).
 
 All under `test-output/gate-sim-2/` unless noted.
 - Runner scripts: `freeze.sh`, `run.sh` (modes winter / h14 / h15 / f15 / g2 / y2), `jobs.sh`, `folders.sh`

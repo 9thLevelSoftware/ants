@@ -69,4 +69,48 @@ describe('founding shot in the view director', () => {
     const f = d.settle(1, 1 / 30);
     expect(f.pose.fov).not.toBe(FSHOT_FOV_DEG);
   });
+
+  it('eases a change of the subject (radius, centre, card lift) and arrives at it', () => {
+    const { d, subject, cell } = setup();
+    d.setView('possess', subject, true);
+    cell.radius = 40; // above the minimum radius, so the distance follows it
+    d.setFoundingShot(() => cell);
+    d.settle(2, 1 / 60);
+    const d0 = Math.hypot(d.pose.pos.x - cell.x, d.pose.pos.y - cell.y, d.pose.pos.z - cell.z);
+    cell.radius *= 3;
+    d.update(1 / 60, null);
+    const d1 = Math.hypot(d.pose.pos.x - cell.x, d.pose.pos.y - cell.y, d.pose.pos.z - cell.z);
+    expect(d1 - d0).toBeLessThan(0.1 * d0); // not at once
+    d.settle(6, 1 / 60);
+    const d2 = Math.hypot(d.pose.pos.x - cell.x, d.pose.pos.y - cell.y, d.pose.pos.z - cell.z);
+    expect(d2 / d0).toBeGreaterThan(2.9); // but all the way
+    expect(d2 / d0).toBeLessThan(3.1);
+  });
+
+  it('keeps the slice at the source height at once, also while the frame eases', () => {
+    const { d, subject, cell } = setup();
+    d.setView('possess', subject, true);
+    d.setFoundingShot(() => cell);
+    d.settle(1, 1 / 60);
+    cell.cutY += 3;
+    expect(d.update(1 / 60, null).cutaway?.planeY).toBe(cell.cutY);
+  });
+
+  it('with reduced motion holds one still and retakes it with a crossfade every 3 real seconds', () => {
+    const { d, subject, cell } = setup(true);
+    d.setView('possess', subject, true);
+    d.setFoundingShot(() => cell);
+    d.settle(1, 1 / 60); // the entry crossfade is over
+    const still = { ...d.pose.pos };
+    cell.x += 5; cell.radius *= 2; // the cell changed: nothing moves until the next still
+    let fadedAt = -1, t = 0;
+    for (; t < 4; t += 1 / 60) {
+      const f = d.update(1 / 60, null);
+      if (f.dip > 0 && fadedAt < 0) fadedAt = t;
+      if (fadedAt < 0) expect(d.pose.pos).toEqual(still);
+    }
+    expect(fadedAt).toBeGreaterThan(1.5);
+    expect(fadedAt).toBeLessThan(3.2);
+    expect(Math.hypot(d.pose.pos.x - still.x, d.pose.pos.z - still.z)).toBeGreaterThan(1); // the new still
+  });
 });

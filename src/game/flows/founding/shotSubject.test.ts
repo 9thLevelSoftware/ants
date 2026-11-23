@@ -51,4 +51,26 @@ describe('founding shot subject', () => {
     expect(r.cutY).toBeGreaterThan(-12);
     expect(foundingShotSubject(fakeSim({ chamber: false }), blank())).toBeNull();
   });
+
+  it('keeps the plane under the roof of the cell over the queen (a plane above the ceiling shows soil only)', () => {
+    const queen = { x: 0, y: -16, z: 0 };
+    const sim = fakeSim({ queen });
+    // free up to y = -15 mm (0.25 BU above the queen), solid above
+    (sim as unknown as { field: unknown }).field = { sampleXYZ: (_x: number, y: number) => (y < -15 ? 1 : -1) };
+    const r = foundingShotSubject(sim, blank())!;
+    expect(r.cutY).toBeLessThan(-15);
+    expect(r.cutY).toBeGreaterThan(queen.y); // still above the queen's reference point
+    // open all the way: the usual 0.6 BU
+    (sim as unknown as { field: unknown }).field = { sampleXYZ: () => 1 };
+    expect(foundingShotSubject(sim, blank())!.cutY).toBeCloseTo(queen.y + 0.6 * BU, 9);
+  });
+
+  it('never lowers the plane below the queen even when the field is solid at once above her', () => {
+    const queen = { x: 0, y: -16, z: 0 };
+    const sim = fakeSim({ queen });
+    (sim as unknown as { field: unknown }).field = { sampleXYZ: () => -1 };
+    const r = foundingShotSubject(sim, blank())!;
+    expect(r.cutY).toBeGreaterThan(queen.y);
+    expect(r.cutY).toBeLessThanOrEqual(queen.y + 0.6 * BU);
+  });
 });

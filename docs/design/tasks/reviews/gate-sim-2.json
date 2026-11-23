@@ -163,5 +163,119 @@
    "src/sim/nest/escapeDigLong.verify.test.ts (1 case: the escape dig of a nest closed by plain fill opens within a game day; logs 8.76 game h on the current tree; green)",
    "src/sim/ants/actions/failCode.verify.test.ts (2 cases: a Lasius worker asking for mill-seed, cut-leaf or process-leaf gets 'species'; a generic nest-care `who` hook rejecting the queen does not give 'species'; green)"
   ]
+ },
+ "fixReport": {
+  "summary": "I reproduced all six review findings and all six were real. Here is what I fixed.\n\n(1) Integrator ruling 2 is now carried out. The five long runs on the item-4 tree had been started by the integrator at 21:36 from /home/user/keep-gate2-item4. I checked that copy's source hash: it is 55c4dfff, the first close sweep's tree. When the runs finished, I applied the keep rule with test-output/gate-sim-2-fix/keeprule.py (output keeprule.md). Both conditions hold:\n- (a) 105 workers at the second winter on the item-4 tree, against 94 on the reverted tree.\n- (b) All five colonies entered winter at 0.95x or more of their R27 need. The largest lapse loss was 14.3% (cpv #1) and no queen died.\n\nSo item 4 is KEPT. trip.ts is restored from trip.ts.item4-reverted, and buriedLarva.gate2.test.ts runs again and passes.\n\nBy the letter, the tree I close on has 12 of 15 viable, with suburban-garden at 1 of 3: the bar is NOT met. The three misses are all short of winter carbohydrate: sg #2 0.97x, sg #3 0.74x, kd #3 0.98x of the R27 need. The reverted tree (13 of 15) is listed as the alternative. The report shows both sweeps and both long-run tables side by side. It also says plainly that the implementer had read the ruling and deleted frozen-gate2 anyway.\n\n(2) Integrator ruling 1 is done. The Tier 1 food rules now take the tier as an argument that defaults to ECOLOGY_TIER, and the game passes nothing. The 12 ecology/sources tests pass tier 1 explicitly: 118 of 118 pass. Hash check: sg #2 restored from the close sweep's hand-over on a frozen copy of the tree ends at e112bd51, the same as the reverted close sweep's (sweep2) in-process run. So there is no Lasius change.\n\n(3) I removed the claim that winterPathRamp saved sg #2's queen. It does nothing on the 28-day year.\n\n(4) escapeDig. The report now gives the real number: the nest opens after 8.76 game hours. The test is red at hand-over and on three repeat runs, so the cause is not nondeterminism. I traced the cause: the shaft's top sphere keeps 2 of its 18 target samples closed for 4 game hours. Both sit on the ground surface just below \"open\" (98 and 125 of 128), so the sphere stays at 16/18, under the 0.9 done threshold. I tried counting surface samples as air (reverted): the plan then completes at 3.0 h, but the entrance still never opens. So the slow step is the bite cutting the surface samples from below. It is not fixed: changing the bite rule changes every Lasius dig and would need a sweep.\n\n(5) DEVIATIONS:\n- R43 is split so it only carries its own part of the worked-example numbers.\n- New D37: the worked example assumes a 0.5 gd larval stage, but the species devRate (r(25) = 1.364) gives 0.44 gd. This predates R43.\n- New D38: ids.test alert count 37 -> 38, and stall.soak share 0.324 -> about 0.26% with dozing ants left out.\n- The R39 row now records the seams restatement (demand = slots -> R39's bounds).\n- New D39: the tier argument from ruling 1.\n\n(6) Because item 4 is kept, I checked whether it restores exactly, as the reviewer asked. I ran an sg #2 that founded in-process side by side, tick by tick, with one restored at its hand-over. They parted 31664 ticks after the hand-over, at a rival raider walking to the player's brood. The cause is in locomotion, not in item 4. The point-field registry holds at most 48 fields and evicted the oldest one. Its order is not saved and is rebuilt differently after a load, so the unsaved run evicted the field this raider was following. Fixed: a field a live walker is following is never evicted, and the field is re-registered from its name before it is read. With the fix the side-by-side run stays equal for 40000 ticks, and a new test covers it (red with the old rule).",
+  "filesTouched": [
+   "/home/user/foundress/src/sim/ecology/sources/system.ts",
+   "/home/user/foundress/src/sim/ecology/sources/lifecycle.ts",
+   "/home/user/foundress/src/sim/ecology/sources/season.ts",
+   "/home/user/foundress/src/sim/ecology/sources/drops.ts",
+   "/home/user/foundress/src/sim/ecology/sources/anchors.ts",
+   "/home/user/foundress/src/sim/ecology/sources/runtime.ts",
+   "/home/user/foundress/src/sim/ecology/sources/budget.ts",
+   "/home/user/foundress/src/sim/ecology/sources/index.ts",
+   "/home/user/foundress/src/sim/ecology/sources/testkit.ts",
+   "/home/user/foundress/src/sim/ecology/sources/tier1.test.ts",
+   "/home/user/foundress/src/sim/ecology/sources/lifecycle.test.ts",
+   "/home/user/foundress/src/sim/ecology/sources/season.test.ts",
+   "/home/user/foundress/src/sim/ecology/sources/budget.test.ts",
+   "/home/user/foundress/src/sim/ecology/sources/drops.test.ts",
+   "/home/user/foundress/src/sim/ecology/sources/integration.test.ts",
+   "/home/user/foundress/src/sim/ecology/index.ts",
+   "/home/user/foundress/src/sim/createGame.ts",
+   "/home/user/foundress/src/sim/testing/testWorld.ts",
+   "/home/user/foundress/src/sim/locomotion/trip.ts",
+   "/home/user/foundress/src/sim/locomotion/nests.ts",
+   "/home/user/foundress/src/sim/locomotion/update.ts",
+   "/home/user/foundress/src/sim/locomotion/pointFieldEvict.gate2.test.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/buriedLarva.gate2.test.ts",
+   "/home/user/foundress/docs/design/gdd/DEVIATIONS.md",
+   "/home/user/foundress/docs/design/tasks/gate-sim-2-report.md",
+   "/home/user/foundress/docs/design/tasks/progress/gate-sim-2-fix.md",
+   "/home/user/foundress/tools/sim/probe/ (temporary probes g2f-restore.ts, g2f-handover.ts: archived to test-output/gate-sim-2-fix/probes/ and removed)"
+  ],
+  "verification": [
+   "npx tsc --noEmit -p . : no errors at all (whole project)",
+   "npx vitest run src/sim/ecology/sources : 118/118 passed (the 12 old reds included); before the change 12 failed / 106 passed",
+   "folder runs vt-a (test-output/gate-sim-2-fix/vt-a/summary.txt): ecology/plants 41/41, src/sim (top) 128/128, sim/testing 26/27 (layering case a: 4 test files of other tasks import @/game, @/content; pre-existing, report row 22), testing/gate1b 19 passed, ants/actions 88/88, types 27/27",
+   "folder runs vt-b after the locomotion fix (vt-b/summary.txt): locomotion 160/161 (perf criterion 7, 5.55 ms > 5 under load: known timing red), ants/behaviours/nest 81 passed, ants/behaviours/outdoor 86/87 (review.verify lasting threat 2100.6 s, the same number as before this round: known pre-existing), rivals 108 passed, nest 157/158 (escapeDig: known, traced)",
+   "npx vitest run buriedLarva.gate2, locoFix3.review/locoFix3/locoFix3.verify, trip.test, rivals/broodRaid, outdoor/determinism.perf, retraceVariantF.verify : 8 files, 46 passed, 1 skipped",
+   "pointFieldEvict.gate2.test.ts: green with the fix, red ('expected false to be true') with HEAD's nests.ts put back temporarily",
+   "tests/docs: 8/8 (DEVIATIONS code pointers checked)",
+   "Ruling 1 hash check: run.sh mode g2 sg#2 on a frozen copy (/home/user/gate2fix-hash, deleted after) -> finalHash e112bd51 = sweep2 in-process = reviewer's live-sg2-g2",
+   "Ruling 2: keeprule.py over sweep-long vs sweep-long-item4 (all 5 runs exit 1 = normal completion, DONE 22:29) -> (a) 105 vs 94 holds, (b) holds -> KEEP",
+   "Restore probe g2f-restore (save/restore at hand-over+3000, item-4 tree): EQUAL for 36000 ticks",
+   "Probe g2f-handover (in-process founding vs restored hand-over, same ticks side by side): before the fix FIRST DIFF at +31664 (raider ant 10161; its followed point field at registry index 0 in A, 1 in B, registry full at 48); after the fix EQUAL for 40000 ticks",
+   "escapeDig probe: top sphere 2/18 surface samples at 98 and 125 (OPEN_MIN 128) from 4.6 h to 8.6 h; experiment sampleInOpenAir >= 0: plan complete at 3.0 h, entrance not open in 10 h (reverted, targets.ts back to its original)"
+  ],
+  "acceptance": [
+   {
+    "criterion": "Finding 1 (major): integrator ruling 2 carried out, item 4 decided by the keep rule, both long-run tables and the viability count by the letter in the report",
+    "status": "met",
+    "evidence": "keeprule.md: (a) 105 vs 94, (b) holds -> item 4 kept; trip.ts and buriedLarva.gate2 restored; report sections 0 and 0b (12/15, suburban-garden 1/3, bar not met; alternative 13/15)"
+   },
+   {
+    "criterion": "Finding 2 (major): ruling 1 done, the 12 ecology/sources reds green through a tier argument, hash unchanged",
+    "status": "met",
+    "evidence": "118/118; D39; hash e112bd51 equal; the 'unreachable' claim corrected in report row 11 and section 6 item 7"
+   },
+   {
+    "criterion": "Finding 3: winterPathRamp credit for sg #2 removed",
+    "status": "met",
+    "evidence": "report section 0a R22 bullet rewritten (a no-op on the 28-day year)"
+   },
+   {
+    "criterion": "Finding 4: escapeDig given the current number, red at hand-over, cause investigated",
+    "status": "partial",
+    "evidence": "8.76 h, red at 6cd38ed and on 3 repeats; mechanism traced to the surface samples of the top sphere (report row 6, section 6 item 8). The dig rule itself is not changed (needs a sweep)"
+   },
+   {
+    "criterion": "Finding 5: old -> new numbers in DEVIATIONS for ids.test, seams, stall.soak; r(25) gap moved out of R43",
+    "status": "met",
+    "evidence": "D38 (ids 37->38, stall.soak 0.324 -> ~0.26 %), R39 row (seams 6 = slots -> bounds), D37 (0.5 vs 0.44 gd stage), R43 split"
+   },
+   {
+    "criterion": "Finding 6: item 4 restore check / sg #2 restore gap",
+    "status": "met",
+    "evidence": "Cause found in locomotion point-field eviction and fixed; test pointFieldEvict.gate2; the side-by-side probe is equal for 40000 ticks after the fix; report section 6 item 3"
+   },
+   {
+    "criterion": "Reviewer tests kept unchanged and green",
+    "status": "met",
+    "evidence": "retraceVariantF.verify, tierReach.verify, escapeDigLong.verify, failCode.verify: green, not edited"
+   },
+   {
+    "criterion": "Typecheck clean on owned paths; tests in touched folders green except documented reds",
+    "status": "met",
+    "evidence": "tsc: no errors; vt-a / vt-b reds are all known and in the report (layering a, loco perf timing, review.verify, escapeDig)"
+   }
+  ],
+  "notDone": [
+   "The viability bar is not met by the letter on the tree I close on: 12 of 15, suburban-garden 1 of 3, after item 4 was kept under ruling 2. I ran no third sweep (ruling 2).",
+   "The closing tree differs from the swept item-4 tree (55c4dfff) by the point-field eviction fix (a determinism fix that changes Lasius runs wherever the registry overflows) and by ruling 1's tier argument (checked as unchanged). No fresh sweep of the exact closing tree exists.",
+   "nest/escapeDig is still red: 8.76 h against the test's 2.5 h. Cause traced (the bite cannot cut the surface samples of the shaft's top sphere from below), but changing the bite or aim rule changes every Lasius dig. Owner: nest.",
+   "Tier 1 season checks in ecology/sources harvest.ts and discovery.ts, and the plants' nectarTier(), still read the game's tier; they have no argument (not needed by any test).",
+   "The dig.stow candidate defect (item 5) is still not traced.",
+   "Pre-existing reds outside the scope of the findings stay as reported: review.verify lasting threat, locomotion/perf timing under load, testing/layering case a, the worldgen reds, the Messor / Atta module reds."
+  ],
+  "contractChanges": [
+   "None in src/sim/types/** or src/core/**.",
+   "src/sim/createGame.ts: createNewGame(cfg, world?, opts?: NewGameOptions { ecologyTier? }); the game passes nothing.",
+   "src/sim/testing/testWorld.ts: TestSimOptions.ecologyTier? (swaps in a sources system at that tier unless systems are given).",
+   "src/sim/ecology: initEcology(ctx, world, tier?); sources: new export makeSourcesSystem(tier?) with sourcesSystem = makeSourcesSystem(); trailing tier? on runSources, updateSource, isInSeason, runCarrionDrops, replaceCrumbs, carrionFromItem, sourceFromAnchor; OfferOptions.tier?; SourceSimOptions.tier?.",
+   "src/sim/locomotion/trip.ts: snapToSurface(sim, p, bu, inNest = false) (item 4, kept)."
+  ],
+  "needsFromOthers": [
+   "Integrator: the closing tree, by the letter, does not meet the viability bar (12/15, suburban-garden 1/3) because ruling 2 keeps item 4. Decide whether that stands, or whether the winter-carbohydrate limit (R27, known limit 7) is taken up next.",
+   "Owner nest: the escape-dig bite at the ground surface (plans/frontier.ts planDigAim, PLAN_AIM_MAX_DEG 85, SPHERE_DONE 0.9) \u2014 the top shaft sphere's surface samples stay just below open for hours.",
+   "Owners of the 4 test files that import @/game / @/content from src/sim (layering case a)."
+  ],
+  "notesForIntegrator": [
+   "The point-field fix (locomotion/nests.ts registerPointField + update.ts ensureField) is a pre-existing locomotion save/load gap that item 4 exposed by routing in-nest brood goals (raiders' too) through point fields. Evidence: test-output/gate-sim-2-fix/handover-item4-watch.txt (registry full at 48; the raider's field at index 0 in the unsaved run, 1 after the load) and handover-fixed.txt (equal for 40000 ticks).",
+   "The item-4 long runs used were the ones you started from /home/user/keep-gate2-item4. I left that copy alone; /home/user/gate2fix-hash (my frozen copy for the hash check) is deleted.",
+   "Report sections run 0, 0b, 0a; section 0b is the ruling-2 decision. Progress file: docs/design/tasks/progress/gate-sim-2-fix.md.",
+   "Warning about folders.sh: a DIRS entry with no test files directly in it makes vitest run the whole suite. That happened once with src/sim/ecology; I killed it after 2 minutes."
+  ]
  }
 }

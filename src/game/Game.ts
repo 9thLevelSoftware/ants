@@ -10,7 +10,7 @@ import {
 } from '@/render/app';
 import { applyQualityToServices } from './qualityWiring';
 import { createBrowserAssetLoader, loadWorkerSource, type AssetLoader } from '@/render/assets';
-import { applyPose } from '@/render/camera';
+import { applyPose, FSHOT_LIGHT_HOUR } from '@/render/camera';
 import { RenderRegistry, type FrameInfo, type HighlightRef } from '@/render';
 import { LodObserverFeed } from './lodObserver';
 import type { Command, DirectivesPatch, MarkerKind, PlayerIntent, PossessRole, Sim, SpeedLevel } from '@/sim/types';
@@ -458,6 +458,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       viewportHeightPx: this.app.renderer.domElement.height, subject: subject ? subject.pos : null, possessedId: s.possessedId,
       possessedPose: pred, subjectOpacity: s.view === 'possess' ? vf.subjectOpacity : 1, cutaway: vf.cutaway,
       fade: s.view === 'possess' ? vf.fade : null, hover: this.hover, inspect: this.inspect, reducedMotion: this.settings.get().camera.reducedMotion, reducedFlash: this.settings.get().accessibility.flashReduction,
+      lightHour: s.views.foundingShotOn ? FSHOT_LIGHT_HOUR : null,
       comfort: this.comfort.get(this.settings.get()),
       hidePossessedHighlight: this.viewsLayer.photo.hidesMarkers,
     };

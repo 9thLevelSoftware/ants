@@ -190,7 +190,7 @@ What does not work yet, or not well:
 - **Three of the four species are not available.** *Camponotus*, *Messor* and *Atta* have modules, but their colonies did not meet the viability bar, so they are flagged `available: false` and the New Game screen greys them out.
 - Several difficulty parameters have no effect yet (they are marked "Not in this build" on the New Game screen).
 - The rulings R13, R14 and R28 in `docs/STATUS.md` are written down but not built.
-- The look has known defects (night scenes, some materials, camera on slopes). The frame rate on a real GPU has not been measured: all rendering tests used software rendering.
+- The look has known defects (night scenes are almost black at ground level, some materials, a coarse dot pattern on the queen when the camera sits close inside the nest, the time-lapse sometimes missing the queen); the first-hour pictures are listed in `docs/design/tasks/look-pass-5-report.md`. The frame rate on a real GPU has not been measured: all rendering tests used software rendering.
 - The full test suite has known red tests; the list is in `docs/STATUS.md`.
 
 A longer list for players is in `docs/MANUAL.md`, section "Known problems".

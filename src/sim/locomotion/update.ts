@@ -10,7 +10,7 @@ import { exitPoint as exitPointImp, followClimb as followClimbImp, followField a
 import { copy3 as copy3Imp, dist3 as dist3Imp, set3 as set3Imp } from './mathx';
 import { retraceDesired as retraceDesiredImp, trailDesired as trailDesiredImp, wanderDesired as wanderDesiredImp } from './modes';
 import { routeById as routeByIdImp } from './routes';
-import { atMouth as atMouthImp } from './nests';
+import { atMouth as atMouthImp, ensureField as ensureFieldImp } from './nests';
 import type { LocoRuntime } from './runtime';
 import type { NavScratch } from './scratch';
 import { aiSpeedCached as aiSpeedCachedImp } from './speed';
@@ -20,6 +20,7 @@ import { afterClimb as afterClimbImp, discsChanged as discsChangedImp, finalLeg 
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
 const accrueTravel = accrueTravelImp, travelShort = travelShortImp;
+const ensureField = ensureFieldImp;
 const atMouth = atMouthImp, exitPoint = exitPointImp, walkerLetGo = walkerLetGoImp, isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, copy3 = copy3Imp, dist3 = dist3Imp, set3 = set3Imp, retraceDesired = retraceDesiredImp, trailDesired = trailDesiredImp, wanderDesired = wanderDesiredImp, routeById = routeByIdImp, aiSpeedCached = aiSpeedCachedImp, checkStuck = checkStuckImp, ladderOverride = ladderOverrideImp, pivotDesired = pivotDesiredImp, wanderStuck = wanderStuckImp, trackMovement = trackMovementImp, trackProgress = trackProgressImp, afterClimb = afterClimbImp, discsChanged = discsChangedImp, finalLeg = finalLegImp, finite3 = finite3Imp, followLeg = followLegImp, legFlow = legFlowImp, planLeg = planLegImp, resolveTarget = resolveTargetImp, setGoal = setGoalImp, surfaceDist = surfaceDistImp, tripArrived = tripArrivedImp, walkerNest = walkerNestImp;
 
 const _target: Vec3 = { x: 0, y: 0, z: 0 }, _tmp: Vec3 = { x: 0, y: 0, z: 0 };
@@ -62,6 +63,7 @@ function legTarget(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3
       return flow !== null && isLocoNavGrid(g) && Number.isFinite(g.flowNext(flow, w.pos, r.P.relocateSteps, out));
     }
     case 'field': {
+      ensureField(sim, r, s.legField); // a point field is a derived cache: registered again from its name after a load
       const d = sim.nestNav.lookahead(s.legField, w.pos, r.P.relocateSteps, out);
       // an exit leg at the mouth: the lookahead ends at the mouth; the way on is over the rim (legs.ts exitPoint)
       if (s.legExit && Number.isFinite(d) && d <= Math.max(w.nav.arriveDist, 1.5 * sim.carve.voxel) + r.P.bu) return exitPoint(sim, w, s, r, out) || true;
@@ -140,7 +142,7 @@ function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numb
 function mouthHold(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here: number): number {
   const rim = r.P.entranceHandover, depth = r.P.mouthDepth;
   if (here >= 0 && s.legNest < 0 && s.goalNest !== here && atMouth(sim, here, w.pos, rim, depth)) return -1;
-  if (here < 0 && s.legNest >= 0 && !s.legExit && s.goalNest === s.legNest && inNestLeg(sim, w, s) && atMouth(sim, s.legNest, w.pos, rim, depth)) return s.legNest;
+  if (here < 0 && s.legNest >= 0 && !s.legExit && s.goalNest === s.legNest && inNestLeg(sim, w, s, r) && atMouth(sim, s.legNest, w.pos, rim, depth)) return s.legNest;
   return here;
 }
 
@@ -150,8 +152,10 @@ function mouthHold(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here: num
  * 'leg' on every tick, and the behaviour asked again on the next (review of loco-fix3: workers on the lip of the
  * suburban-garden #2 entrance failed thousands of walks on the spot).
  */
-function inNestLeg(sim: Sim, w: Walker, s: NavScratch): boolean {
-  return w.nav.mode === 'field' && s.legField !== '' && Number.isFinite(sim.nestNav.distanceAt(s.legField, w.pos));
+function inNestLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boolean {
+  if (w.nav.mode !== 'field' || s.legField === '') return false;
+  ensureField(sim, r, s.legField); // a point field is a derived cache: registered again from its name after a load
+  return Number.isFinite(sim.nestNav.distanceAt(s.legField, w.pos));
 }
 
 /**

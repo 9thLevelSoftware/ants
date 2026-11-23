@@ -5,7 +5,7 @@
 import { vec3, type Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import {
-  CAM_HANDOVER_KEEP_MAX_L, CAM_SWITCH_DIP_HALF_S, FSHOT_ORBIT_REV_PER_S, FSHOT_YAW_DEG, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
+  CAM_HANDOVER_KEEP_MAX_L, CAM_REDUCED_CROSSFADE_S, CAM_SWITCH_DIP_HALF_S, FSHOT_FILL, FSHOT_ORBIT_REV_PER_S, FSHOT_STILL_S, FSHOT_YAW_DEG, copyShotSubject, easeShotSubject, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
   copyPose, fitsAt, makePose, planTransition, type FoundingShotSubject, type TransitionPlan,
   type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type FieldFn, type PossessionCamState, type TraceFn,
 } from '@/render/camera';
@@ -128,6 +128,12 @@ export class ViewDirector {
   /** The founding chamber shot (render/camera/foundingShot.ts): while a source is set the possess view shows it instead of the ant's rig. */
   private shotSource: (() => FoundingShotSubject | null) | null = null;
   private readonly shot = makeFoundingShot();
+  /** The subject the shot actually frames: the source's subject eased (see nextShotSubject); `shotUse` is the copy handed to the maths. */
+  private readonly shotHeld: FoundingShotSubject = { x: 0, y: 0, z: 0, radius: 0, cutY: 0 };
+  private readonly shotUse: FoundingShotSubject = { x: 0, y: 0, z: 0, radius: 0, cutY: 0 };
+  private shotHeldOn = false;
+  /** Reduced motion: real seconds since the still was taken. */
+  private shotStillS = 0;
   private shotYaw = FSHOT_YAW_DEG * Math.PI / 180;
   private readonly frameOut: ViewFrame = {
     pose: makePose(), dip: 0, focus: 100, subjectOpacity: 1, possessionState: null, fade: null, cutaway: null, observerMode: null,
@@ -278,6 +284,7 @@ export class ViewDirector {
     if ((source === null) === (this.shotSource === null)) { this.shotSource = source; return; }
     const from = copyPose(makePose(), this.last);
     this.shotSource = source;
+    this.shotHeldOn = false;
     if (source) this.shotYaw = FSHOT_YAW_DEG * Math.PI / 180;
     else this.third.snap();
     const plan = handoverPlan('possess', 'possess', from, this.peekPose(), this.world.bu, !!this.third.opts.reducedMotion, this.world.trace, this.minClearanceMm);
@@ -285,6 +292,33 @@ export class ViewDirector {
   }
 
   get foundingShotOn(): boolean { return this.shotSource !== null; }
+
+  /**
+   * The subject to frame this frame: the source's subject eased (no frame-to-frame jumps, GDD 01 section 6.3), or with reduced motion a
+   * still that is retaken every FSHOT_STILL_S real seconds (and when the card opens or closes) with a crossfade (GDD 08 section 7.10).
+   * `dt` 0 (a peek at the pose) never advances anything.
+   */
+  private nextShotSubject(target: FoundingShotSubject, dt: number): FoundingShotSubject {
+    const held = this.shotHeld;
+    if (!this.shotHeldOn) {
+      copyShotSubject(held, target);
+      this.shotHeldOn = true;
+      this.shotStillS = 0;
+    } else if (this.third.opts.reducedMotion) {
+      this.shotStillS += dt;
+      const lookChanged = (target.lift ?? 0) !== held.lift || (target.fill ?? FSHOT_FILL) !== held.fill;
+      if (dt > 0 && (this.shotStillS >= FSHOT_STILL_S || lookChanged)) {
+        copyShotSubject(held, target);
+        this.shotStillS = 0;
+        this.transition.start(this.last, { kind: 'crossfade', duration: CAM_REDUCED_CROSSFADE_S });
+      }
+    } else {
+      easeShotSubject(held, target, dt, this.world.bu);
+    }
+    const use = copyShotSubject(this.shotUse, held);
+    use.cutY = target.cutY; // the slice follows the source at once: an animal must never be cut away
+    return use;
+  }
 
   private peekPose(): CameraPose {
     return this.updateRig(0, null).pose;
@@ -301,9 +335,10 @@ export class ViewDirector {
     const zoom = (axis: string) => (input ? input.zoom(axis) : 0) + nz;
     f.possessionState = null; f.fade = null; f.cutaway = null; f.observerMode = null; f.subjectOpacity = 1;
     // the queen is possessed through the lapse and released (observer, following her) at the hand-over: the shot holds across both
-    const subject = (this.view === 'possess' || this.view === 'observer') && this.shotSource ? this.shotSource() : null;
-    if (subject) {
-      foundingShotAt(this.shot, subject, this.shotYaw, w.bu);
+    const target = (this.view === 'possess' || this.view === 'observer') && this.shotSource ? this.shotSource() : null;
+    if (!target) this.shotHeldOn = false;
+    if (target) {
+      foundingShotAt(this.shot, this.nextShotSubject(target, dt), this.shotYaw, w.bu);
       f.pose = this.shot.pose; f.focus = this.shot.distance; f.cutaway = this.shot.cutaway;
     } else if (this.view === 'possess') {
       const l = look('orbit');

@@ -1,7 +1,10 @@
 // The founding chamber shot (look pass 5, constants.ts FSHOT_*): a pure pose and slice for the time-lapse, the outcome card
 // and the failure card. Millimetres, Y up. No three, no sim types: the Game hands in the subject's bounding sphere.
 import { DEG } from './frameMath';
-import { CAM_FAR_BU, FSHOT_CUT_REACH, FSHOT_FILL, FSHOT_FOV_DEG, FSHOT_MIN_RADIUS_BU, FSHOT_PITCH_DEG } from './constants';
+import {
+  CAM_FAR_BU, FSHOT_CUT_REACH, FSHOT_EASE_MOVE_BU_PER_S, FSHOT_EASE_RADIUS_BU_PER_S, FSHOT_EASE_TAU_S, FSHOT_FILL, FSHOT_FOV_DEG,
+  FSHOT_MIN_RADIUS_BU, FSHOT_PITCH_DEG,
+} from './constants';
 import type { CutawayParams } from './colonyRig';
 import { makePose, type CameraPose } from './types';
 
@@ -20,6 +23,35 @@ export interface FoundingShotSubject {
    */
   lift?: number;
   fill?: number;
+}
+
+/** Copies the numbers of a subject (no allocation). */
+export function copyShotSubject(out: FoundingShotSubject, s: FoundingShotSubject): FoundingShotSubject {
+  out.x = s.x; out.y = s.y; out.z = s.z; out.radius = s.radius; out.cutY = s.cutY;
+  out.lift = s.lift ?? 0; out.fill = s.fill ?? FSHOT_FILL;
+  return out;
+}
+
+const approach = (v: number, to: number, k: number, maxStep: number): number => {
+  const d = (to - v) * k;
+  return v + (d > maxStep ? maxStep : d < -maxStep ? -maxStep : d);
+};
+
+/**
+ * One step of the eased subject: `held` moves toward `target` by an exponential approach (FSHOT_EASE_TAU_S) with a speed cap on the
+ * radius and the centre, so no change of the subject (a worker crossing the reach, brood lifted, the card opening) jumps the camera.
+ * The slice height is not eased (an animal must never be cut away with the soil; the plane already sits under the roof, shotSubject.ts); `dt` 0 changes nothing. Allocation-free.
+ */
+export function easeShotSubject(held: FoundingShotSubject, target: FoundingShotSubject, dt: number, bu: number): void {
+  if (dt <= 0) return;
+  const k = 1 - Math.exp(-dt / FSHOT_EASE_TAU_S);
+  const move = FSHOT_EASE_MOVE_BU_PER_S * bu * dt, grow = FSHOT_EASE_RADIUS_BU_PER_S * bu * dt;
+  held.x = approach(held.x, target.x, k, move);
+  held.y = approach(held.y, target.y, k, move);
+  held.z = approach(held.z, target.z, k, move);
+  held.radius = approach(held.radius, target.radius, k, grow);
+  held.lift = approach(held.lift ?? 0, target.lift ?? 0, k, Infinity);
+  held.fill = approach(held.fill ?? FSHOT_FILL, target.fill ?? FSHOT_FILL, k, Infinity);
 }
 
 export interface FoundingShot {

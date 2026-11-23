@@ -1508,3 +1508,42 @@ Per colony at winter 2 (reverted / item 4): cpv #1 32 / 21, kd #3 8 / 13, pp #3 
   unchanged), the DEVIATIONS rows, the report corrections and the keep rule. `nest/escapeDig`: the nest opens after
   8.76 game hours in the test fixture (pre-existing; not fixed). The save / restore continuation gap exists only with
   item 4: ruling 3 gives the fix engineer one hour to find it.
+
+### Nov 23 ~23:39 UTC — gate-sim-2 and look-pass-5 returned (both reviews failed, both fixed); opening-fix + look-pass-6 launched
+
+Results: `docs/design/tasks/reviews/gate-sim-2.json`, `look-pass-5.json`; reports `gate-sim-2-report.md`,
+`look-pass-5-report.md`.
+
+**gate-sim-2 (closing tree = item 4 in + point-field eviction fix + tier argument; this exact tree was not swept):**
+- Kept: buried-larva fix (item 4), retrace variant f (App. E 23 green), `runner` failure codes, the restated tests,
+  ecology tier argument (12 reds green), winterPathRamp on the default-year day.
+- **Restore gap found and fixed:** the registry of point fields (48) evicted the oldest entry; its order is not saved,
+  so a loaded game evicted a different field than the unsaved one (a raider lost its way 31664 ticks after the
+  hand-over). Now a field a live walker follows is never evicted; lockstep run equal for 40000 ticks; test
+  `locomotion/pointFieldEvict.gate2.test.ts`.
+- Not built: the mound-mask probe (item 3). Not a defect: sg #2's digging (item 5); a `dig.stow` hold of up to 1.5 gd
+  is suspected and untraced.
+- Still red: `nest/escapeDig` (the closed test nest opens after 8.76 game hours; the top shaft sphere keeps 2 of 18
+  surface samples just below open - a lead for the browser's `reopening` failure), `review.verify` lasting threat
+  (flee / return loop on 1-2 of 6 seeds), worldgen reds (place/outdoor, place/interior E4, pipeline attempts),
+  Messor / Atta module reds, layering (4 sim tests import game / content).
+- Year one by the letter on the kept tree: 12 of 15 (suburban-garden 1 of 3). Year two: 85 -> 105, R34 4 of 5 / 1 of 5.
+
+**look-pass-5 (pictures I looked at):**
+- `look5/item1/final2-s1/outcome-card.png` (cheat founding): good - a cut-away cell with the queen and workers whole
+  above the card.
+- `look5-fix/shot-s1/12-outcome-card.png` (real founding, seed 1): the cell with one worker at its rim; the queen is a
+  grey smudge half under the wall. Not good enough.
+- `look5/firstplay/seed1-continue/13-first-workers-entrance.png`: night, rain - **the screen is almost black**, one ant
+  barely visible.
+- `look5/firstplay/seed1/09-sealed.png`: **the possession camera inside the founding cell is broken** - the queen fills
+  the lower left in a screen-door dot pattern, a block of white noise at the bottom, wall planes cutting the view.
+- Done there: backdrop fuzz only on rounded prims, wall-foot streaks (flat varyings), moulded plastic finish, resolved
+  alerts leave under a card, inspector label fixes, founding shot (subject = animals below the cut, smoothed),
+  reduced-motion crossfade, MANUAL corrections. Low-quality triangles +5.2 % (scene differs from the baseline).
+- Its "still unfinished" list (12 items) is in the report; the first three are the opening failing in the browser
+  (sim), black nights, and the in-nest camera.
+
+**Launched** (`wf-build.js`): `opening-fix` (Opus / Opus; `docs/design/tasks/opening-fix.md`) and `look-pass-6`
+(Sonnet / Opus verify, visual; `docs/design/tasks/look-pass-6.md`: in-nest possession camera, night visibility, real
+outcome framing, smaller items). Scratch trees r14-P3b, r15e and keep-gate2-item4 deleted.

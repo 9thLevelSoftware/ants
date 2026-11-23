@@ -260,3 +260,16 @@ export const FSHOT_CUT_REACH = 1.8;
 /** Opening yaw of the orbit (degrees) and its rate (GDD 08 §7.10: 0.02 revolutions per real second). */
 export const FSHOT_YAW_DEG = 35;
 export const FSHOT_ORBIT_REV_PER_S = 0.02;
+/**
+ * The shot's subject is eased, never taken raw: a worker walking into the cell, a nurse lifting an egg or the card opening (lift and fill
+ * change) would otherwise move the camera tens of millimetres in one frame (GDD 01 section 6.3 "no frame-to-frame jumps"). Time constant of
+ * the exponential approach, and the speed caps of the sphere's radius and of its centre (BU per s; the camera distance is about 3.2 times
+ * the radius, so these keep the camera well under CAM_MAX_REL_SPEED_L body lengths per second).
+ */
+export const FSHOT_EASE_TAU_S = 0.5;
+export const FSHOT_EASE_RADIUS_BU_PER_S = 6;
+export const FSHOT_EASE_MOVE_BU_PER_S = 12;
+/** Behind the shot the world is lit as at this hour whatever the clock says (GDD 06 section 5.11: warm light, constant). */
+export const FSHOT_LIGHT_HOUR = 17.5;
+/** Reduced motion (GDD 08 section 7.10): the camera stays on one still, refreshed (crossfade) this often in real seconds. */
+export const FSHOT_STILL_S = 3;

@@ -10,7 +10,7 @@ import { easeGrade, gradeTarget, neutralGrade } from '@/render/app/look';
 import type { Sim } from '@/sim/types';
 import { BoundaryRenderer } from '../world/boundary';
 import { DecorRenderer, type DecorFrame } from '../world/decor';
-import { UNDERGROUND, WorldRenderer } from '../world/lighting';
+import { UNDERGROUND, WorldRenderer, type EnvOverride } from '../world/lighting';
 import { readWeather } from '../world/weather/WeatherRenderer';
 import { WET_EASE_S, WET_PER_PRECIP } from './params';
 import { easeEV, occlusionAt, shadeEV, type OcclusionGrid } from './shadeAdapt';
@@ -34,6 +34,8 @@ export class WorldSlot implements SubRenderer {
   private baseEV = 0;
   private shadeNow = 0;
   private appliedEV = Number.NaN;
+  /** The fixed-hour light of FrameInfo.lightHour (only the hour is set: the sim's weather and the default season stay). */
+  private readonly lightEnv: EnvOverride = { hour: 12 };
   private readonly wf: DecorFrame = {
     dt: 0, time: 0, sim: null, underground: false, subject: null, reducedMotion: false, occlusion: null,
   };
@@ -74,6 +76,8 @@ export class WorldSlot implements SubRenderer {
     const w = this.wf;
     w.dt = frame.dt; w.time = frame.time; w.sim = frame.sim; w.underground = frame.underground;
     w.subject = frame.subject; w.reducedMotion = !!frame.reducedMotion; w.occlusion = frame.fade ?? null;
+    if (frame.lightHour === undefined || frame.lightHour === null) w.env = null;
+    else { this.lightEnv.hour = frame.lightHour; w.env = this.lightEnv; }
     if (frame.sim) this.updateWetness(frame.sim, frame.dt);
     this.world.update(w);
     if (this.hasWorld) {

@@ -168,14 +168,39 @@ export function ensureField(sim: Sim, r: LocoRuntime, id: string): void {
   if (Number.isFinite(ix) && Number.isFinite(iy) && Number.isFinite(iz)) registerPointField(sim, r, id, ix, iy, iz);
 }
 
-/** A wide field (name ending in WIDE_SUFFIX) is seeded over pointFieldR + half the cell's diagonal. */
+/**
+ * A wide field (name ending in WIDE_SUFFIX) is seeded over pointFieldR + half the cell's diagonal. Beyond
+ * pointFieldMax the oldest field that no walker follows is removed (gate-sim-2 fix): the registry's order is a derived
+ * cache that a load rebuilds in another order, so evicting "the oldest" removed a field a raider was walking in the
+ * unsaved game and another field after a load, and the two runs parted (sg #2, 31664 ticks after the hand-over). A
+ * field no walker follows is never read without being registered again from its name, so its eviction changes nothing.
+ */
 function registerPointField(sim: Sim, r: LocoRuntime, id: string, ix: number, iy: number, iz: number): void {
   const q = r.P.pointFieldCell;
   const radius = id.endsWith(WIDE_SUFFIX) ? r.P.pointFieldR + 0.5 * Math.sqrt(3) * q : r.P.pointFieldR;
   sim.nestNav.setTarget(id, { points: [{ x: ix * q, y: iy * q, z: iz * q }], radius });
   r.pointFields.push(id);
-  while (r.pointFields.length > r.P.pointFieldMax) {
-    const old = r.pointFields.shift();
-    if (old) sim.nestNav.removeTarget(old);
+  if (r.pointFields.length <= r.P.pointFieldMax) return;
+  const used = followedPointFields(sim);
+  used.add(id);
+  for (let i = 0; i < r.pointFields.length && r.pointFields.length > r.P.pointFieldMax;) {
+    const old = r.pointFields[i];
+    if (used.has(old)) { i++; continue; }
+    r.pointFields.splice(i, 1);
+    sim.nestNav.removeTarget(old);
   }
+}
+
+/** Point fields some live walker's current leg or goal names. */
+function followedPointFields(sim: Sim): Set<string> {
+  const out = new Set<string>();
+  const add = (w: { alive: boolean; nav: { loco?: { legField: string; goalField: string } } }): void => {
+    const s = w.alive ? w.nav.loco : undefined;
+    if (!s) return;
+    if (isPointField(s.legField)) out.add(s.legField);
+    if (isPointField(s.goalField)) out.add(s.goalField);
+  };
+  for (const a of sim.stores.ants.list) add(a);
+  for (const c of sim.stores.creatures.list) add(c);
+  return out;
 }

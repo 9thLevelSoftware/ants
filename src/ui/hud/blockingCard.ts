@@ -21,3 +21,19 @@ export function isBlockingCardUp(founding: FoundingUi | null, winter: WinterUi |
 export function blockingCardUp(): boolean {
   return isBlockingCardUp(foundingUi.value, winterUi.value, flightUi.value);
 }
+
+/**
+ * The cards that hold the centre of the screen through a stretch of lapse or until the player answers: the intro card, the time-lapse, its
+ * result and failure cards, the winter lapse and its report. While one is up a "Resolved" alert card is not kept (GDD 08 section 6.3: its 4 s
+ * would be spent unread behind the card). The hand-over banner, the winter banner and the flight prompts are not in this set: they sit
+ * beside the alert column and play goes on under them, so alerts keep their normal life.
+ */
+export function isCentreCardUp(founding: FoundingUi | null, winter: WinterUi | null): boolean {
+  if (founding && (founding.phase === 'intro-card' || founding.phase === 'timelapse' || founding.outcome || founding.failure)) return true;
+  return !!winter && winter.phase !== 'banner';
+}
+
+/** Reads the two signals (inside a component this subscribes to them). */
+export function centreCardUp(): boolean {
+  return isCentreCardUp(foundingUi.value, winterUi.value);
+}

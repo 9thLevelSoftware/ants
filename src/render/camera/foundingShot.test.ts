@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FSHOT_CARD_FILL, FSHOT_CARD_LIFT, FSHOT_FILL, FSHOT_FOV_DEG, FSHOT_MIN_RADIUS_BU, FSHOT_PITCH_DEG } from './constants';
-import { foundingShotAt, foundingShotDistance, makeFoundingShot, type FoundingShotSubject } from './foundingShot';
+import { copyShotSubject, easeShotSubject, foundingShotAt, foundingShotDistance, makeFoundingShot, type FoundingShotSubject } from './foundingShot';
+import { FSHOT_EASE_RADIUS_BU_PER_S } from './constants';
 
 const BU = 4;
 const subject = (o: Partial<FoundingShotSubject> = {}): FoundingShotSubject => ({ x: 8153, y: -14, z: 10871, radius: 13, cutY: -12, ...o });
@@ -62,5 +63,30 @@ describe('founding chamber shot', () => {
     const b = foundingShotAt(makeFoundingShot(), subject(), 2.1, BU);
     expect(b.pose.pos.y).toBeCloseTo(pa.y, 9);
     expect(b.distance).toBeCloseTo(a.distance, 9);
+  });
+});
+
+describe('founding shot subject easing', () => {
+  const BU = 4;
+  const sub = (radius: number, lift = 0): FoundingShotSubject => ({ x: 0, y: 0, z: 0, radius, cutY: 1, lift, fill: FSHOT_FILL });
+
+  it('limits how fast the radius grows, and lets it arrive', () => {
+    const held = copyShotSubject(sub(2 * BU), sub(2 * BU)), target = sub(40 * BU);
+    easeShotSubject(held, target, 1 / 60, BU);
+    expect(held.radius - 2 * BU).toBeLessThanOrEqual(FSHOT_EASE_RADIUS_BU_PER_S * BU / 60 + 1e-9);
+    for (let i = 0; i < 60 * 30; i++) easeShotSubject(held, target, 1 / 60, BU);
+    expect(held.radius).toBeCloseTo(target.radius, 3);
+  });
+
+  it('eases the card lift and fill, and does nothing for dt 0', () => {
+    const held = copyShotSubject(sub(5 * BU), sub(5 * BU)), target = { ...sub(5 * BU, FSHOT_CARD_LIFT), fill: FSHOT_CARD_FILL };
+    easeShotSubject(held, target, 0, BU);
+    expect(held.lift).toBe(0);
+    easeShotSubject(held, target, 1 / 60, BU);
+    expect(held.lift!).toBeGreaterThan(0);
+    expect(held.lift!).toBeLessThan(0.05 * FSHOT_CARD_LIFT + 0.01);
+    for (let i = 0; i < 60 * 20; i++) easeShotSubject(held, target, 1 / 60, BU);
+    expect(held.lift).toBeCloseTo(FSHOT_CARD_LIFT, 3);
+    expect(held.fill).toBeCloseTo(FSHOT_CARD_FILL, 3);
   });
 });
