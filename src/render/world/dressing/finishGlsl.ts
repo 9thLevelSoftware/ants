@@ -7,6 +7,7 @@
 // vColor (instance colour), vWrLook, vWrSize, vWrEdge. Outputs: wrAlb (final albedo incl. colour), wrNw,
 // wrRoughO (-1 = material roughness), wrMetal, wrCoat (clear-coat weight), wrTransl (back-lit translucency).
 import { FINISH, LEAF_STYLE } from './finishes';
+import { PLASTIC } from './tuning';
 
 const F = FINISH;
 
@@ -63,6 +64,36 @@ vec3 wrDetail(vec3 alb, float keep) {
   return vec3(mix(1.0, l, keep));
 }
 float wrCells(vec2 p) { vec2 f = fract(p) - 0.5; return length(f); }
+// Injection-moulded plastic (finishes.ts plastic, and the wear of the ribbed moulded finish): an orange-peel stipple in the albedo and the
+// roughness that fades before it can shimmer, a mould part line round the thinnest axis and a recessed rim on big flat faces (seams = 1),
+// worn light edges, and dirt at the foot of the object (height above its lowest point, iFoot). Features are 1 to 22 mm.
+vec3 wrPlastic(vec3 col, vec3 lp, vec3 ln, vec3 hs, float seed, float seams, inout float rough) {
+  vec3 an = abs(ln);
+  float fp = max(length(fwidth(lp)), 1e-4); // mm per pixel
+  bool ay = an.y >= an.x && an.y >= an.z, ax = !ay && an.x >= an.z;
+  vec2 g = ay ? lp.xz : (ax ? lp.zy : lp.xy);   // coordinates in the plane of the face this fragment is on
+  vec2 h2 = ay ? hs.xz : (ax ? hs.zy : hs.xy);  // its half extents
+  float grain = wrNoise(g / ${PLASTIC.grainMm.toFixed(2)} + seed * 17.0) - 0.5;
+  float gk = 1.0 - smoothstep(0.3, 0.8, fp / ${PLASTIC.grainMm.toFixed(2)});
+  col *= 1.0 + ${PLASTIC.grainAlbedo.toFixed(2)} * grain * gk;
+  rough = clamp(rough + ${PLASTIC.grainRough.toFixed(2)} * grain * gk, 0.05, 1.0);
+  if (seams > 0.5) {
+    bool tx = hs.x <= hs.y && hs.x <= hs.z, ty = !tx && hs.y <= hs.z;
+    float t = tx ? lp.x : (ty ? lp.y : lp.z), tn = tx ? an.x : (ty ? an.y : an.z);
+    float part = (1.0 - smoothstep(0.0, max(${PLASTIC.seamMm.toFixed(2)}, fp * 1.2), abs(t))) * (1.0 - smoothstep(0.35, 0.7, tn));
+    col *= 1.0 - ${PLASTIC.seamDark.toFixed(2)} * part;
+    float flatFace = step(0.93, max(an.x, max(an.y, an.z))) * step(${PLASTIC.rimMinMm.toFixed(1)}, min(h2.x, h2.y));
+    vec2 e = h2 - abs(g);
+    float inset = clamp(${PLASTIC.rimInset.toFixed(2)} * min(h2.x, h2.y), ${PLASTIC.rimInsetMm[0].toFixed(1)}, ${PLASTIC.rimInsetMm[1].toFixed(1)});
+    float rim = (1.0 - smoothstep(0.0, max(${PLASTIC.rimMm.toFixed(2)}, fp * 1.2), abs(min(e.x, e.y) - inset))) * flatFace;
+    col *= 1.0 - ${PLASTIC.rimDark.toFixed(2)} * rim;
+  }
+  float worn = smoothstep(0.04, 0.28, vWrEdge);
+  col = mix(col, col * 1.28 + 0.035, ${PLASTIC.wearMix.toFixed(2)} * worn);
+  rough = mix(rough, min(1.0, rough + 0.25), worn);
+  float dirt = (1.0 - smoothstep(${PLASTIC.dirtMm[0].toFixed(1)}, ${PLASTIC.dirtMm[1].toFixed(1)}, vWrW.y - vWrFoot)) * (0.6 + 0.8 * wrNoise(g / ${PLASTIC.dirtBlotchMm.toFixed(1)} + seed * 31.0));
+  return mix(col, col * vec3(0.42, 0.37, 0.28), clamp(${PLASTIC.dirtMix.toFixed(2)} * dirt, 0.0, 0.75));
+}
 `;
 
 /**
@@ -80,7 +111,7 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
   vec3 raw = wrAlb;
   if (fin == ${F.natural}) {
     wrAlb *= wrCol;
-  } else if (fin <= ${F.tyre} || fin == ${F.glass} || fin == ${F.carBody} || fin == ${F.moulded} || fin == ${F.appliance}) {
+  } else if (fin <= ${F.tyre} || fin == ${F.glass} || fin == ${F.carBody} || fin == ${F.moulded} || fin == ${F.plastic} || fin == ${F.appliance}) {
     // ---- re-coloured man-made surfaces
     vec3 det = wrDetail(raw, lk.w);
     float wear = lk.y * (0.3 + 2.2 * vWrEdge);
@@ -129,6 +160,12 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
         col *= 1.0 - 0.28 * groove;
         wrNw = normalize(ln + vec3(0.0, 0.2 * cos(ph * 6.2832), 0.0) * smoothstep(0.3, 0.5, abs(ph - 0.5) + groove * 0.5));
       } else if (ln.y > 0.6) col = mix(col, vec3(dot(col, vec3(0.33))) * 1.15, 0.25);
+      col = wrPlastic(col, lp, ln, hs, 0.0, 0.0, rough);
+    }
+    else if (fin == ${F.plastic}) {
+      // a moulded part: stipple, part line, recessed rim, worn edges, dirt at the foot; a sun-bleached, chalky top
+      col = wrPlastic(col, lp, ln, hs, 0.0, 1.0, rough);
+      if (ln.y > 0.6) { col = mix(col, vec3(dot(col, vec3(0.33))) * 1.12, 0.22); rough = min(1.0, rough + 0.1); }
     }
     else if (fin == ${F.appliance}) {
       // ventilated plinth along the bottom of the sides; a dark door gap a quarter of the way up

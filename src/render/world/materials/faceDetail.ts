@@ -6,7 +6,8 @@
 //     staggered joints; panel or render seams (1.2 x 0.6 m) on the other masonry;
 //   metal: standing seams with a tint per panel and a fold line half way up;
 // each fading out where a line would be under about 3 pixels (no moire), and keeping part of its colour through the fog so the haze
-// tints the face instead of bleaching it to the sky colour. Thin wooden panels keep their boards (FENCE_BOARDS).
+// tints the face instead of bleaching it to the sky colour. Thin bands of a tall wall (the vent course) keep their colour too (judged by
+// the height of their top above the object's foot), so a wall is not hazed in stripes. Thin wooden panels keep their boards (FENCE_BOARDS).
 //
 // Phase and reference (look-pass-4 fix): a facade is cut into bands at every window and door, so the patterns cannot be laid out in each
 // prim's own frame. Height is measured from the foot of the prim's OBJECT (iFoot, primitives/primCells.ts: the lowest bottom among the
@@ -107,6 +108,10 @@ export const FACE_DETAIL_FRAG = /* glsl */ `
       wrAlb *= mix(vec3(1.0), vec3(${f(FACE.plinthDark * 0.94)}, ${f(FACE.plinthDark)}, ${f(FACE.plinthDark * 0.9)}), pl * ${f(FACE.plinthDamp + 0.5)});
     }
     #endif
+    wrFogKeep = ${f(FACE.fogKeep)};
+  } else if (fx + fz > 0.5 && abs(nW.y) < 0.5 && wrFogKeep <= 0.0 && vWrW.y - vWrP.y + vWrSz.y - vWrFoot >= ${f(FACE.minFaceMm)}) {
+    // a thin band of a tall wall (the vent course, a sill course between two windows: 65 mm high, a face of its own to the shader): it keeps
+    // its colour through the haze like the bands above and below it, so the row does not read as a pale veil across the wall's foot
     wrFogKeep = ${f(FACE.fogKeep)};
   }
 }

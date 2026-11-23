@@ -137,3 +137,28 @@ at the same time and runs a headless browser: do not touch those paths.
 - **Item 5:** accepted as not a defect of allocation. The diggers held in `dig.stow` with pellets (gd 9.5-11) are worth
   one trace after the sweep if a run slot is free; no fix unless it is a plain execution fault.
 - `winterPathRamp` on the default-year day: accepted (no change on the 28-day year).
+
+## Integrator ruling 2 (19:26 UTC Nov 23) - item 4 is not reverted on the viability count alone
+You reverted item 4 as item 8 of the spec told you to. That was the letter; the first sweep's own table says the
+letter is wrong here. With item 4 in (`test-output/gate-sim-2/sweep`): workers at winter 271 (sweep 15: 258), median P
+intake 0.515 (0.344), trip success 56.7 % (51.6 %), larvae starved 1 (8), median eclosions 9 (8). The three colonies it
+"costs" fail only R27's sugar line, two of them at 0.97 and 0.98 of it, because they raised more workers. A nurse that
+walks out of the nest through the soil while larvae starve beside a full store is a defect a player sees; a colony 2 %
+short of its winter sugar is the known limit 7 (needC does not carry the winter need). So the decision is made on what
+happens to those colonies **after** the winter, which the long runs measure (sg #2 and kd #3 are both in the long set):
+
+1. Let `close2.sh` finish as it is (sweep2 and the long runs on the reverted tree `frozen-gate2b` ->
+   `sweep2`, `sweep-long`).
+2. Then run the same five long runs on the item-4 tree `/home/user/frozen-gate2` ->
+   `test-output/gate-sim-2/sweep-long-item4` (its foundings are in the cache from the first sweep).
+3. **Keep item 4** (restore `trip.ts` from `trip.ts.item4-reverted`, un-skip `buriedLarva.gate2.test.ts`) if both hold:
+   (a) the five item-4 colonies together have at least as many workers at the second winter as the five reverted ones;
+   (b) no item-4 colony that entered winter at >= 0.95 of its R27 need loses more than 15 % of its workers in the
+   lapse (R24's cap) or its queen. **Otherwise the revert stands.**
+4. Either way the report shows both sweeps and both long-run tables side by side, states the viability count of the
+   tree you close on by the letter (if item 4 is kept: 12 of 15, suburban-garden 1 of 3, bar not met, with the three
+   R27 ratios), and lists the other tree's numbers as the alternative. No third sweep.
+5. The sg #2 restore that continued differently from the in-process run (fddce888 against cf83827c): one check on
+   `scratch-r15e` from the same hand-over if a slot is free while the long runs go (is it older than this task?);
+   report with the first differing day either way. Do not chase it further here.
+Ruling 1 (the `ecology/sources` tier argument) still stands; do it after the last run has started, with the hash check.

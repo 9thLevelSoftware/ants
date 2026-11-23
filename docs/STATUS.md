@@ -1442,3 +1442,17 @@ Saved: `docs/design/tasks/reviews/colony-life-sweep-15.json`. Tables: `test-outp
 - Integrator ruling 1 (tail of `gate-sim-2.md`): the 12 `ecology/sources` reds get a tier argument, not left red.
 - look-pass-5 (impl): outcome-card shot (new founding shot with a slice cutaway), resolved alerts leave when a card is
   up, backdrop fuzz only on rounded prims; on the kitchen-door wall foot now.
+
+### Nov 23 ~19:26 UTC — check-in: gate-sim-2's first close sweep 12 of 15 with the buried-larva fix; ruling 2
+
+- First close sweep (item 4 in, tree 55c4dfff): viable **12 of 15** (sg #2 0.97, sg #3 0.74, kd #3 0.98 of the R27
+  sugar need; suburban-garden 1 of 3), but workers 271 (sweep 15: 258), median P intake **0.515** (0.344), trips 56.7 %
+  (51.6), larvae starved 1 (8). Switch-off runs: item 4 off restores sg #2 and sg #3; item 2 (variant f) is not the cost.
+- The engineer reverted item 4 by the spec's letter and started sweep2 + long runs on the reverted tree.
+- **Ruling 2:** not decided on the count alone. Long runs on both trees; item 4 is kept if its five colonies together
+  hold at least the reverted tree's workers at the second winter and the near-miss colonies do not lose > 15 % in the
+  lapse; otherwise the revert stands. Both tables go in the report.
+- Also found: sg #2 restored from its hand-over continues differently from the in-process run (a save / load
+  continuation gap; age unknown; one check asked).
+- look-pass-5: items 1-5 done in code (wall-foot streaks were interpolated varyings at the 250 mm face limit; moulded
+  plastic finish added); firstplay seed 2 running.

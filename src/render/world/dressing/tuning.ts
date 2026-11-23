@@ -107,3 +107,20 @@ export const FLOWER_QUALITY: Record<QualityId, { radiusMm: number; maxParts: num
 };
 /** The camera moves this far (mm) before the dressed heads are re-selected; heads are built this much farther out. */
 export const FLOWER_REPLACE_MM = 40;
+
+/**
+ * Injection-moulded plastic (finishes.ts `plastic`, finishGlsl.ts wrPlastic). Millimetres, physical (not scaled by BU): the features are
+ * 1 to 22 mm, which at 5 to 50 BU of ant-height distance read as surface (look pass 5: play equipment and garden furniture were single-colour faces).
+ */
+export const PLASTIC = {
+  /** Orange-peel stipple: cell size, albedo amplitude, roughness amplitude. */
+  grainMm: 1.4, grainAlbedo: 0.16, grainRough: 0.12,
+  /** Mould part line: width, darkening. */
+  seamMm: 0.7, seamDark: 0.3,
+  /** Recessed rim on a big flat face: smallest half extent that gets one, inset as a share of the face's smaller half extent and its mm limits, width, darkening. */
+  rimMinMm: 60, rimInset: 0.09, rimInsetMm: [4, 22] as readonly [number, number], rimMm: 1.0, rimDark: 0.26,
+  /** Worn light edges: share of the lightening. */
+  wearMix: 0.55,
+  /** Dirt at the foot: height above the object's foot range (mm) over which it fades out, blotch size, strength. */
+  dirtMm: [10, 110] as readonly [number, number], dirtBlotchMm: 12, dirtMix: 1.0,
+} as const;

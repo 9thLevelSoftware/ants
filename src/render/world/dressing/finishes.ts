@@ -39,6 +39,11 @@ export const FINISH = {
   moulded: 18,
   /** White goods: enamel with a ventilated plinth at the bottom and a door gap line. */
   appliance: 19,
+  /**
+   * Injection-moulded plastic parts (play equipment, garden furniture): fine stipple, a mould part line, a recessed rim on big flat faces, worn
+   * light edges and dirt at the foot (look pass 5: large single-colour faces had no surface at ant height).
+   */
+  plastic: 20,
 } as const;
 
 export type FinishId = keyof typeof FINISH;

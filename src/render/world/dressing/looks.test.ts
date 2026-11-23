@@ -77,6 +77,22 @@ describe('man-made looks', () => {
   });
 });
 
+describe('moulded plastic parts (look pass 5)', () => {
+  it('play equipment and unclassified plastics (garden furniture) get the moulded-part finish, thin fittings and rubber keep theirs', () => {
+    for (const t of ['slide', 'spring-rider', 'toy-spade', 'lost-ball']) expect(primLook(prim('plastic'), obj(t, 3)).look[0], t).toBe(FINISH.plastic);
+    expect(primLook(prim('plastic', 'box', [900, 40, 300]), obj('bench')).look[0]).toBe(FINISH.plastic); // a seat slat of an unlisted template
+    expect(primLook(prim('plastic'), null).look[0]).toBe(FINISH.plastic);
+    expect(primLook(prim('rubber'), obj('lost-ball', 3)).look[0]).toBe(FINISH.colour);
+    for (const t of ['downpipe', 'service-pipe', 'sprinkler-head', 'house-wall']) expect(primLook(prim('plastic', 'cylinder'), obj(t)).look[0], t).toBe(FINISH.colour);
+    for (const t of ['toy-bucket', 'water-butt']) expect(primLook(prim('plastic', 'cylinder'), obj(t)).look[0], t).toBe(FINISH.moulded);
+  });
+  it('the finish keeps the toy palette colour and a finite look vector', () => {
+    const l = primLook(prim('plastic'), obj('spring-rider', 5));
+    expect(PALETTE.toyPlastic).toContainEqual(l.color);
+    expect(l.look.every(Number.isFinite)).toBe(true);
+  });
+});
+
 describe('plant looks', () => {
   it('flat plant parts are leaves with the template style; stems are stems; round parts are flower heads', () => {
     const leafPrim = prim('plant', 'box', [60, 0.4, 15]);

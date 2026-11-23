@@ -70,3 +70,26 @@ Started 2026-11-23 ~16:50 UTC (session 1).
 - 18:21 INTEGRATOR NOTE: "Integrator ruling 1" is at the tail of docs/design/tasks/gate-sim-2.md: ecology/sources 12 reds
   get a tier argument defaulting to ECOLOGY_TIER after the sweep's runs (hash check on one cached run), not left red;
   item 4 accepted; item 5 accepted (one dig.stow trace if a slot is free); winterPathRamp accepted.
+- 18:18 sweep so far: 8 done, sg#2 NOT viable (C 5.23/5.38=0.97x; sweep15 0.01x), rest viable. vt-after running.
+- 18:45 SWEEP: sg#2 and sg#3 NOT viable (sg 1/3 -> archetype bar FAILS). Per spec: switch-off runs from this sweep's
+  hand-overs (viab/cache ...-c8545e09.bin, run.sh mode g2): trees /home/user/scratch-g2-no2 (crumbs.ts of r15e =
+  item 2 off), /home/user/scratch-g2-no4 (trip.ts of r15e = item 4 off), base frozen-gate2 -> off-item2/, off-item4/,
+  off-base/ (jobs-off-0/1.txt, started automatically by startoff.sh after sweep DONE). Then revert the item that
+  costs it, rerun sweep on affected colonies, then long runs.
+- 18:52 SWEEP DONE: viable 12/15 (sg 1/3 FAIL; kd#3 NOT viable 0.98x). Table test-output/gate-sim-2/sweep-table.md
+  (cd colony-life && python3 ../../tools/sim/sweep-table.py ../gate-sim-2/sweep round-15/sweep). Switch-off runs
+  running (off-item2, off-item4, off-base; sg2, sg3, then kd3 via startoff2.sh). Long runs NOT started yet.
+- 19:10 SWITCH-OFF RESULT: item 4 off -> sg#2 viable (C 7.91/4.41) and sg#3 viable (5.09/4.81); item 2 off -> both
+  still NOT viable. => ITEM 4 REVERTED in live (trip.ts = r15e's; fix saved test-output/gate-sim-2/trip.ts.item4-reverted;
+  buriedLarva.gate2.test.ts describe.skip with reason). kd#3 switch-offs cancelled (stop files).
+  Frozen /home/user/frozen-gate2b (reverted tree). close2.sh (nohup) waits for off-base runs, then full sweep ->
+  test-output/gate-sim-2/sweep2, then long runs -> sweep-long; writes close2.done. First sweep (item 4 in) kept in sweep/.
+- 19:15 off-base: sg#3 restored = sweep exactly (6c3e00ef, NOT viable); sg#2 restored DIFFERS from the in-process sweep
+  run (fddce888 vs cf83827c) and is viable -> sg#2 save/load continuation gap (report; likely pre-existing, untested on
+  r15e for lack of slots). Item-4 cost clean on sg#3 (1 pair). sweep2 running (close2.sh). Probes archived to
+  test-output/gate-sim-2/probes/ (still in tools/sim/probe: delete at the end after the R14 probe).
+- 19:26 INTEGRATOR NOTE: "Integrator ruling 2" is at the tail of docs/design/tasks/gate-sim-2.md. Item 4 is NOT settled by
+  the viability count: let close2.sh finish, then run the five long runs on the item-4 tree (frozen-gate2 ->
+  sweep-long-item4); KEEP item 4 if (a) its five colonies together have >= the reverted tree's workers at the second
+  winter and (b) no item-4 colony that entered winter at >= 0.95 of R27 loses > 15 % in the lapse or its queen; else the
+  revert stands. Report both sweeps and both long tables side by side. No third sweep. Do not delete frozen-gate2.

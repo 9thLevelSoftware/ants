@@ -126,7 +126,7 @@ export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOpti
   const flat = o.prim === 'rounded' && o.space === 'instance' && !o.curved;
   const face = flat ? faceKindOf(d) : null;
   const rustScan = d.texture === 'metal_painted';
-  const key = `surf|${d.id}|${d.texture}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}|${looks ? 'L' : '-'}|${face ?? '-'}|${flat ? 'F' : '-'}|v6`;
+  const key = `surf|${d.id}|${d.texture}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}|${looks ? 'L' : '-'}|${face ?? '-'}|${flat ? 'F' : '-'}|v7`;
   addPatch(mat, key, (s) => {
     if (o.prim) primVertexPatch(s, o.prim, looks);
     s.uniforms.tWrA = { value: o.set.albedo };
@@ -155,6 +155,7 @@ export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOpti
       looks ? '#define WR_LOOKS' : '',
       flat && d.id.startsWith('wood') ? '#define WR_BOARDS' : '',
       face ? '#define WR_FACE' : '',
+      face || looks ? '#define WR_FOOT' : '', // the object's foot reaches the fragment stage (face detail, the dirt on moulded plastic)
       face ? `#define WR_FACE_${face.toUpperCase()}` : '',
     ].join('\n');
 
@@ -165,11 +166,13 @@ varying vec3 vWrP; varying vec3 vWrN; varying vec3 vWrW;
 #ifdef WR_LOCAL
 varying vec3 vWrR0; varying vec3 vWrR1; varying vec3 vWrR2;
 #endif
+// per-instance constants are flat: interpolating them across a big triangle gives 249.99998 for a 250 mm face, and a size test
+// against 250 then failed along thin horizontal lines of pixels (look pass 5: streaks at the kitchen-door wall foot)
 #if defined( WR_BOARDS ) || defined( WR_FACE )
-varying vec3 vWrSz;
+flat varying vec3 vWrSz;
 #endif
-#ifdef WR_FACE
-attribute float iFoot; varying float vWrFoot;
+#ifdef WR_FOOT
+attribute float iFoot; flat varying float vWrFoot;
 #endif
 ${looks ? LOOK_VERT_DECL : ''}
 ${o.extra?.vertDecl ?? ''}`)
@@ -185,7 +188,7 @@ ${o.extra?.vertDecl ?? ''}`)
   #if defined( WR_BOARDS ) || defined( WR_FACE )
   vWrSz = iSize.xyz;
   #endif
-  #ifdef WR_FACE
+  #ifdef WR_FOOT
   vWrFoot = iFoot;
   #endif
   #ifdef WR_LOCAL
@@ -208,10 +211,10 @@ ${GLSL_OCCLUSION}
 ${GLSL_CONTACT}
 varying vec3 vWrP; varying vec3 vWrN; varying vec3 vWrW;
 #if defined( WR_BOARDS ) || defined( WR_FACE )
-varying vec3 vWrSz;
+flat varying vec3 vWrSz;
 #endif
-#ifdef WR_FACE
-varying float vWrFoot;
+#ifdef WR_FOOT
+flat varying float vWrFoot;
 #endif
 ${GLSL_DAPPLE}
 #ifdef WR_LOCAL

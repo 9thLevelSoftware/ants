@@ -69,3 +69,21 @@ describe('face detail by material kind', () => {
     expect(FACE.plinthMm).toBeLessThan(FACE.plinthMinHeightMm);
   });
 });
+
+describe('wall foot (look pass 5)', () => {
+  it('the per-instance size and foot are flat varyings: a 250 mm face must not interpolate to 249.99998 and fail the 250 mm test in streaks', () => {
+    const s = patched('concrete', 'rounded', 'instance');
+    expect(s.vertexShader).toContain('flat varying vec3 vWrSz;');
+    expect(s.vertexShader).toContain('flat varying float vWrFoot;');
+    expect(s.fragmentShader).toContain('flat varying vec3 vWrSz;');
+    expect(s.fragmentShader).toContain('flat varying float vWrFoot;');
+    expect(s.fragmentShader).not.toMatch(/(^|[^t] )varying vec3 vWrSz/m);
+  });
+  it('a thin band of a tall wall (the 65 mm vent course) keeps its colour through the haze, judged by its top above the object foot', () => {
+    expect(FACE_DETAIL_FRAG).toContain('vWrW.y - vWrP.y + vWrSz.y - vWrFoot >= ' + FACE.minFaceMm.toFixed(3));
+    const bandBranch = FACE_DETAIL_FRAG.slice(FACE_DETAIL_FRAG.indexOf('} else if ('));
+    expect(bandBranch).toContain('wrFogKeep = ' + FACE.fogKeep.toFixed(3));
+    // the foundation course is 250 mm: it is a face, not a band (it equals the minimum)
+    expect(FACE.minFaceMm).toBe(250);
+  });
+});

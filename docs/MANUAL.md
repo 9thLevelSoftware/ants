@@ -1,6 +1,6 @@
 # FOUNDRESS player's manual
 
-This manual describes the game as it is on 2026-11-18. It says what the game does today. Where something is unfinished or not in the game yet, it says so. The game is a first playable and has known problems: they are listed in section 20.
+This manual describes the game as it is on 2026-11-23. It says what the game does today. Where something is unfinished or not in the game yet, it says so. The game is a first playable and has known problems: they are listed in section 20.
 
 This is the only manual. An older draft that lived in `docs/manual/` has been merged into this file (sections 15 to 19 and the notes in section 13) and removed. The tables marked "generated" are written by `tests/docs/regen-manual.mjs` from the code that the game reads (section 20 says how to run it); `tests/docs/docs-final.test.ts` fails when they drift.
 
@@ -149,10 +149,10 @@ The steps (hint and aim wording: `src/content/text/hints.ts`). First an intro ca
 2. **Dig.** Hold `F` on diggable ground. The queen carries the soil out as pellets and drops them beside the shaft. A readiness bar shows when the shaft is deep enough and the chamber large enough.
 3. **Seal.** At the shaft, hold `E` to plug the entrance with soil. From then on the queen lives on her own reserves, and a gauge shows how much is left.
 4. **Lay.** In the chamber, press `E` to lay the first eggs.
-5. **First brood.** A time-lapse shows the eggs become larvae, pupae and workers while her reserves fall. It can be skipped by holding the skip key (Space or A). It can stop for a choice: step in (`E`) or let it play.
-6. **Hand-over.** The first workers open the plug. A hint offers `Tab` to possess a worker; you may stay with the queen. The workers are small first-brood workers; the queen's remaining reserve is passed to the colony as a provision (ruling R2).
+5. **First brood.** A time-lapse shows the eggs become larvae, pupae and workers while her reserves fall. The camera leaves the queen's back and looks down into her cell through a cut in the ground, turning slowly (not at all with reduced motion). It can be skipped by holding the skip key (Space or A). It can stop for a choice: step in (`E`) or let it play.
+6. **Hand-over.** The result card ("First workers: N" and the queen's reserves) stands over the same view of the cell, with the queen and her first workers in the upper part of the screen; Continue closes it and the camera comes back to the queen. The first workers open the plug. A hint offers `Tab` to possess a worker; you may stay with the queen. The workers are small first-brood workers; the queen's remaining reserve is passed to the colony as a provision (ruling R2).
 
-If the founding fails, a card says why and, depending on the difficulty, offers another site (Gentle: 3 tries, Naturalist: 1, Harsh: 0).
+If the founding fails, a card ("The founding did not succeed" and the reason) stands over the same view of the cell and, depending on the difficulty, offers another site ("Try another site"; Gentle: 3 tries, Naturalist: 1, Harsh: 0) or "Let it end".
 
 After the hand-over:
 
@@ -249,7 +249,7 @@ Each tool has a cap on how many may exist; the palette shows the count ("3/8"). 
 
 ## 8. Alerts and auto-slow
 
-Alerts come in four levels: info, notice, warning and critical. The feed at the screen edge shows up to three cards with the level word, a title and a cause, and a "+n more" chip. Clicking a card opens **Colony health** (`Y`) at the diagnostic that raised it, or jumps to the place. `Backquote` moves the keyboard focus into the feed. `Enter` goes to the newest alert.
+Alerts come in four levels: info, notice, warning and critical. The feed at the screen edge shows up to three cards with a shape for the level (screen readers read the level word), a title and a cause, and a "+n more" chip. A notice leaves after 12 seconds and a warning collapses into the chip after 30; a critical card stays until the alert clears or you acknowledge it. When an alert clears its card shows "Resolved" for 4 seconds and then leaves; while a card that takes the middle of the screen is up (the first-brood time-lapse and its result card, the winter report) a Resolved card leaves at once, since nobody can read it there. Alerts that are still active stay. Clicking a card opens **Colony health** (`Y`) at the diagnostic that raised it, or jumps to the place. `Backquote` moves the keyboard focus into the feed. `Enter` goes to the newest alert.
 
 **Colony health** lists every diagnostic worst first with a value, a trend and a chain of causes ("why") and, where one exists, a remedy button. This is the place to ask why food intake fell or brood slowed.
 
@@ -569,7 +569,7 @@ A click on the map moves the observer camera there (in the colony view it moves 
 
 In the observer and colony views `N`<!--key:skip-ahead--> runs the game at the highest allowed speed until something worth a look happens: an alert of warning level or above, a milestone, dawn or dusk or a change of weather or season. It stops after one game day at most and does not run while you control an ant or while a critical alert is active.
 
-Two periods are played as time-lapses. The first brood plays when the queen has laid her first eggs and lasts about a minute and a quarter. A stage bar shows egg, larva, pupa and worker with counts, a gauge shows the queen's reserves, and a column shows losses. Winter is a time-lapse that shows temperature by day, the stores draining and the workers lost to cold or hunger, and ends in a Winter Report that explains what happened. Both can be skipped by holding `Space`<!--key:tl-skip--> for a second, and the result of skipping is the result of watching. In the first brood the lapse can stop and ask you to step in, with `E`<!--key:tl-dropout-->, or to let it play.
+Two periods are played as time-lapses. The first brood plays when the queen has laid her first eggs and lasts about a minute and a quarter; the camera looks down into the queen's cell through a cut in the ground. A stage bar shows egg, larva, pupa and worker with counts, a gauge shows the queen's reserves, and a column shows losses. Winter is a time-lapse that shows temperature by day, the stores draining and the workers lost to cold or hunger, and ends in a Winter Report that explains what happened. Both can be skipped by holding `Space`<!--key:tl-skip--> for a second, and the result of skipping is the result of watching. In the first brood the lapse can stop and ask you to step in, with `E`<!--key:tl-dropout-->, or to let it play.
 
 ### 15.4 Every screen
 
@@ -802,7 +802,7 @@ Give the version shown on the title screen, the seed code of the locality (it is
 
 ## 20. Known problems
 
-From `docs/STATUS.md` and the application gate report (`docs/design/tasks/gate-close-app-report.md`, section 7), as of 2026-11-18. These may change while the work goes on.
+From `docs/STATUS.md` and the application gate report (`docs/design/tasks/gate-close-app-report.md`, section 7), as of 2026-11-23 (the list of what a first-hour play still shows is in `docs/design/tasks/look-pass-5-report.md`). These may change while the work goes on.
 
 **Simulation.**
 
@@ -815,7 +815,7 @@ From `docs/STATUS.md` and the application gate report (`docs/design/tasks/gate-c
 
 **Not available.** The carpenter, harvester and leafcutter species (section 1.3). Four difficulty parameters and two custom rules have no effect: the New Game screen greys them and labels them "Not in this build" (section 1.6). The rule "Extinction ends the game" works in the simulation but is listed greyed on the screen: no screen retires a colony, so a game that does not end when the last ant dies could not be ended. The nest architect's "Suggest" mode, thief ants and some human-event effects are not built. The minimap and the focus line show only what the simulation reports; they have no keyboard control, and the minimap is a pointer affordance.
 
-**Settings and strings.** The wrong strings listed in the first version of this manual (the "day 3" help text, the preset descriptions that claimed outcomes, the Photo mode row, the "1 young rivals" plural) were corrected on 2026-11-18. The README line about the `species=` flag still says that the flag accepts all four ids; it works only in test mode.
+**Settings and strings.** The wrong strings listed in the first version of this manual (the "day 3" help text, the preset descriptions that claimed outcomes, the Photo mode row, the "1 young rivals" plural) were corrected on 2026-11-18. The README line about the `species=` flag was corrected on 2026-11-22: the flag works only in test mode, and both documents now say so.
 
 **Rendering.** Night at ground level reads like an overcast day; leaves read as flat decals; the entrance mound has square edges at its foot; the follow camera can tip toward the sky on a slope; ants can look pale or milky at night and in night rain; chamber labels in colony view are sometimes smeared; a pale strip shows at the horizon at night. A look pass (look-pass-3) is in progress and some of these may change.
 
