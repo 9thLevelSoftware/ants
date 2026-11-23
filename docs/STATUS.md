@@ -1428,3 +1428,5 @@ Saved: `docs/design/tasks/reviews/colony-life-sweep-15.json`. Tables: `test-outp
 - Both through `wf-build.js` (implement -> independent verify -> fix). After a restart: relaunch with the same args and
   a note pointing at `docs/design/tasks/progress/<key>-impl.md`.
 - Disk: rounds 1-9 of `test-output/colony-life` and scratch trees r13 / r14-P deleted (9.5 GB free).
+- wf-build launched 16:50 UTC Nov 23: task `wbtrdcamz`, run `wf_5841f9f2-9a7` (args: gate-sim-2 opus / opus; look-pass-5
+  sonnet / opus verify, visual). Journal: `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_5841f9f2-9a7/journal.jsonl`.
