@@ -40,3 +40,4 @@ Started 2026-11-23 (session 1). No prior fix progress file.
   that is not restored exactly, fix with a save/restore equality test if it is that kind of cause, timebox one hour,
   else report it in "still wrong" and close. Say in the report that sg #2 enters its second winter with 28 workers and
   0.5 C on the item-4 tree. /home/user/keep-gate2-item4 is yours to use for this and to delete at the end.
+- 22:38 probe tools/sim/probe/g2f-restore.ts (A continuous vs B save/restore mid-run) on live (item 4 in), sg#2 c8545e09 hand-over -> test-output/gate-sim-2-fix/restore-item4.txt. sweep/ vs off-base sg#2 first differing day = 6 (pellets, nest volume).

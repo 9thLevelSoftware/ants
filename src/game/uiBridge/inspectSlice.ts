@@ -28,7 +28,7 @@ const cap = (s: string): string => (s.length ? s[0].toUpperCase() + s.slice(1) :
  * The simulation writes some unit strings with raw floats ("/ 14.774999999999999" for a chamber's adult capacity): the card shows
  * every number in a unit to one decimal at most (look pass 5, item 6).
  */
-export function tidyUnit(unit: string | undefined): string | undefined {
+export function tidyUnit(unit: string): string {
   if (!unit) return unit;
   return unit.replace(/\d+\.\d{2,}/g, (m) => String(Number(Number(m).toFixed(1))));
 }

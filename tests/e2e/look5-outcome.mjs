@@ -41,11 +41,11 @@ export default async ({ page, log, out }) => {
   await g(() => window.__game.step(2));
   if (process.env.OUTCOME_ALERT) {
     await g(() => window.__hud.game.refreshUi());
-    log('alert cards before the clear', JSON.stringify(await g(() => [...document.querySelectorAll('.fd-alert')].map((e) => e.textContent))));
+    log('alert cards before the clear', JSON.stringify(await g(() => [...document.querySelectorAll('[data-testid="alert-card"]')].map((e) => e.textContent))));
     await g(() => window.__game.cheat.clearAlert('queen-in-danger', 77));
     await g(() => window.__game.step(2));
     await g(() => window.__hud.game.refreshUi());
-    log('alert cards at the card', JSON.stringify(await g(() => [...document.querySelectorAll('.fd-alert')].map((e) => e.textContent))));
+    log('alert cards at the card', JSON.stringify(await g(() => [...document.querySelectorAll('[data-testid="alert-card"]')].map((e) => e.textContent))));
   }
   log('phase at card', phase, JSON.stringify(await g(() => window.__founding.view()?.outcome)));
   await g(() => window.__game.renderFrame({ settle: 1.5 }));

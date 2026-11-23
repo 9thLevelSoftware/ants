@@ -14,7 +14,6 @@ describe('tidyUnit', () => {
     expect(tidyUnit('BU³')).toBe('BU³');
     expect(tidyUnit('game days')).toBe('game days');
     expect(tidyUnit('')).toBe('');
-    expect(tidyUnit(undefined)).toBeUndefined();
   });
   it('drops a trailing zero after rounding', () => {
     expect(tidyUnit('/ 6.998')).toBe('/ 7');
