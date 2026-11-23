@@ -1350,3 +1350,28 @@ deliver share 28.6 % -> 1.7 %; buried spoiled food placed on the floor and lifte
   viable again (C 1.16 x and 2.38 x of the R27 need), `removal.verify` green. Frozen as `scratch-r15e`; all close
   arms rerun on it (19 runs).
 - 30c: variant e accepted; the mound-mask probe is dropped (timebox used by the item-3 detour; known limit).
+
+### Nov 23 ~15:07 UTC — round 15 returned (the last round); sweep 15 (the final judgement) running
+
+Result saved: `docs/design/tasks/reviews/colony-life-round-15.json`. Final tree = `/home/user/scratch-r15e` = live
+src (items 1-4 with item 3 as variant e, LARVA_P_REQ 0.8). Engineer's arms from cached hand-overs (not fresh
+foundings; sweep 15 is the independent measure):
+
+| year one, 15 round-10 hand-overs | workers | viable | median P | median C | trip success | no-lost runs |
+|---|---|---|---|---|---|---|
+| baseline (tree P at 0.8) | 280 | 13 | 0.450 | 1.430 | 47.4 % | 12 |
+| r15d (item 3 first version) | 277 | 11 | 0.377 | 1.297 | 52.8 % | 13 |
+| **r15e (final)** | 283 | 13 | 0.425 | 1.442 | 49.7 % | 14 |
+
+| year two, 5 cached colonies (winter 1 = 82) | sum winter 2 | >= 1.0 x | >= 1.5 x | eggs / eclosed |
+|---|---|---|---|---|
+| baseline | 83 | 3 | 0 | 157 / 56 |
+| r15d | 79 | 1 | 1 | 157 / 61 |
+| **r15e (final)** | 88 | 2 | 0 | 162 / 76 |
+
+- we #1 (sweep 14's failing colony) viable on the final tree; we #3 still short of winter sugar (0.47-0.69 of need).
+- Newly red on the final tree: `behaviours/outdoor/appendixE23` (carrion trail breaks in the last 25 BU before the
+  carcass with variant e; not traced), `colony/handoverStomach.verify` (rationing reached at gd 2.05 at 0.8 while the
+  queen still holds hand-over protein; needs a ruling). Both go to gate-close-sim.
+- Ledger has "### Known limits at the close of colony-life" (7 unmet bars with causes and what was tried).
+- Sweep 15 started 15:04 UTC on a frozen copy (`/home/user/frozen-sweep15`); do not edit `src/sim` until it returns.

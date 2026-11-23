@@ -5956,3 +5956,162 @@ start = HEAD ec35477, `git status` clean (tree P, LARVA_P_REQ 1.2). Evidence: `t
   tree and the arms running on it are the close; the mound-mask probe (30b item 5) is dropped - do not start it**
   (known limit with the A/B table); 30b items 3 and 4 (restate the six R43-red tests; fix the burst26 / hygiene26
   fixtures) stand and are done while the arms run; then the close per direction 30 item 6.
+- 14:12 Folder tests on the live tree with variant e (`round-15/vitest-e-*.txt`): locomotion 27/28 (`perf` timing),
+  behaviours/nest 33/37 (burst26.verify, hygiene26: item 2's fixture effect, see 12:35; sfaReview.verify, stall.soak:
+  known), behaviours/outdoor **38/39: `appendixE23` red with variant e** (green with the first version, r15d): 22
+  distinct deliverers and every path cell >= 1 ph within 6 BU, but no `trail-established` - the chain of >= 1 ph
+  cells breaks in the last 25 BU before the carcass (0.2-0.8 ph there; probe `round-15/probes/zprobe15e23.test.ts.txt`).
+  Not traced further; kept variant e (it gives back two colonies' viability on the arm; the R27 / viability bar outranks
+  one seed of App. E 23) and listed it known-red for the integrator.
+- 14:30 Waiting on the r15e arms (`jobs-j-*`, 21 runs in all; 10 done at 14:30). Remaining after them: tables, the
+  "### Round 15 results" and "### Known limits at the close of colony-life" sections, scratch r15e deleted.
+- 14:55 **INTEGRATOR NOTES read** (30b 12:59, 30c 14:03; read late, after the arms). r15e is the final tree; its close
+  arms are done (tables below). Now: 30b item 3 (restate the six R43-red tests) and item 4 (burst26 / hygiene26
+  fixtures), then the close.
+- 15:00 30b item 3 done for five of the six R43 reds: `colony/allocation.test` E13 (formula from
+  `LARVA_P_REQ + LARVA_C_REQ`), `colony/econGrowth.test` x2 (the nurse load's P / C shares from the constants, exact),
+  `colony/reproduction/reproduction.test` App. E 22 (336 x (P + C) / 1.6), `colony/founding/lapse.test` E19 (the 0.8
+  tree's 3.52 gd pinned as devTimeGd + 0.28, same +-0.1); old / new numbers in DEVIATIONS R43. **Not restated:**
+  `colony/handoverStomach.verify` (not a number: at 0.8 the colony reaches `rationing` at gd 2.05-2.08 while the queen
+  still holds her hand-over protein - an R2 check, left red for the integrator). 30b item 4 done: burst26.verify and
+  hygiene26 start with stores the pile does not spoil (8 / 4), both green, no threshold moved. Folder tests on the
+  final tree (`round-15/vitest-f-*.txt`): colony 81/83 (`workedExample`, `handoverStomach.verify`), tests/docs 1/1,
+  behaviours/nest 35/37 (`sfaReview.verify`, `stall.soak`, known); behaviours/outdoor 38/39 (`appendixE23`,
+  `vitest-e`), locomotion 27/28 (`perf` timing), nest 61/64 (`escapeDig`, `flood/readersCost.verify`,
+  `architect/layout` timing; known), ants/actions 10/11 (`runner.test`, red on tree P too). tsc clean; live src =
+  `scratch-r15e` src (tests aside).
+
+### Round 15 results
+
+**Final tree:** HEAD 5151a98 + this round's test restatements = `/home/user/scratch-r15e` (items 1-4 with item 3 in
+variant e, R43 `LARVA_P_REQ` 0.8). Baselines: `round-14/arm-y1P3b` (year one, tree P at 0.8), `round-14/y2-P3b` (year
+two); r15d (first version of item 3) as the middle column.
+
+**Causes ranked by measured loss (this round's own measurements):**
+1. **Entrance-throat delivery livelock** (we #1 of sweep 14: deliver 28.6 % of worker time, not viable): a lone open
+   voxel in the throat wall was the nav's nearest sample (field INF), so the chamber leg failed on the spot, and
+   `updateDeliver` asked for it again for ever. Fixed (items 1a + 1b): we #1 viable on r15a / r15d / r15e, deliver
+   1.1-1.7 %.
+2. **Item 3's first version (no crumbs while homing)** cost we #3 and sg #3 their winter carbohydrate on the year-one
+   arm (viable 13 -> 11); replaced by variant e (retrace consumes the crumbs behind it): both back (2 of 2).
+3. **Sugar trips broken off for prey on the way** (we #3, sweep 14's hand-over: 29 of 33 failed C trips): fixed (item
+   4); alone it does not give we #3 its winter carbohydrate (0.47-0.69 of the R27 need on three trees).
+4. **Round 14's mound-mask probe** (item 5): trip success -2 to -15 points and kd #3's brood flooding 5 -> 11 against
+   round 12's probe in single A/B runs; not fixed (30c: dropped; known limit).
+5. Buried spoiled food (item 2): fixed; hygiene deaths on the year-one arm 4 (P3b 5).
+
+**Fixes (cause, files, test, before / after):**
+| # | cause | files | test | before -> after |
+|---|---|---|---|---|
+| 1a | lone open voxel read as the walker's nav sample (INF) | `nest/nav/nestNav.ts nearestReached` | `nest/nav/loneVoxel15.test.ts` | we #1 probe (2 gd, sweep-14 hand-over): stuck deliverers mean 0.35 / max 2 -> 0 / 0 |
+| 1b | failed chamber leg re-requested for ever | `outdoor/phaseNest.ts deliverLegFailed`, `balance/foraging.ts DELIVER_LEG_FAILS_MAX`, keys `fo.legF` | `outdoor/deliverRecovery15.test.ts` | 1201 ticks standing failed -> <= 2; we #1 to winter: not viable, deliver 28.6 % -> viable, 1.1-1.7 % |
+| 2 | spoiled food spawned inside the floor; buried waste never lifted | `colony/wasteFall.ts chamberFloorUnder`, `liftBuriedItem`, `colony/stores.ts` | `colony/wasteFall15.test.ts`, `wasteFall.verify` case 2 green | kd #3's 9 buried items -> on the floor and hauled |
+| 3 | retrace walked the way-home crumbs backwards after a flee | `locomotion/crumbs.ts retraceTarget` (nearest start, consume), `outdoor/transitions.ts` (route guard), `types/ant.ts AntFlag.HOMING` | `locomotion/retraceResume15.test.ts`, `outdoor/removal.verify` green | scout 63.7 -> 107 BU from home -> homes; removal visits per ant <= 1 |
+| 4 | sugar foragers broke off for patch prey without a protein deficit | `outdoor/hunt.ts huntCheck` | `outdoor/sugarTripHunt15.test.ts` | 29 of 33 failed C trips `item-collected` -> no break-off without a deficit |
+| R43 | ruling 30a | `balance/colony.ts LARVA_P_REQ` 0.8 | five restated tests (DEVIATIONS R43) | - |
+
+**Year one (15 round-10 hand-overs; `round-15/table-y1.md`, `r19-arms.txt`):**
+| arm | workers | viable | median P | median C | median trip success | R27 met | runs no lost | lost | hygiene | larvae starved | median eclosions |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| arm-y1P3b (P, 0.8) | 280 | 13 | 0.450 | 1.430 | 47.4 % | 13 | 12 | 4 | 5 | 8 | 8 |
+| arm-y1-r15d (item 3 first version) | 277 | 11 | 0.377 | 1.297 | 52.8 % | 11 | 13 | 2 | 4 | 1 | 9 |
+| **arm-y1-r15e (final)** | **283** | **13** | **0.425** | **1.442** | **49.7 %** | **13** | **14** | 2 | 4 | 4 | 9 |
+Not viable on r15e: sg #2 and pp #3 (both not viable in P3b too). Deaths r15e: crushed 8, predation 2, lost 2; brood
+losses base 63, flooding 31 (P3b 33), exposure 17, temperature 12, untended 12.
+
+**Sweep 14's hand-overs (`round-15/h14-*`):** we #1 viable on r15a, r15d, r15e (C 21.2 / 13.3 / 28.2 for needs of
+6.0-6.4); we #3 not viable on r15b-e (C 0.47-0.69 of its R27 need; sweep 14: 0.42).
+
+**Year two (5 from `round-13/cache-y2`, winter 1 = 82; `round-15/y2-table.md`):**
+| arm | we #2 | sg #2 | cpv #1 | pp #3 | kd #3 | sum | >= 1.0 x | >= 1.5 x | y2 eggs / eclosed |
+|---|---|---|---|---|---|---|---|---|---|
+| y2-P3b | 15 | 21 | 23 | 19 | 5 | 83 | 3 | 0 | 157 / 56 |
+| y2-r15d | 12 | 16 | 30 | 19 | 2 | 79 | 1 | 1 | 157 / 61 |
+| **y2-r15e (final)** | 10 | 18 | 28 | 24 | 8 | **88** | **2** | 0 | 162 / 76 |
+Interim bar (>= 1.0 x in 3 of 5 and sum >= 82): sum met (88), count not (2). R34 not met. sg #2 loses 6 workers
+`lost` in the first two days of the second winter (after the winter-2 row; P3b 1).
+
+**Tried and reverted:** item 3's first version (no crumbs while homing: cost 2 colonies' viability, r15d arm);
+nothing else. The mound-mask probe was not built (30c).
+
+**GDD deviations (DEVIATIONS.md):** R43 (LARVA_P_REQ 0.8, with the GDD numbers it moves), D34 (crumb retrace),
+D35 (deliver recovery, lone-voxel nav sample). Item 2 and item 4 are defects of placement and execution, not
+deviations (GDD 02 has waste on chamber floors; the departure's target choice is the GDD's).
+
+**Not run:** a fresh 15-run sweep and fresh long runs on the final tree (the independent sweep's job); founding
+first-worker counts at 0.8 on the final tree (sweep-p08's 11 of 15 is the last measure).
+
+### Known limits at the close of colony-life
+
+For a reader who has not followed the rounds. The task "a colony left alone grows" ran 15 rounds (Nov 16-23). Its bars
+are in `colony-life.md` ("The bars"; R19 restated by R22 and R34; direction 29's interim year-two bars). Two kinds of
+evidence: the last **fresh 15-run sweep**, sweep 14 (`round-14/sweep-table.md`, tree P at LARVA_P_REQ 1.2, before
+round 15's fixes) and the integrator's paired fresh sweep at 0.8 (`round-14/sweep-p08`, `sweep-long-p08`); and round
+15's **arms from cached hand-overs** on the final tree (`round-15/arm-y1-r15e`, `y2-r15e`, `h14-r15e`), which measure
+everything after the founding. No fresh sweep has been run on the final tree; the next independent sweep is the bar.
+
+**Bars not met (last measured value; cause as far as known; what was tried):**
+
+1. **Viability >= 2 of 3 on each archetype.** Sweep 14: 13 of 15, woodland-edge 1 of 3. sweep-p08: 13 of 15, every
+   archetype >= 2 of 3. Final-tree arm: 13 of 15 (sg #2, pp #3 not viable; both short of R27 carbohydrate). On sweep
+   14's own hand-overs the final tree makes we #1 viable (its whole loss was the entrance-throat livelock, fixed) and
+   leaves we #3 not viable. Cause of the misses: the colonies that end short of sugar (item 7 below).
+2. **R19 median protein intake / need >= 0.7.** Sweep 14: 0.427; sweep-p08: 0.403; final arm 0.425 (P3b 0.450). The
+   need is dominated by a short spike - each larva needs its whole `LARVA_P_REQ` within about one game day of feeding -
+   while a small colony's protein (prey patches, small carrion) comes in spread over the season; colonies that raise
+   nearly every larva (larvae starved 4 per 15 colonies on the final arm) still read 0.3-0.7. Tried: R32 / R32b
+   (prospective protein demand), R35 / R35b, R37 / R37b, R38 (hunting, carrion valuation), D33 and R44 (withdrawn),
+   R43 (0.8 P per larva lowers the need and the intake together). The ratio the bar asks for is not reached with the
+   design's own larval protein figure in a first-year colony; it needs a ruling on the bar, not another rule.
+3. **R19 median trip success >= 50 %.** Sweep 14: 48.1 % (sweep 12: 57.5 %). Final arm 49.7 % (P3b 47.4 %; r15d 52.8 %).
+   Known contributors: we #1's livelock (fixed); round 14's mound-mask hole probe (`nest/moundRelax.ts buildMask`:
+   with round 12's probe, single A/B runs on sweep 14's hand-overs gave trip success +2 / +15 / +11 points on kd #3 /
+   sg #2 / pp #3 and kd #3's brood flooding 11 -> 5; `round-15/ab5-table.md`). Round 14's probe reads only the carve
+   cavity (needed so a restored game builds the same mask); round 12's read the whole field and kept piles off a wider
+   ring round each entrance. **First thing to try after colony-life:** a probe as wide as round 12's that reads only
+   restored state (the substrate field without the pile overlays), adopted only with `nest/moundMaskHeights`,
+   `nest/moundRestore14`, `locomotion/pointFieldRestore`, `outdoor/determinism.perf` green and sg #2's 36000-tick
+   restore equality (direction 30b item 5 states the acceptance).
+4. **R19 first workers >= 9 in >= 13 of 15.** Met at 1.2 (sweep 14: 14 of 15); at 0.8 (R43, the live tree) 11 of 15
+   in sweep-p08. R43 acts in the founding too: the split direction 30a allowed (1.2 in the founding) needs more than one
+   read (`colony/life.ts larvaFood` has no colony at hand, plus economy, queen, nurse share, alate cost), so it was
+   dropped. Not measured on the final tree.
+5. **R19 no worker:lost in >= 13 of 15.** Sweep 14: 12 of 15. Final arm: 14 of 15 (met there; a fresh sweep decides).
+6. **R34 year two: second winter >= 1.0 x winter 1 in 4 of 5 and >= 1.5 x in 3 of 5** (interim: 3 of 5 at 1.0 x and
+   the five together >= winter 1). Sweep 14's long runs 2 / 0 (71 against 74); sweep-long-p08 3 / 0 (85 -> 85);
+   from the cache y2-P3b 3 / 0 (83 / 82); final tree y2-r15e **2 / 0, 88 against 82** (cpv #1 1.47 x, pp #3 1.14 x;
+   we #2 0.77, sg #2 0.95, kd #3 0.80). Cause: old-age turnover (R30 lifespans: 7-12 workers of a colony of 10-21 die
+   of age in year two) against 7-21 year-two eclosions per colony; the largest brood losses are base mortality
+   (`BROOD_SURVIVAL`), pupae untended in the late cold and hygiene in the larger broods; kd #3 (a flood-prone nest)
+   loses its brood to flooding and its carbohydrate every time. Tried: R29c, R30, R33, R40 a / c, the hygiene fixes
+   (wasteFall: year-two hygiene 46 -> 5-10), dose arms (0.8 adopted as R43; halved base brood loss did not help). R34's
+   1.5 x was reached once in the task (cpv #1 1.58 x on r15d).
+7. **Colonies that end short of sugar** (R27 winter carbohydrate): we #3 in every sweep since 12 (final tree on sweep
+   14's hand-over: C 3.95 for 8.46, 0.47 of it); sg #2 and pp #3 on the year-one arms (pp #3 failed in rounds 12-14 on
+   every tree). What is known: we #3's foragers knew a nectar source and two crumbs all season; 29 of 33 failed sugar
+   trips were broken off for prey on the way (fixed, item 4); the departure scores put the prey patch above the known
+   sugar on doy 10-13, and the nectar's score read 0 for most foragers on doy 15-20 (claims: its food was taken by
+   trips under way); **needC read 0.00 at 10.6 and 8.1 days of carbohydrate stock on doy 10-11** while the winter need
+   (6-8 loads) was not met - needC follows the plain stock target, not the winter (R41 asked that, was withdrawn in
+   round 14 with D33 / R44 / R40 a-b because together they cost three colonies; direction 30b: stays a known limit).
+   The crumb sources were forgotten by doy 15 (no route, not in the news) and found again on doy 20.
+
+**Items of direction 30 left open:** item 5's mound-mask probe (above, 3); needC / winter need (above, 7); App. E 23's
+trail (below); handoverStomach.verify (below).
+
+**Known-red tests on the final tree** (one worker per folder, `round-15/vitest-{e,f}-*.txt`; others' folders not run):
+- `colony/workedExample` (GDD 02 §15 need rates; red since round 8).
+- `colony/handoverStomach.verify` "7 workers, 13 fresh eggs" - red from R43: the colony reaches `rationing` at gd
+  2.05-2.08 while the queen still holds her hand-over protein (R2's check). Not restated (not a number); for a ruling.
+- `behaviours/outdoor/appendixE23` (App. E 23, carrion trail) - red with item 3's variant e: 22 deliverers, every path
+  cell >= 1 ph within 6 BU, but the >= 1 ph chain breaks in the last 25 BU before the carcass, so `trail-established`
+  never fires (green with item 3's first version). Not traced.
+- `behaviours/nest/sfaReview.verify`, `behaviours/nest/stall.soak` (as before).
+- `nest/escapeDig`, `nest/flood/readersCost.verify` (red since round 12), `nest/architect/layout`,
+  `locomotion/perf` (timing under load).
+- `ants/actions/runner.test` "failure codes" (red on tree P too; not this round's).
+tsc clean.
+
+- 15:10 Round 15 closed. No process of this round running; probes archived in `round-15/probes/` and removed from the
+  tree; scratch trees of the round deleted except the final tree `/home/user/scratch-r15e` (kept with
+  `scratch-r14-P`, `scratch-r14-P3b` as 30c asks). Nothing committed by this engineer.

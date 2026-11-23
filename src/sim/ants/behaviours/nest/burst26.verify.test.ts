@@ -16,7 +16,10 @@ function wasteIn(k: NestColony): number {
 
 function clearTicks(n: number, seed: number): number {
   const k = makeNestColony({
-    workers: 10, seed, stores: { c: 100, p: 100 },
+    // stores the pile does not spoil within the scenario (direction 30b item 4): at 100 / 100 the pile spoils, and since
+    // round 15 its spoiled-food items lie on the floor where haulers reach them (wasteFall.ts chamberFloorUnder), so the
+    // haulers worked on them instead of the burst this test measures
+    workers: 10, seed, stores: { c: 8, p: 4 },
     brood: [{ stage: 'egg', n: 3, chamber: 'royal' }, { stage: 'pupa', n: 4, chamber: 'royal', progress: 0.2 }],
   });
   const { sim } = k;

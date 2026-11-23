@@ -6,6 +6,7 @@ import type { PlayerIntent, SimEvent } from '@/sim/types';
 import { LASIUS_NIGER } from '@/sim/species/data/lasius-niger';
 import { daysToTicks, TICKS_PER_HOUR } from '@/sim/time';
 import { LIN_MAX_DAUGHTERS_PER_FLIGHT } from '@/sim/balance/lifecycle';
+import { LARVA_C_REQ, LARVA_P_REQ } from '@/sim/balance';
 import { alateTarget, failingGates, type GateFacts } from './gate';
 import { launchChance, type FlightWeather } from './flightDay';
 import { askOpen, daughterSeed } from './launch';
@@ -21,12 +22,14 @@ const facts = (o: Partial<GateFacts>): GateFacts => ({
 });
 
 describe('alate gate and cost (App. E 22)', () => {
-  it('N 650 fails gate-stage; N 700 passes all with A* 35 (14 gynes, 21 males) costing 336 loads; 2 GD of C fails stores', () => {
+  // App. E 22's 336 loads are at 1.6 loads per larva (1.2 P + 0.4 C); the cost scales with LARVA_P_REQ + LARVA_C_REQ:
+  // 252 loads under R43 (0.8 P, colony-life round 15; DEVIATIONS R43)
+  it('N 650 fails gate-stage; N 700 passes all with A* 35 (14 gynes, 21 males) costing 336 x (P + C) / 1.6 loads; 2 GD of C fails stores', () => {
     expect(failingGates(D, facts({ workers: 650 }), 1)).toEqual(['gate-stage']);
     expect(failingGates(D, facts({}), 1)).toEqual([]);
     const t = alateTarget(D, 700, 0.5, 1, 0.4);
     expect(t).toMatchObject({ total: 35, gynes: 14, males: 21 });
-    expect(Math.abs(t.cost - 336)).toBeLessThanOrEqual(2);
+    expect(Math.abs(t.cost - (336 * (LARVA_P_REQ + LARVA_C_REQ)) / 1.6)).toBeLessThanOrEqual(2);
     expect(failingGates(D, facts({ daysC: 2 }), 1)).toEqual(['gate-stores']);
     expect(failingGates(D, facts({ investment: 0, inLayWindow: false, queenAlive: false, colonyAgeYears: 1 }), 1).sort())
       .toEqual(['gate-age', 'gate-player', 'gate-queen', 'gate-season']);

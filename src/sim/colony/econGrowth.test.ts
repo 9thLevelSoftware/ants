@@ -7,7 +7,7 @@ import type { FoodVariant, Sim } from '@/sim/types';
 import { ti } from './taskIdx';
 import {
   FORAGER_TRIPS_PER_GD, LEAD_VALID_S, NEED_SPONT_MULT, NEED_URGENT_FROM, NEED_URGENT_FULL, SPONT_RATE_MAX_S, PHYSIO_EVERY, SCOUT_SHORTFALL_FRAC,
-  SOURCE_SLOT_FORAGERS,
+  SOURCE_SLOT_FORAGERS, LARVA_C_REQ, LARVA_P_REQ,
 } from '@/sim/balance';
 import { addChamber, addWorkers, colonyOf, establishQueen, makeColonySim } from './testkit';
 import {
@@ -171,7 +171,8 @@ describe('R9: the winter reserve stops laying, never the feeding of larvae that 
     expect(winterReserveShort(sim, col, 12)).toBe(true);
     expect(layingReleaseShare(sim, col)).toBe(0);
     const mix = nurseLoadMix(sim, col.id, 0.6);
-    expect(mix.p).toBeGreaterThan(0.4);
+    // the larval protein share of the load, P_req / (P_req + C_req) (0.45 of 0.6 at 1.2 P per larva, 0.40 at R43's 0.8)
+    expect(mix.p).toBeCloseTo((0.6 * LARVA_P_REQ) / (LARVA_P_REQ + LARVA_C_REQ), 9);
   });
 });
 
@@ -182,7 +183,7 @@ describe('econ-growth: a nurse does not top a crop up with carbohydrate when pro
     col.stores.c = 10; col.stores.p = 0;
     const mix = nurseLoadMix(sim, col.id, 0.6);
     expect(mix.p).toBe(0);
-    expect(mix.c).toBeCloseTo(0.6 * 0.4 / 1.6, 9); // C_req / (P_req + C_req) of the load
+    expect(mix.c).toBeCloseTo((0.6 * LARVA_C_REQ) / (LARVA_P_REQ + LARVA_C_REQ), 9); // C_req / (P_req + C_req) of the load
     col.stores.p = 10;
     const full = nurseLoadMix(sim, col.id, 0.6);
     expect(full.p + full.c).toBeCloseTo(0.6, 9);

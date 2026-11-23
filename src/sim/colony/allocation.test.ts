@@ -4,6 +4,7 @@ import { AntFlag, taskIndex } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { addBrood, addChamber, addWorkers, careSystem, colonyOf, establishQueen, makeColonySim, step } from './testkit';
 import { GROUP_TASKS } from './allocation';
+import { LARVA_C_REQ, LARVA_P_REQ } from '@/sim/balance';
 import { apportion, computeTargets } from './allocation/targets';
 import { requestTask } from './index';
 
@@ -29,8 +30,9 @@ describe('task allocation (GDD 02 §6, E13-E15, AC6)', () => {
     addBrood(sim, 'larva', 20, ch, 0.1);
     step(sim, 1800);
     const col = colonyOf(sim);
-    // larval demand = 20 x (1.6 / 0.6) x r(25) = 72.7 loads/gd -> / 4.5 = 16.2 nurses (no eggs or pupae).
-    const formula = (20 * (1.6 / 0.6) * 1.364) / 4.5;
+    // larval demand = 20 x ((LARVA_P_REQ + LARVA_C_REQ) / 0.6) x r(25) loads/gd -> / 4.5 nurses (no eggs or pupae);
+    // GDD E13 states 1.6 loads per larva (72.7 loads/gd, 16.2 nurses); 1.2 under R43 (LARVA_P_REQ 0.8): 12.1 nurses
+    const formula = (20 * ((LARVA_P_REQ + LARVA_C_REQ) / 0.6) * 1.364) / 4.5;
     expect(Math.abs(col.alloc.target[taskIndex('nurse')] - formula)).toBeLessThanOrEqual(1);
     expect(Math.abs(col.alloc.actual[taskIndex('nurse')] - col.alloc.target[taskIndex('nurse')])).toBeLessThanOrEqual(1);
   });

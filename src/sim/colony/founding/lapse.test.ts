@@ -39,7 +39,11 @@ describe('first-brood time-lapse on the running simulation (GDD 06 §5.11-§5.13
     expect(o.events).toEqual(['dealation', 'search', 'dig', 'seal', 'lay', 'timelapse', 'handover']);
     expect(o.firstEggTick).toBeGreaterThan(0);
     const gd = (o.firstEclosionTick - o.firstEggTick) / TICKS_PER_DAY;
-    expect(Math.abs(gd - devTimeGd(requireSpecies('lasius-niger'), 19.5))).toBeLessThanOrEqual(0.1);
+    // R43 (LARVA_P_REQ 1.2 -> 0.8, colony-life round 15): the first worker ecloses 3.52 gd after the first egg, not at
+    // devTimeGd's 3.24 (the GDD's fast-tracked figure, met to 0.1 at 1.2); the 0.28 gd is pinned here and listed in
+    // DEVIATIONS R43
+    const R43_LAG_GD = 0.28;
+    expect(Math.abs(gd - (devTimeGd(requireSpecies('lasius-niger'), 19.5) + R43_LAG_GD))).toBeLessThanOrEqual(0.1);
     const lapse = o.sim.state.player.opening!.lapse!;
     expect(lapse.endTick - o.firstEclosionTick).toBeGreaterThanOrEqual(0.4 * TICKS_PER_DAY - 11);
     // a good site, clutch 24: the GDD's 8-15 first workers (one seed: a little wider), about 0.4 of the pool left

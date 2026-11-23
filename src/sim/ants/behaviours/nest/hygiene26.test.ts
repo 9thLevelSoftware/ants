@@ -77,7 +77,10 @@ describe('direction 26 item 4a: the surface hold', () => {
   }
 
   function colony(): NestColony {
-    const k = makeNestColony({ workers: 6, seed: 3, stores: { c: 100, p: 100 } });
+    // stores the pile does not spoil within the scenario (direction 30b item 4): at 100 / 100 its spoiled-food items,
+    // reachable on the floor since round 15 (wasteFall.ts chamberFloorUnder), made haul and nurse work that re-tasked
+    // her before the hold limit this test measures
+    const k = makeNestColony({ workers: 6, seed: 3, stores: { c: 8, p: 4 } });
     floodCheats(k.sim.state).drainScale = 0;
     floodCheats(k.sim.state).rainI = 0;
     run(k.sim, 50);
