@@ -1313,3 +1313,8 @@ Round 15 is the last round of colony-life (direction 30): no new rules; fix the 
 homing-after-flee defect (`outdoor/removal.verify`); trace the sugar-left-lying pattern and the flooding rise; close
 with one year-one arm, one year-two arm and a "Known limits" section. LARVA_P_REQ is ruled as direction 30a when my
 paired long runs at 0.8 are in (`round-14/sweep-long-p08`).
+
+Round 15 launched 11:16 UTC: task `we0pfalpj`, run `wf_0000963d-109` (`wf-life.js {maxRounds: 1, firstRound: 15, model:
+opus, effort: high}`, direction 30). After a restart: relaunch `firstRound 15` with a note that the ledger's
+"## Round 15" progress and directions 30 / 30a say what is in the tree. Owed by me: direction 30a (LARVA_P_REQ) when
+`test-output/colony-life/round-14/sweep-long-p08/summary.txt` says DONE.
