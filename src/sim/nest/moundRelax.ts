@@ -118,11 +118,14 @@ function buildMask(sim: Sim, m: Mound): MoundMask {
   // the cavity reaches the ground surface at the grid point (the pile's own height does not hide it: the cavity wins).
   // The ground is the base as pressed or heaped by human events now (a footprint is a dent, not a hole: probed from
   // the base alone, a 3 mm print read as an open column and its pile was pushed off; colony-life round 7).
+  // The carve cavity alone is read, not the whole field: f's soil term follows every pile overlay (its height and
+  // slope), so a cell at a pit's edge flipped as the pile relaxed, which no cache key follows, and a loaded game built
+  // another mask than the unsaved one had kept (colony-life round 14, sg #2's restore gap).
   const probe = (idx: number, x: number, z: number): void => {
     if (probed[idx] === 1 || clear[idx] !== 0) return;
     probed[idx] = 1;
     const g = (Number.isNaN(m.base[idx]) ? heightAt(sim.world.terrain, x, z) : m.base[idx]) + groundDeltaAt(sim, x, z);
-    if (sim.field.sampleXYZ(x, g - depth, z) > 0) clear[idx] = CLEAR_HOLE;
+    if (sim.carve.cavity(x, g - depth, z) > 0) clear[idx] = CLEAR_HOLE;
   };
   const entrances = entrancesOnGrid(sim, m);
   for (const e of entrances) around(e.pos.x, e.pos.z, clearRadius(sim, m, e), (idx) => { clear[idx] = CLEAR_DISC; });

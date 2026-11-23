@@ -5251,3 +5251,85 @@ the weights at departure (the report has no per-trip wC / wP yet) before any thr
 **Round 13 closed** at 04:55 UTC with the live tree as v3 (LARVA_P_REQ 1.2). Kept: `/home/user/scratch-r13-final3`
 (v3) and `/home/user/scratch-r13-final3-dose1` (integrator's dose-1 tree) per direction 28c; no other scratch tree; no
 processes left running.
+
+## Round 14
+
+Engineer: round 14 (started 04:58 UTC Nov 23). Evidence: `test-output/colony-life/round-14/`. Order: direction 29
+(tail of `colony-life.md`): Part A (switch-off bisect of round 13's rules on we #3, sg #2, kd #3, kd #2 + controls we #1,
+cpv #1; rule by the table; one year-one arm on the 15 against `round-12/arm-final12`), Part B (save -> load -> continue
+gap) while A's runs go, Part C (year-two arms from `round-13/cache-y2`). Live tree at start = v3 (9f5935ce) + the
+restated `appendixE23.test` (`diff -rq` against `/home/user/scratch-r13-final3`); git HEAD 1930807.
+Baseline: v3's year-one arm `round-13/arm-final13c` (= the "all on" column of the bisect) against `round-12/arm-final12`.
+
+Progress (kept current; a successor continues from here)
+- 05:00 **Bisect tree** `/home/user/scratch-r14-off` = copy of v3 (`scratch-r13-final3`) + `src/sim/r13off.ts`: env
+  `R13_OFF` (scratch only) switches one rule back to its round-12 form: `d33` (yield prior (loads + 1.5) / (gd + 1)),
+  `r44` (forage demand min(intakeTarget / yield, known.ants + 1) over both nutrients), `r41` (needC = 1 - daysC /
+  targetC), `r40a` (forage want and intake target refill to target x rate, no winter path; also re-opens the
+  winter-reserve gate after a winter, which year one never reaches), `r40b` (carbRamp from 1 x to 2 x the target),
+  `r42` (tooColdToDepart / tooColdToStayOut false). Decision: `r40a` leaves needC with the winter path and `r41` leaves
+  the want with it, so the two switches are separable (with one function for both, R40 a off would also take R41 off).
+  tsc clean on the copy (render tests excepted: the copy has no `spikes/`). Runner `round-14/run14.sh` (6th arg =
+  R13_OFF), `jobs14.sh`; job lists `jobs-off-{0,1,2}.txt` (36 runs, three slots, order d33, r44, r42, r41, r40a, r40b;
+  each: we #3, sg #2, kd #3, kd #2, we #1, cpv #1), outputs `round-14/off-<rule>/`. Restart: delete stale `*.running`,
+  rerun `./jobs14.sh jobs-off-K.txt` for K = 0, 1, 2 (finished runs are skipped).
+- 05:01 bisect started (three slots, `jobs-off-{0,1,2}.txt`).
+- 05:05 **Part B, first cause found and fixed (live tree).** Probe `tools/sim/probe/probe-restore14.ts` (the
+  `outdoor/determinism.perf` scenario: run 1500 ticks, snapshot, continue the original and a restored copy tick by tick,
+  hash compare, field diff at the first difference): state equal right after `createSim`, first difference **85 ticks
+  after the save**: `ants[33].nav.loco.goalField / legField` = `loco:pt:204,-10,207;w` (unsaved) vs `loco:pt:204,-10,207`
+  (loaded), then `best`. Cause: round 13's wide point field (`locomotion/nests.ts pointField`) chose the field from the
+  registry: "the plain field of this cell exists -> take it; the wide one exists -> take it; else decide". The registry
+  is a derived cache a load rebuilds only for the fields walkers follow, so the unsaved game reused a wide field another
+  goal of the same cell had registered while the loaded game decided afresh (plain). **Fix**: the plain / wide choice is
+  made from the goal and the nest only (`cellCentreCutOff` every call; then register if missing). Test
+  `locomotion/pointFieldRestore.test.ts` (672 goals on a small nest's rim and their cells, asked in one order on the
+  unsaved sim and in the reverse order on a sim restored from its snapshot: same field ids; red on round 13's code,
+  checked by putting it back). `outdoor/determinism.perf` green on the live tree. This changes trajectories wherever a
+  wide field was reused (the Part A bisect runs on v3's code without it; the confirming arm gets it).
+  Now: `probe-restore14b.ts` (a life run: restore a cache file, run K ticks, snapshot -> D, step both, hash every 50
+  ticks) on sg #2's year-two cache with the live tree, K = 24000 (save at ~doy 5), 3 days compared
+  (`round-14/probe-restore-sg2-live.txt`): is there a second gap (sg #2's was on the round-12 tree, which has no wide
+  fields)?
+- 05:20 **Part C item 1 traced on the live tree** (`nest/passageRescue14.test.ts`, small test nest, 5 pupae on the
+  entrance shaft's wall, chamberId -1, 4 nurses): at the shaft's bottom on the wall 0.025 gd, 0.3 mm into it 0.067 gd;
+  at its top (0.2 BU under the ground) 0.05 gd; 1.25 BU down 0.8 mm into the wall 0.125 gd: **5 of 5 in a brood chamber
+  in every placement, also with v3's point-field code** (the rescue job claims at once, priority 10, nurses carry
+  directly down). Round 13's "1 of 5 in 0.6 gd" does not reproduce with these placements (its test file was not kept);
+  the test is kept as the gate (4 placements, bar 5 of 5 in 0.2 gd, green). The in-game case (we #2's cold pupae in a
+  passage) is to be read in the Part C base arm's `--trace13` late-brood rows. Hygiene probe written
+  (`tools/sim/probe/probe-hygiene14.ts`: hourly per chamber waste by kind, brood by stage, queen's chamber, eggs laid
+  and brood deaths per chamber, haulers by state); tree for the cpv #1 dose trace `/home/user/scratch-r14-dose` (copy of
+  the integrator's dose tree + the probe; the dose tree itself untouched). Bisect: d33 off first three done (below,
+  when all six are in).
+- 05:40 **Part B, second gap located** (sg #2, round-12 tree `/home/user/scratch-r12ref` = git archive 5be00d8, the tree
+  that wrote the year-two cache). `probe-restore14b.ts` restores sweep 12's hand-over (`viab/cache/...-211d103b.bin`),
+  runs it unsaved to tick 99748 (the cache's save tick, year 2 doy 1), snapshots, restores, steps both: **equal at the
+  save, different within 100 ticks after it** (`round-14/probe-restore-sg2-r12.txt`; the NaN rows there are the probe's
+  diff treating NaN != NaN in typed arrays, fixed; per-tick rerun running -> `probe-restore-sg2-r12b.txt`). The same
+  probe on the live tree with a save at doy ~5 of the cache (C = loaded run continued, D = its snapshot): equal for 3 gd
+  (`probe-restore-sg2-live.txt`), so the gap needs runtime state built before the first load (the unsaved run from the
+  hand-over has it, a loaded run does not).
+- 05:40 Bisect: d33 off 6 of 6, r44 off 3 of 6 (table `round-14/table14off.py`). d33 off: R27 back in we #3 (11.07 / 6.47)
+  and kd #3 (7.92 / 4.22), sg #2 4.41 / 4.65 (miss by 0.24), kd #2 viable again; control we #1 loses viability (starvation
+  stage worse than lean 1.60 gd; C 15.2 / 5.8, 23 workers against 27), cpv #1 unharmed. r44 off so far: kd #3 restored,
+  we #3 and sg #2 not.
+- 06:05 **Part B, sg #2's gap: cause found and fixed (live tree).** Per-tick rerun (`probe-restore-sg2-r12b.txt`): first
+  difference **1 tick after the save**, `worldDelta.mounds[2].h[5711]` 2.9460297 vs 2.9460292 (the pile relaxation).
+  `probe-restore14c.ts` (every 250 ticks from the hand-over: the unsaved run's cached mound masks against the masks a
+  restored copy builds): mound 2527's cached mask stale from tick 64500 (cell 5709 `clear` 0 cached vs 2 = hole fresh;
+  821 `cap` cells differ). `probe-restore14d.ts` (that cell tick by tick): it turns a hole at **tick 64341 with no carve,
+  no ground delta, no dynamic primitive change**: the field at the hole probe (0.4 mm under the ground at a pit's edge)
+  went f -0.0006 -> +0.0016 because its soil term moved -0.3409 -> -0.3368: the soil term follows every pile overlay
+  (height and slope), and the pile beside the pit had relaxed. The mask cache key (entrances, breaches, ground deltas;
+  carve listener) does not follow pile heights, so the unsaved game kept the old mask, a loaded game built the new one,
+  and the relaxation moved other material. **Fix** (`nest/moundRelax.ts buildMask`): the hole probe reads the carve
+  cavity alone (`sim.carve.cavity(x, g - depth, z) > 0`), not the whole field; then the mask depends only on what its key
+  and the carve listener follow. Test `nest/moundMaskHeights.test.ts` (36 holes to the surface on a pile grid; the mask
+  built on the bare ground equals the mask built with material heaped over and around them; red on the old probe,
+  green now); mound tests (7 files) green. Check running: the same fix in the round-12 copy, sg #2 from the hand-over,
+  save at tick 99748, 36000 ticks compared (`probe-restore-sg2-r12fixed.txt`).
+- 06:00 **INTEGRATOR NOTE:** Direction 29a is at the tail of `colony-life.md`: stop the bisect now (no pairs); take D33,
+  R44, R41, R40 a's want and R40 b out of the live tree (round-12 forms), keep R40 a's gate, R40 c, R42, the point-field
+  and mound-mask fixes; then the confirming year-one arm of 15; Part B accepted on the 36000-tick check; Part C base
+  arm on the fixed tree.

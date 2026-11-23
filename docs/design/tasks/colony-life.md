@@ -912,3 +912,35 @@ Base of the arms: Part A's tree, year two from the cache (5 runs).
 
 Must-haves if the round runs long: Part A complete; Part B traced (fixed if the cause is small); Part C items 1 and 2
 traced. Keep the ledger's "## Round 14" progress current so a successor can continue; keep `round-13/cache-y2`.
+
+## Direction 29a (integrator, 06:00 UTC Nov 23) — Part A ruling: take round 13's economy rules out, no pairs
+
+Read from `round-14/table14off.py` at 06:00 (d33, r44, r42, r41 complete, r40a half): no single switch-off passes the
+rule. d33 off is the only strong one (we #3 and kd #3 back, sg #2 short by 0.24, kd #2 viable) and it costs the control
+we #1 its viability; sg #2 is restored by nothing alone; and unrelated switches move single colonies by several
+game-days of sugar (sg #2: 3.27 -> 1.28 with r42 off; we #3: 3.33 -> 13.09 with r40a off). Six colonies cannot
+separate six interacting rules at that noise, and none of the five economy rules bought anything in year two (second
+winters 60 to 70 against round 12's 71). So:
+
+1. **Stop the bisect** when you read this (kill the remaining r40a / r40b runs; the table as it stands goes in the
+   ledger). No pair arms.
+2. **Take out of the live tree, back to their round-12 forms:** D33 (yield prior), R44 (forage demand per nutrient),
+   R41 (`carbStockWanted` in needC and the scout floor), R40 a's winter path in the forage want and intake target,
+   R40 b (prospective ramp back to 1 x .. 2 x the target). Remove the code, do not leave switches; tests of the removed
+   rules go with them or are restated to the round-12 behaviour; `DEVIATIONS.md` rows D33, R41, R44 and the want half
+   of R40 marked withdrawn (round 14), with one line why. Additive fields already on plain data (`KnownCapacity.antsC /
+   antsP`) may stay if a save could hold them; otherwise remove.
+3. **Keep:** R40 a's gate (winter-reserve gate only until the first winter), R40 c (`pupationIntoCold`), R42 at
+   0.3 / 0.25, the wide point field with this round's restore fix, the mound-mask fix, the round-13 tooling and
+   restated tests.
+4. **Confirming year-one arm** on the 15 on that tree against `round-12/arm-final12` (bars as in direction 29: viable
+   >= 14, R27 kept where round 12 had it, runs without a lost worker >= 12, median P >= 0.45). If viable < 14, rerun
+   only the failing colonies with R42 off (scratch copy): if R42 is what costs them, report it and stop Part A there
+   for my ruling (viability outranks the lost-worker bar); otherwise report the failing colonies' traces and go on to
+   Part C on this tree; year one then goes to round 15.
+5. Part B: both causes accepted as fixed once `probe-restore-sg2-r12fixed.txt` shows 36000 equal ticks. Add to the
+   test list one save -> load -> continue hash check on a life-run state with mounds (the `determinism.perf` scenario
+   has no relaxing pile next to a pit). The year-two cache needs no rebuild (a loaded game builds fresh masks), but
+   Part C's base arm must be rerun on the fixed tree; round 13's year-two numbers are not its baseline.
+6. Part C item 1: accepted as not reproducing; keep the gate test; read the in-game case from the base arm's trace
+   as you planned.

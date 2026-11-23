@@ -126,12 +126,12 @@ export function planField(sim: Sim, nestId: number, planId: number): string {
 export function pointField(sim: Sim, r: LocoRuntime, p: Vec3): string {
   const q = r.P.pointFieldCell;
   const ix = Math.round(p.x / q), iy = Math.round(p.y / q), iz = Math.round(p.z / q);
+  // The plain or the wide field is chosen from the goal and the nest alone, never from which fields happen to be
+  // registered: the registry is a derived cache that a load rebuilds only for the fields walkers follow, so a choice
+  // that read it ("the wide one exists, take it") made a loaded game walk other fields than the unsaved one (round 14).
   const id = `${POINT_PREFIX}${ix},${iy},${iz}`;
-  if (sim.nestNav.hasTarget(id)) return id;
-  const wide = id + WIDE_SUFFIX;
-  if (sim.nestNav.hasTarget(wide)) return wide;
-  const use = cellCentreCutOff(sim, ix * q, iy * q, iz * q, p) ? wide : id;
-  registerPointField(sim, r, use, ix, iy, iz);
+  const use = cellCentreCutOff(sim, ix * q, iy * q, iz * q, p) ? id + WIDE_SUFFIX : id;
+  if (!sim.nestNav.hasTarget(use)) registerPointField(sim, r, use, ix, iy, iz);
   return use;
 }
 
