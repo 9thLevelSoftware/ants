@@ -1375,3 +1375,14 @@ foundings; sweep 15 is the independent measure):
   queen still holds hand-over protein; needs a ruling). Both go to gate-close-sim.
 - Ledger has "### Known limits at the close of colony-life" (7 unmet bars with causes and what was tried).
 - Sweep 15 started 15:04 UTC on a frozen copy (`/home/user/frozen-sweep15`); do not edit `src/sim` until it returns.
+
+### Nov 23 ~16:11 UTC — sweep 15: year-one runs done (viability met, R19 5 of 7), long runs under way
+
+- Fresh sweep on the final tree (15 foundings): **viable 14 of 15**, every archetype >= 2 of 3 (suburban-garden 2 of 3;
+  sg #2 ends with no winter sugar). R19 5 of 7: fails are median P 0.344 (bar 0.7) and first workers >= 9 in 11 of 15
+  (bar 13); trip success 51.6 %, no-lost 13 of 15, deliver share max 3.8 %, behaviours 0.259 ms/tick median.
+- Workers 258 (sweep 14: 255; paired 0.8 sweep: 273). Against the paired 0.8 sweep on the same foundings: 3 better,
+  9 worse, 3 equal; protein delivered 122 against 138.
+- Sweep's review so far: every round-15 test goes red without its fix; App. E 23 breaks from the crumb-consumption
+  half of variant e only (nearest start alone keeps `removal.verify` green) - for gate-close-sim.
+- Long runs (year two, 5 colonies) started ~15:56 UTC.
