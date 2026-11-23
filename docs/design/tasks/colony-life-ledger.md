@@ -5604,3 +5604,160 @@ one (pp #3 has failed in rounds 12-14 alike; sg #2 brings prey while its sugar r
 `untracked not-reached`); (3) `endFlee` -> `startReturn` sends a homing scout outward (`removal.verify`); (4) year-two
 brood losses that remain at the dose: larva base 23, pupa untended 14 (late pupae in the cold), larva starvation 7
 (pp #3); (5) R34's 1.5 x is far (best 1.21 x).
+
+### Independent sweep after round 14
+
+Independent engineer, 09:27-11:20 UTC Nov 23 (no restart; progress file `docs/design/tasks/progress/colony-life-sweep-14.md`).
+**Table: `test-output/colony-life/round-14/sweep-table.md`** (`python3 tools/sim/sweep-table.py round-14/sweep
+round-12/sweep`: columns of `econ-growth-review/sweep9-table.md` plus first workers, `worker:lost`, R27 stores, shut
+days). Previous sweep = sweep 12 (`round-12/sweep`; no sweep ran after round 13). Runs by `tools/sim/sweep-life.sh` and
+`PAR=2 UNTIL_DAY=40 tools/sim/longrun-life.sh` from a frozen copy of the live tree taken at 09:27
+(`/home/user/frozen-sweep14`, deleted): the round's hash recipe gives **e45f2148** = `round-14/treeP-hash.txt` (tree P,
+LARVA_P_REQ 1.2), sweep-life.sh's recipe `1543bf21` on all 15 runs; live src = HEAD b8cbe36. 15 runs 09:27-10:23, long
+runs 10:23-11:11 (no JSON existed in `sweep-long`). Naturalist, default start, flooding on, no player, fresh foundings
+(first workers equal to sweep 12's in 15 of 15). Bars recomputed from the Markdown by a second script
+(`round-14/sweep-review/bars-from-md.py` -> `bars-from-md.txt`): same verdicts. Review outputs: `round-14/sweep-review/`.
+Note: from ~10:10 the integrator ran two more life runs (`round-14/sweep-p08`) beside this sweep, so timings are noisy.
+**This table is the one the next round compares with.**
+
+**Viability bar: NOT met** - viable **13 of 15** (sweep 12: 14): woodland-edge **1/3**, suburban-garden 3/3,
+playground-park 3/3, car-park-verge 3/3, kitchen-door 3/3. we #1 (viable in sweep 12, 25 workers) fails the starvation
+stage check (worse than lean for 2.25 gd; 21 workers, P intake 0.03); we #3 fails R27 again (C 2.55 for 6.09 = 0.42 of
+it, P 8.6 in store; sweep 12: 1.07 of 6.16).
+
+**Growth bar R19: NOT met** (4 of 7; sweep 12: 5 of 7):
+
+| check | sweep 14 | sweep 12 |
+|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | 14 of 15 ok (kd #3 9 -> 8) | 15 |
+| median eclosions after hand-over >= 4 | 7 ok | 7 |
+| median intake/need P >= 0.7 | **0.427** FAIL | 0.419 |
+| median intake/need C >= 0.9 | 1.33 ok | 1.296 |
+| median trip success >= 50 % | **48.1 %** FAIL (48.0 from the rounded Markdown) | 57.5 % |
+| first workers >= 9, >= 13 of 15 | 14 of 15 ok (we #2: 8) | 14 |
+| no `worker:lost`, >= 13 of 15 | **12 of 15** FAIL (we #1, sg #1, cpv #1: 1 each) | 11 |
+
+Sums (15 runs; `sweep-review/sums.txt`): first workers 168, workers at winter 249 -> **255**, eclosions 97 -> 102, eggs
+303 -> 302, larvae starved 11 -> 3; adult deaths: crushed 5 -> 8, lost 5 -> 3, drowning 2 -> 2, predation 2 -> 2, old age
+2 -> 0. Brood losses: **hygiene 23 -> 2** (wasteFall), base 64 -> 56, **flooding 7 -> 20**, exposure 16 -> 17,
+temperature 15 -> 13, untended 10 -> 12, starvation 11 -> 3. Delivered P 152.5 -> 156.6. Cost (`sweep-review/cost.txt`):
+behaviours 0.224 -> 0.245 ms a tick median, kd #1 0.256 -> 0.297 (26a.0's bar <= 0.30, by 0.003); every system is
+~10 % slower alike (economy 0.043 -> 0.047, locomotion 0.644 -> 0.698): machine load, not wasteFall.
+
+**Year two** (five long runs to the second winter; `round-14/sweep-long/longrun-table.md`, detail
+`sweep-review/long-detail.txt`, sweep 12's `long-detail-sweep12.txt`; the long runs reproduce the sweep's winter
+counts in 5 of 5):
+
+| run | first | winter 1 (C / P) | spring (lapse loss) | y2 d15 | y2 d21 | 2nd winter (C / R27 need) | y2 eggs / eclosed | y2 brood deaths, largest | sweep 12 2nd winter |
+|---|---|---|---|---|---|---|---|---|---|
+| we #2 | 8 | 14 (4.7 / 2.0) | 12 (14 %) | 13 | 11 | 11 (18.0 / 2.5) | 23 / 7 | larva base 5, larva starvation 4 | 12 |
+| sg #2 | 11 | 16 (5.2 / 2.8) | 14 (12 %) | 18 | 16 | 16 (18.3 / 3.8) | 30 / 9 | pupa untended 5, pupa exposure 4 | 13 |
+| cpv #1 | 11 | 16 (14.7 / 1.3) | 14 (12 %) | 19 | 16 | 15 (26.5 / 5.6) | 28 / 8 | larva base 6, egg base 4, pupa temperature 4 | 22 |
+| pp #3 | 13 | 20 (8.7 / 6.1) | 19 (5 %) | 30 | 25 | 23 (13.4 / 5.9) | 36 / 18 | larva base 7, egg base 4 | 15 |
+| kd #3 | 9 | 8 (7.3 / 2.9) | 8 (0 %) | 8 | 7 | 6 (3.0 / 2.4) | 15 / 5 | **pupa hygiene 4**, egg base 3, egg hygiene 2 | 3 |
+
+- **R22 spring check**: queen alive and >= 0.7 x winter workers **5 of 5** (bar 4: met; sweep 12: 5 of 5). R22's day-15
+  check (superseded by R34): 1 of 5 (pp #3 30 >= 26).
+- **R34**: second winter >= 1.0 x winter 1 **2 of 5** (bar 4: NOT met; sg #2 1.00, pp #3 1.15; sweep 12: 1 of 5),
+  >= 1.5 x **0 of 5** (bar 3: NOT met; best pp #3 1.15). Direction 29's interim year-two bars on these fresh long runs:
+  >= 1.0 x in 3 of 5 NOT met (2), the five second winters together 71 against 74 at winter 1 NOT met (sweep 12: 65
+  against 82).
+- **R24**: the five colonies are viable at winter and lose 0-14 % in the lapse (cap 15 %): met.
+- R27 at the second winter: 5 of 5 over their need. Year-two totals (sweep 12 -> 14): eggs 108 -> 132, eclosions 41 ->
+  47; brood deaths base 22 -> 39, hygiene 20 -> 10, untended 15 -> 13, flooding 7 -> 14, temperature 11 -> 13,
+  starvation 9 -> 6; adults old age 51 -> 42.
+
+**Regressions against sweep 12** (script, 11 runs flagged):
+- **we #1: viable -> NOT viable**, workers 25 -> 21, eclosions 9 -> 5, C intake 1.549 -> 0.83, P 0.516 -> 0.03, trip
+  success 43 -> 32 %, larvae starved 0 -> 2 (finding 1).
+- **pp #2**: 22 -> 16 workers, eclosions 11 -> 5, C 1.722 -> 1.474, P 0.412 -> 0.294, trips 66 -> 59 %. **sg #2**: 19 ->
+  16, eclosions 9 -> 7, C 1.198 -> 0.879, trips 62 -> 45 %. **cpv #1**: 18 -> 16, eclosions 8 -> 6, C 1.656 -> 1.442,
+  lost 0 -> 1. **kd #3**: 10 -> 8 (net +1 -> -1), eclosions 1 -> 0.
+- Smaller: we #2 C 1.296 -> 0.969; we #3 eclosions 7 -> 6; sg #1 eclosions 7 -> 6, lost 0 -> 1; pp #3 eclosions 9 -> 8,
+  C 1.63 -> 1.295, trips 56 -> 44 %; cpv #2 C 1.642 -> 1.34, trips 66 -> 53 %; kd #1 trips 58 -> 48 %.
+- C intake over need lower by > 0.1 in 7 of 15, trip success lower by > 5 points in 6 of 15 (median 57.5 -> 48.1 %).
+- Long runs: cpv #1 22 -> 15 and we #2 12 -> 11 at the second winter (sg #2 13 -> 16, pp #3 15 -> 23, kd #3 3 -> 6 the
+  other way).
+- Improvements: sg #3 12 -> 18, kd #2 10 -> 18, kd #1 19 -> 23, pp #1 16 -> 19, cpv #2 16 -> 18; hygiene 23 -> 2;
+  larvae starved 11 -> 3; lost 5 -> 3.
+
+**Review of the round** (code `git diff 1930807 HEAD` on src/sim + tools/sim; live src = HEAD b8cbe36).
+- Verified: `tsc --noEmit` clean (`sweep-review/tsc.txt`, again after the verify test: `tsc-after-verify.txt`). Folder
+  tests, one worker each (`sweep-review/vitest-*.txt`): colony 80 of 81 files (red `workedExample`, known), locomotion
+  26 of 27 (`perf` timing), nest 60 of 63 (`escapeDig`, `flood/readersCost.verify`, `architect/layout` timing),
+  behaviours/nest 35 of 37 (`sfaReview.verify`, `stall.soak`), behaviours/outdoor 36 of 37 (`removal.verify`, the
+  round-15 lead), tests/docs 8 of 8. = the round's claims.
+- The round's claim that the live tree is round 12 plus a named set holds: `git diff 5be00d8 HEAD` on src/sim shows only
+  R40 a's gate (`queen.ts colonyHasWintered`), R40 c (`brood.ts`), the point-field files, the mound mask, wasteFall, the
+  round-13 restated tests and `passageRescue14.test`; `prospectiveProtein.test` and `appendixE23.test` are byte-equal to
+  round 12's. The removed tests (`r41`, `r44`, `yield27a`, `coldGate42`, `r40` want cases) belong to rulings directions
+  29a / 29b withdrew; DEVIATIONS rows marked as such. No lifespan, need, food, bar or ruling-test change; no seed or
+  archetype special case. The two new balance constants (`WASTE_SUPPORTED_BU`, `WASTE_FALL_MAX_BU`) are placement
+  parameters.
+- Each fix against its cause, and its test: with the old code in a scratch copy (`sweep-review/vitest-strength-prefix.txt`)
+  `pointFieldRestore.test`, `moundMaskHeights.test`, `moundRestore14.test` and `wasteFall.test` case 2 are all RED, so they
+  pin their fixes (`wasteFall.test` case 1 calls `settleHangingWaste` directly; the spawn-side change in `brood.ts
+  spawnWaste` is pinned by no test, minor). The point field is now chosen from the goal and the carve state (persisted);
+  the mound mask's hole probe reads only the carve cavity, which its cache key and carve listener follow. Determinism:
+  the entity index is refilled every tick (`sim.ts`), so wasteFall moving `item.pos` leaves nothing stale; a new
+  save -> load -> continue test with hanging waste being settled and hauled is GREEN
+  (`src/sim/colony/wasteFall.verify.test.ts` case 1). Per-tick cost: `pointField` now runs `cellCentreCutOff` on every
+  call, but its callers are trip planning (`locomotion/trip.ts`), not per-tick; `settleHangingWaste` costs nothing
+  measurable (economy system above).
+- wasteFall in real nests (`sweep-review/probe-hang14.txt`; the five `round-13/cache-y2` nests run 200 ticks on this
+  tree): chambers are 1.8-2.1 BU floor to ceiling, so `WASTE_FALL_MAX_BU` 6 is ample, and **0** waste items hang after it.
+
+**Findings**
+1. **Major (viability bar): we #1 loses its viability to a delivery livelock at the entrance.** Its workers spend 28.6 %
+   of their time in `forage.deliver` / `tend.deliver` (the other 14 runs 1.3-5.4 %; sweep 12's we #1 3.3 %): from
+   hand-over day 2 to day 11, 2-8 of 22 workers sit with full crops (0.48-0.61 loads) at one point 2 BU from the open
+   entrance, (3432.09, 5.32, 1199.02) BU, in the `toChamber` step with nav `failed` / `leg` on `nest:4936:chamber:5664`;
+   `updateDeliver` re-requests the same leg whenever the walker is not moving, so they never move; every DELIVER_MAX_S
+   (120 s) the phase restarts in place (`probe-deliver-we1.txt`). One ant's way in (`probe-trace-we1-7725.txt`, ticks
+   29375-29386): she arrives at the entrance from the 1199 side, follows the chamber field 0.85 BU down the throat and
+   the leg fails there; on an earlier trip she entered from the 1196.7 side and reached the chamber. So the colony loses
+   its foragers' carbohydrate and its hunting (14 hunting trips against sweep 12's 47; prey P 1.4 against 10.0), hence P
+   0.03 and the starvation stage. Not traced to a round-14 change: on the same hand-over the old mound mask still gives
+   3.0 stuck deliverers on average (`probe-deliver-we1-oldmask.txt`); round 13's point-field code gives 0.13
+   (`-oldpointfield.txt`; one A/B on a chaotic run, and the failing leg is a chamber field, not a point field); sweep 12's
+   hand-over of the same world on this tree gives 0 (`-r12handover.txt`): the founding left a nest whose throat has this
+   trap. Repro: `test-output/viab/cache/founded-lasius-niger-woodland-edge-1-naturalist-d-98af5b84.bin` (written by this
+   sweep), `sweep-review/probes/probe-deliver14b.ts.txt` / `probe-trace14.ts.txt`.
+2. **Major (hygiene, pre-existing; the round's "kd #3 most likely the same" does not hold): waste buried in a chamber
+   floor is counted toward the chamber's waste but no hauler can reach it.** kd #3's year-two cache on this tree
+   (`sweep-review/probe-buried-kd3.txt`): its royal chamber counts **9 waste items against a tolerance of 3 for 12 gd**,
+   all `spoiled-food` lying 0.32-0.35 BU inside the floor (field < -ITEM_BURIED_BU, `onSurface` false, haul priority
+   0); a new one is added every few days. Cause: `colony/stores.ts spawnSpoiledItem` puts the item at `centre.y -
+   radii.y`, and in the game's nests the registry's vertical radius exceeds the cavity's half-height (kd #3 royal: radii.y
+   1.5 BU, floor to ceiling 2.06 BU; the five caches 1.0-1.5 against 1.8-2.1), while `census.ts itemCounts` counts every
+   waste item in a chamber, reachable or not. wasteFall does not touch it (`restingPointUnder` leaves items inside solid
+   alone). Under R21 the larder lives in the brood's chamber, so the queen lays among those 9. The year-two long run of
+   kd #3 loses 6 of its 15 year-two brood to hygiene (pupa 4, egg 2; that run's nest was not probed). New test **RED**,
+   left in place: `src/sim/colony/wasteFall.verify.test.ts` case 2 (the test nest's chamber records given the measured
+   relation radii.y = half-height + 0.45 BU: the spoiled item lands at f -0.45 BU, `onSurface` false).
+3. **Major (bar): trip success under 50 % again** (median 57.5 -> 48.1 %; 6 runs lower by > 5 points) and C intake over
+   need lower by > 0.1 in 7 of 15. No single mechanism traced; we #1's livelock accounts for one run.
+4. Minor (bar): `worker:lost` in 3 runs (12 of 15; sweep 12: 11 of 15), the R19 check fails by one run.
+5. Minor: brood flooding 7 -> 20 in year one (egg 18) and 7 -> 14 in year two; crushed workers 5 -> 8. Not traced.
+6. Pre-existing (known red, unchanged): `workedExample`, `escapeDig`, `flood/readersCost.verify`, `sfaReview.verify`,
+   `stall.soak`, `removal.verify`, timing tests under load.
+
+**Leads from the failing runs' own diagnostics** (most costly first):
+1. **The entrance-throat delivery livelock** (finding 1; costs we #1 its viability and the woodland-edge bar):
+   `outdoor/phaseNest.ts updateDeliver` has no way out of a failed `toChamber` leg (no relocation, no other entrance or
+   chamber, no hand-over at the door), and the nest field's descent from the 1199 side of entrance 5483 fails 0.85 BU
+   into the throat. Repro in finding 1.
+2. **Carbohydrate while protein is chased** (we #3, the second sweep in a row): 91 hunting trips (75 ok, prey P 20.3)
+   while C stood at 1.9-4.1 against a winter need of 6-17 from doy 11; two crumb sources (C 16.8) within 300 BU, known by
+   the end with 14.7 C left and 3 items taken (`round-14/sweep/life-lasius-niger-woodland-edge-3.*`).
+3. **Year two, R34 2 of 5**: of 132 year-two eggs, brood lost to base mortality 39, flooding 14, untended 13, temperature
+   13, hygiene 10 (kd #3 6: finding 2), old age 42 adults against 47 eclosions; cpv #1 22 -> 15 at the second winter
+   (larva base 6, pupa temperature 4).
+4. **Buried waste counted as dirt** (finding 2): spawn spoiled food on the floor the haulers reach (or count only
+   reachable waste), and check the other spawn points that use a chamber's registry radii.
+5. Trip success 48 % and flooding brood 20 in year one (findings 3, 5).
+
+Scratch trees (`/home/user/frozen-sweep14`, `/home/user/scratch-sweep14-probe`) deleted; the probes ran only in the
+scratch copy (archived as `round-14/sweep-review/probes/*.ts.txt`); no process of this review left running (the
+integrator's `sweep-p08` runs are not this review's). Kept: `src/sim/colony/wasteFall.verify.test.ts` (case 1 green,
+case 2 RED: finding 2).

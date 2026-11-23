@@ -978,3 +978,61 @@ through doy 13-17, and sg #2's foragers bring 2.3-2.5 P a day while C stands und
    run once, on the round's final tree; bars: viable >= 14 (primary), R27 kept, median P >= 0.45, runs without a lost
    worker >= 11 (round 12's figure; the >= 12 bar is dropped with the depart gate).
 6. `outdoor/removal.verify` (scout sent the wrong way by `endFlee` -> `startReturn`): accepted as a round-15 lead.
+
+## Direction 30 (integrator, 11:15 UTC Nov 23) — round 15, the last round: defects first, then close with the known limits
+
+Sweep 14 (ledger "### Independent sweep after round 14"; `reviews/colony-life-sweep-14.json`) on tree P at
+LARVA_P_REQ 1.2: viable 13 of 15 with woodland-edge 1 of 3 (bar not met), R19 4 of 7 (P 0.427, trip success 48.1 %,
+no-lost 12), R22 spring 5 of 5, R24 met, R34 2 of 5 at 1.0 x and 0 at 1.5 x (71 against 74), behaviours 0.245 ms a
+tick. My paired run of the same sweep script on P + LARVA_P_REQ 0.8 (`round-14/sweep-p08`; foundings differ because
+the constant acts in the founding too): viable 13 of 15, every archetype >= 2 of 3, workers at winter 273 against 255,
+R19 5 of 7 (P 0.403; first workers >= 9 in only 11 of 15). Its five long runs are still going
+(`round-14/sweep-long-p08`, two slots until its `summary.txt` says DONE, about 12:05 UTC: use one slot until then).
+
+This round makes no new economy or allocation rule. It fixes the defects the sweep and round 14 found, measures once,
+and writes up what is still unmet. Order:
+
+0. **LARVA_P_REQ:** my ruling follows as direction 30a when the paired long runs are in. Until then the live tree
+   stays at 1.2; items 1 to 3 do not depend on it.
+1. **Delivery livelock in the entrance throat (sweep finding 1; cost we #1 its viability).** Two parts, both wanted:
+   (a) why the chamber field's leg fails 0.85 BU down the throat from one side of the entrance (repro:
+   `test-output/viab/cache/founded-lasius-niger-woodland-edge-1-naturalist-d-98af5b84.bin`, ant 7725, ticks
+   29375-29386; probes `round-14/sweep-review/probes/`) - fix the field or the descent at the cause;
+   (b) `phaseNest.ts updateDeliver` must not re-request a failed leg for ever: after a failed `toChamber` leg it
+   re-plans (another reachable chamber of the nest, or the nearest reachable point inside it) and, failing that, hands
+   on to a nestmate or sets the load down inside the entrance as the code base already allows; no ant stands with a
+   full crop for more than one DELIVER_MAX_S. Test from the repro state (stuck deliverers 0 over 2 gd) and a unit test
+   of the recovery. Bar: we #1 on that hand-over viable; deliver share of worker time under 6 %.
+2. **Buried spoiled food (sweep finding 2).** `stores.ts spawnSpoiledItem` puts the item on the cavity's real floor
+   (the same resting-point probe `wasteFall` uses; not `centre.y - radii.y`), and waste already inside solid in a
+   save is lifted to the nearest open resting point in its chamber by the cycle hook. `wasteFall.verify.test` case 2
+   green; add the missing test of `restingPointUnder` at spawn (`brood.ts spawnWaste`, sweep's minor finding). No
+   change to `wasteTolerance`, the hazard or the census rule.
+3. **Homing after a flee (`outdoor/removal.verify`):** `flee.ts endFlee` -> `startReturn` sends a scout outward
+   (entrance distance 201 -> 337 BU). Fix the heading / the return target at the cause; that test green.
+4. **Sugar left lying while prey is hunted (we #3 in sweeps 12 and 14; sg #2, kd #3, cpv #3 in the arms):** trace
+   only, then fix **only if it is a defect of execution or of target choice**, not a new want rule. we #3 on sweep
+   14's hand-over: 91 hunting trips while C stood at 1.9-4.1 against a winter need of 6-17, two crumb sources with
+   16.8 C within 300 BU, 3 items taken. Per day: what the colony knew (sources, their nutrient, estimated yield),
+   which target each departing forager chose and why, and how each carbohydrate trip ended (`untracked
+   not-reached`: where did she stop, what did the trip planner hold?). Candidates: crumb trips failing on the way
+   (a route or a claim defect); a known carbohydrate source scored under prey although needC is high; needC reading 0
+   at 3 gd of stock while the winter need is not met (if that is the cause, report it - it is R41's question and I
+   rule, you do not rebuild R41).
+5. **Year-one brood flooding 7 -> 20 and trip success 57.5 -> 48.1 % (sweep findings 3 and 5):** one A/B each on
+   the two or three worst runs: is it the mound-mask change (does the pile now sit over or beside the entrance
+   differently, letting water in?), `wasteFall`, or the withdrawn rules? Fix if a defect of this round's fixes;
+   else report.
+6. **Close (must be in the ledger whatever else is not):**
+   - one year-one arm of 15 on the round-10 hand-overs against `round-14/arm-y1P3b` (or P's values if 30a keeps
+     1.2), plus we #1 and we #3 on sweep 14's hand-overs; one year-two arm of 5 from `round-13/cache-y2` against
+     `round-14/y2-P` / `y2-P3b`;
+   - a section "### Known limits at the close of colony-life" in the ledger: every bar not met with its last measured
+     value, the cause as far as it is known, and what was tried (R19's P 0.7 against the one-day larval spike; R34's
+     1.5 x against old-age turnover and brood base loss; pp #3; the colonies that end short of sugar; anything of
+     items 1 to 5 left open), written for a reader who has not followed the rounds;
+   - DEVIATIONS rows for whatever changes; the known-red test list.
+Not yours to move: any balance constant other than placement / recovery parameters your fixes need and LARVA_P_REQ
+as 30a rules it; no new allocation, demand or laying rule; bars and ruling tests. Must-haves if the round runs long:
+items 1, 2, 3 and 6. Keep the ledger's "## Round 15" progress current; re-read the tail of this file and of your
+ledger section each time an arm or a trace finishes.

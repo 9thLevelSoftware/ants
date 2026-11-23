@@ -65,3 +65,7 @@ Started 09:27 UTC Nov 23. No earlier progress file; fresh start.
 
 ## Log
 - 09:30 sweep started.
+- 11:11 long runs done (R22 spring 5/5, R34 2/5 and 0/5, R24 met; interim y2 bars not met: 2 of 5, 71 vs 74).
+- 11:20 ledger section "### Independent sweep after round 14" written. Verify test copied to the live tree
+  (`src/sim/colony/wasteFall.verify.test.ts`: case 1 green, case 2 RED = finding 2); tsc clean after it. Scratch trees
+  /home/user/frozen-sweep14 and /home/user/scratch-sweep14-probe deleted; no process of this review left. DONE.

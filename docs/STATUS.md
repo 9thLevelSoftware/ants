@@ -1287,3 +1287,29 @@ is not edited while the sweep reviews it; 0.8 goes in (or not) as item 0 of dire
 
 Known red: as the ledger's round-14 list; new `outdoor/removal.verify` (a homing scout interrupted by a flee walks
 outward: round-15 lead). Scratch trees kept: `/home/user/scratch-r14-P`, `/home/user/scratch-r14-P3b`.
+
+### Nov 23 ~11:15 UTC — sweep 14 returned (13 of 15, woodland-edge 1 of 3); round 15 (the last) launched
+
+Sweep 14 on tree P at LARVA_P_REQ 1.2 (`docs/design/tasks/reviews/colony-life-sweep-14.json`; ledger "### Independent
+sweep after round 14"; table `test-output/colony-life/round-14/sweep-table.md`):
+
+| bar | sweep 12 | sweep 14 (1.2) | my paired sweep at 0.8 (`sweep-p08`) |
+|---|---|---|---|
+| viable (>= 2 of 3 per archetype) | 14, met | 13, **not met** (woodland-edge 1 of 3) | 13, met |
+| workers at winter (15) | 249 | 255 | 273 |
+| R19 checks | 5 of 7 | 4 of 7 (P 0.427, trips 48.1 %, no-lost 12) | 5 of 7 (P 0.403, first workers >= 9 in 11) |
+| R22 spring / R24 | met / met | 5 of 5 / met | long runs running |
+| R34 (4 of 5 at 1.0 x, 3 of 5 at 1.5 x) | 1 / 0 | 2 / 0 (71 against 74) | long runs running |
+| behaviours ms a tick (<= 0.30) | 0.224 | 0.245 (under load) | - |
+| brood hygiene deaths, year one | 23 | 2 | - |
+
+Sweep findings: (1) we #1 loses its viability to a delivery livelock in the entrance throat (`updateDeliver`
+re-requests a failed leg for ever; 2-8 foragers stand with full crops for nine days); (2) spoiled food is spawned
+inside the chamber floor, counted as waste, unreachable (kd #3's royal chamber 9 items against 3 for 12 gd;
+pre-existing; red case kept in `colony/wasteFall.verify.test.ts`); (3) trip success under 50 %, C intake lower in
+7 runs, untraced; brood flooding 7 -> 20 in year one, untraced. The round's fixes all go red without their code.
+
+Round 15 is the last round of colony-life (direction 30): no new rules; fix the livelock, the buried waste, the
+homing-after-flee defect (`outdoor/removal.verify`); trace the sugar-left-lying pattern and the flooding rise; close
+with one year-one arm, one year-two arm and a "Known limits" section. LARVA_P_REQ is ruled as direction 30a when my
+paired long runs at 0.8 are in (`round-14/sweep-long-p08`).

@@ -1,0 +1,83 @@
+{
+ "viabilityMet": false,
+ "growthMet": false,
+ "tablePath": "/home/user/foundress/test-output/colony-life/round-14/sweep-table.md",
+ "numbers": {
+  "viable": "13 of 15: woodland-edge 1/3 (we #1 starvation stage 2.25 gd, we #3 R27 C 2.55 of 6.09), suburban-garden 3/3, playground-park 3/3, car-park-verge 3/3, kitchen-door 3/3",
+  "workersHeld": "14 of 15",
+  "medianEclosions": 7,
+  "medianIntakeP": 0.427,
+  "medianIntakeC": 1.33,
+  "medianTripSuccess": 48.1,
+  "firstWorkersAtLeast9": "14 of 15",
+  "runsWithoutLost": "12 of 15"
+ },
+ "findings": [
+  {
+   "severity": "major",
+   "title": "we #1 loses viability to a delivery livelock in the entrance throat",
+   "where": "src/sim/ants/behaviours/outdoor/phaseNest.ts updateDeliver (toChamber step); nest field leg at entrance 5483 of we #1's hand-over",
+   "detail": "we #1 was viable in sweep 12 and is not viable now (starvation stage 2.25 gd, P intake 0.03, 21 workers against 25). Its workers spend 28.6 % of their time in forage.deliver/tend.deliver; the other runs spend 1.3-5.4 %. From day 2 to day 11, 2-8 foragers with full crops sit at (3432.09, 5.32, 1199.02) BU, 2 BU from the open entrance. Their nav is failed/leg on nest:4936:chamber:5664, and updateDeliver re-requests the same leg forever; DELIVER_MAX_S restarts the phase where they stand. Trace of ant 7725 (probe-trace-we1-7725.txt): she enters from the 1199 side, follows the chamber field 0.85 BU down the throat, and the leg fails. On the same hand-over the old mound mask still averages 3.0 stuck deliverers, round 13's pointField 0.13 (one A/B only), and sweep 12's hand-over on this tree 0. So the trap comes from the founding geometry together with a deliver step that has no recovery, not from a proven round-14 change. Repro cache: test-output/viab/cache/founded-lasius-niger-woodland-edge-1-naturalist-d-98af5b84.bin."
+  },
+  {
+   "severity": "major",
+   "title": "Buried waste counts toward chamber hygiene but no hauler can reach it (pre-existing; kd #3's dirty royal chamber)",
+   "where": "src/sim/colony/stores.ts spawnSpoiledItem; src/sim/colony/census.ts itemCounts",
+   "detail": "On kd #3's year-two cache with this tree, its royal chamber counts 9 waste items against a tolerance of 3 for 12 gd (probe-buried-kd3.txt). All 9 are spoiled-food lying 0.32-0.35 BU inside the floor (onSurface false, haul priority 0), and new ones keep arriving. Cause: spawnSpoiledItem places the item at centre.y - radii.y, but in real nests the registry's radii.y (1.0-1.5 BU) is larger than the cavity's half-height (1.8-2.1 BU floor to ceiling). The census counts every waste item, reachable or not, and wasteFall leaves items inside solid alone. This contradicts the round's claim that kd #3 is 'most likely the same' hanging-waste case. In the year-two long run, kd #3 lost 6 of its 15 brood to hygiene. A new test is red and left in place: src/sim/colony/wasteFall.verify.test.ts case 2."
+  },
+  {
+   "severity": "major",
+   "title": "R19 trip success below 50 % again; C intake down in 7 runs",
+   "where": "round-14/sweep-table.md",
+   "detail": "Median trip success 57.5 -> 48.1 %, lower by more than 5 points in 6 runs. C intake/need lower by more than 0.1 in 7 of 15. The we #1 livelock explains one run; the rest are not traced."
+  },
+  {
+   "severity": "minor",
+   "title": "worker:lost in 3 runs (12 of 15, bar 13)",
+   "where": "we #1, sg #1, cpv #1",
+   "detail": "Lost workers 5 -> 3, and runs without a loss 11 -> 12, which is still one run short of the bar."
+  },
+  {
+   "severity": "minor",
+   "title": "Brood flooding up in both years; crushed workers up",
+   "where": "sweep-review/sums.txt, long-detail.txt",
+   "detail": "Year-one brood flooding 7 -> 20 (eggs 18), year two 7 -> 14. Crushed workers 5 -> 8. Not traced."
+  },
+  {
+   "severity": "minor",
+   "title": "wasteFall spawn-side change is pinned by no test",
+   "where": "src/sim/colony/brood.ts spawnWaste",
+   "detail": "wasteFall.test case 2 goes red without the cycle hook, as claimed. Case 1 calls settleHangingWaste directly, so it does not depend on the hook. The restingPointUnder call at spawn is covered by no test. The other fix tests (pointFieldRestore, moundMaskHeights, moundRestore14) do go red with the old code."
+  }
+ ],
+ "checksRun": [
+  "Frozen copy of the live tree (hash e45f2148 = treeP-hash.txt by the round's recipe, 1543bf21 by sweep-life.sh) at 09:27; 15-run sweep 09:27-10:23 via tools/sim/sweep-life.sh; first workers equal to sweep 12 in 15 of 15",
+  "Five year-two long runs (PAR=2 UNTIL_DAY=40) 10:23-11:11 + tools/sim/longrun-table.py: R22 spring 5/5 met; R34 2/5 at 1.0x and 0/5 at 1.5x, not met; R24 met (lapse losses 0-14 %); direction 29 interim year-two bars not met (2 of 5; 71 against 74)",
+  "Both bars computed by tools/sim/sweep-table.py and independently by bars-from-md.py from the Markdown, with the same verdicts; regressions against round-12/sweep listed by script (11 runs)",
+  "tsc --noEmit clean (before and after the new verify test)",
+  "Vitest folder by folder, one worker: colony 80/81, locomotion 26/27, nest 60/63, behaviours/nest 35/37, behaviours/outdoor 36/37, tests/docs 8/8 (all reds known or timing)",
+  "git diff 1930807 HEAD and git diff 5be00d8 HEAD on src/sim: the live tree is round 12 plus the named set; no forbidden changes",
+  "Test strength: in a scratch copy with the old nests.ts, moundRelax.ts and no wasteFall cycle hook, pointFieldRestore, moundMaskHeights, moundRestore14 and wasteFall case 2 are all red",
+  "New src/sim/colony/wasteFall.verify.test.ts: save->load->continue with hanging waste is green; spoiled-food reachability is red (real bug, kept)",
+  "Probes in the scratch copy: probe-hang14 (0 hanging waste after wasteFall in the 5 year-two caches; chambers 1.8-2.1 BU tall), probe-buried14 (kd #3), probe-deliver14/14b/trace14 (we #1 livelock, with A/Bs on the old mound mask, the old pointField and the round-12 hand-over)",
+  "Cost: behaviours 0.245 ms/tick median, kd #1 0.297; every system about 10 % slower alike under machine load; economy system 0.043 -> 0.047"
+ ],
+ "regressions": [
+  "woodland-edge #1: viable -> NOT viable; workers 25 -> 21; eclosions 9 -> 5; C intake 1.549 -> 0.83; P 0.516 -> 0.03; trip success 43 -> 32 %; larvae starved 0 -> 2",
+  "playground-park #2: workers 22 -> 16; eclosions 11 -> 5; C 1.722 -> 1.474; P 0.412 -> 0.294; trips 66 -> 59 %",
+  "suburban-garden #2: workers 19 -> 16; eclosions 9 -> 7; C 1.198 -> 0.879; trips 62 -> 45 %",
+  "car-park-verge #1: workers 18 -> 16; eclosions 8 -> 6; C 1.656 -> 1.442; worker:lost 0 -> 1",
+  "kitchen-door #3: workers 10 -> 8 (net +1 -> -1); eclosions 1 -> 0",
+  "woodland-edge #2: C 1.296 -> 0.969; woodland-edge #3: eclosions 7 -> 6; suburban-garden #1: eclosions 7 -> 6, lost 0 -> 1",
+  "playground-park #3: eclosions 9 -> 8, C 1.63 -> 1.295, trips 56 -> 44 %; car-park-verge #2: C 1.642 -> 1.34, trips 66 -> 53 %; kitchen-door #1: trips 58 -> 48 %",
+  "Bars: viable 14 -> 13; R19 checks 5 -> 4 of 7 (trip success 57.5 -> 48.1 % now fails); brood flooding 7 -> 20; crushed 5 -> 8",
+  "Long runs, second winter: car-park-verge #1 22 -> 15, woodland-edge #2 12 -> 11 (suburban-garden #2 13 -> 16, playground-park #3 15 -> 23 and kitchen-door #3 3 -> 6 improved)"
+ ],
+ "leadsForNextRound": [
+  "1. Entrance-throat delivery livelock (cost we #1 its viability and woodland-edge its bar). updateDeliver retries a failed toChamber leg forever with no recovery, and the chamber field's descent fails 0.85 BU into the throat from the 1199 side of entrance 5483. Repro: cache founded-lasius-niger-woodland-edge-1-naturalist-d-98af5b84.bin, ant 7725, ticks 29375-29386; probes in round-14/sweep-review/probes/",
+  "2. Carbohydrate while protein is chased (we #3, second sweep in a row): 91 hunting trips (75 ok, prey P 20.3) while C stayed at 1.9-4.1 against a winter need of 6-17; two crumb sources with C 16.8 within 300 BU, 14.7 C left at the end, only 3 items taken",
+  "3. Year two, R34 2 of 5: year-two brood losses base 39, flooding 14, untended 13, temperature 13, hygiene 10; 42 old-age deaths against 47 eclosions; car-park-verge #1 22 -> 15",
+  "4. Buried waste counted as dirt: spawnSpoiledItem lands inside the floor (centre.y - radii.y) and census counts unreachable waste. kd #3's royal chamber holds 9 against a tolerance of 3 for 12 gd; wasteFall.verify.test case 2 is red",
+  "5. Trip success 48 % (lower in 6 runs) and year-one brood flooding 7 -> 20"
+ ]
+}
