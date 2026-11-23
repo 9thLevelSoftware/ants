@@ -1245,3 +1245,45 @@ opus, effort: high}`, direction 29: Part A restore year one by switch-off bisect
 brood survival in year two with the authorized constants). After a restart: scratch trees and
 `test-output` are lost only if the container was replaced (check `ls /home/user/scratch-r13-final3`); relaunch
 `firstRound 14` with a note that the ledger's "## Round 14" progress and direction 29 say what is in the tree.
+
+### Nov 23 ~10:10 UTC — round 14 returned: year one 13 of 15, year two 83 of 82 at the dose; sweep 14 running
+
+Round 14 (run `wf_eae72ca1-72e`) closed 09:22 UTC; result saved as `docs/design/tasks/reviews/colony-life-round-14.json`;
+ledger "### Round 14 results". Directions 29, 29a, 29b.
+
+Live tree = **P** (hash e45f2148) = round 12's economy + R40 a's gate + R40 c + the point-field fixes + the mound-mask
+fix + `wasteFall`. Withdrawn: D33, R44, R41, R40 a's want half, R40 b (29a: six colonies could not separate six
+rules; none bought anything in year two) and all of R42 (29b: it cost pp #3 its winter store and sg #2 half its
+forager time). Save -> load -> continue: two causes fixed (point-field choice read a rebuilt cache; mound mask's hole
+probe followed pile heights), 36000 equal ticks on the colony that diverged, three tests. Waste hung under chamber
+ceilings out of every hauler's reach (`wasteFall`): brood hygiene deaths in year two 46 -> 9.
+
+| | round 12 | round 13 (v3) | tree A (r12 economy + R42) | P + LARVA_P_REQ 0.8 |
+|---|---|---|---|---|
+| year one (15 hand-overs): workers / viable | 266 / 14 | 273 / 11 | 266 / 12 | 280 / 13 |
+| year one: median P / C | 0.482 / 1.386 | 0.370 / 1.302 | 0.456 / 1.373 | 0.450 / 1.430 |
+| year one: runs without a lost worker | 11 | 13 | 14 | 12 |
+
+| year two (5 from the cache; winter 1 = 82) | second winters | >= 1.0 x | eggs -> eclosed |
+|---|---|---|---|
+| round 13 v3 | 70 | 1 | 136 -> 49 |
+| tree A | 61 | 1 | 143 -> 37 |
+| P | 74 | 2 | 138 -> 58 |
+| P + base brood loss halved | 70 | 1 | 128 -> 52 (not kept) |
+| P + LARVA_P_REQ 0.8 | 83 | 3 (0 at 1.5 x) | 157 -> 56 |
+
+Not established: tree P's own year-one arm was never run on the 15 (the arm ran on P + 0.8); the 74 -> 83 step is
+inside this round's spread (61 to 74 for small changes); sg #2's year-one shortfall has no found cause (it brings prey
+while sugar runs out); pp #3 failed in rounds 12 to 14.
+
+**Open ruling, LARVA_P_REQ 0.8:** the engineer left the live tree at 1.2 by the letter of direction 29 (year one 13 <
+14). Sweep 14 (same task `w1tntppki`, started 09:27, frozen copy `/home/user/frozen-sweep14` of P at 1.2) is left
+to finish: it judges P on fresh foundings and five long runs, and its review has already found that buried spoiled
+food counts as chamber waste (kd #3's royal chamber: 9 items for 12 gd; `stores.ts spawnSpoiledItem`). Alongside,
+model-free, I run the same sweep script on `/home/user/scratch-r14-P3b` (P + 0.8) into
+`test-output/colony-life/round-14/sweep-p08` (started 10:10; long runs `sweep-long-p08` to follow when the sweep's own
+long runs are done) so the ruling rests on the same 15 fresh foundings and 5 long runs at both values. The live tree
+is not edited while the sweep reviews it; 0.8 goes in (or not) as item 0 of direction 30.
+
+Known red: as the ledger's round-14 list; new `outdoor/removal.verify` (a homing scout interrupted by a flee walks
+outward: round-15 lead). Scratch trees kept: `/home/user/scratch-r14-P`, `/home/user/scratch-r14-P3b`.

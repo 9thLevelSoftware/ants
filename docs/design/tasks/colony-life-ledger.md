@@ -5521,3 +5521,86 @@ Progress (kept current; a successor continues from here)
   arm meets Part A's bars: that arm is running (`arm-y1P3b`, three slots).
 - 09:05 Year-one arm on P3b, 7 of 15: viable 5 (pp #3 C 1.71 / 7.45, failed in round 12 too; sg #2 4.26 / 4.55),
   median P 0.450, hygiene 2, no worker lost. we #3, kd #3, kd #2 over R27. Waiting for the other 8.
+- 09:22 **Year-one arm on the final candidate (P + LARVA_P_REQ 0.8) complete** (`round-14/table-y1P3b.md`): see the
+  results below. No process left running; scratch trees deleted except `/home/user/scratch-r14-P` (Part A tree,
+  e45f2148) and `/home/user/scratch-r14-P3b` (P + LARVA_P_REQ 0.8); round 13's `scratch-r13-final3` / `-dose1` left as
+  they were. Probes archived to `round-14/probes/*.ts.txt` and removed from `tools/sim/probe` (the integrator's
+  check-in commits had picked them up; `git status` shows their deletion only).
+
+### Round 14 results
+
+**Baseline and accounting.** Year one: v3's arm `round-13/arm-final13c` (viable 11) against `round-12/arm-final12`
+(viable 14). Year two: the five long-run colonies from `round-13/cache-y2` (winter 1 = 13 / 19 / 19 / 21 / 10 = 82).
+
+**Causes ranked by measured loss:**
+1. Year one, round 13's economy rules (D33, R44, R41, R40 a's want, R40 b): three colonies' winter carbohydrate
+   (we #3, sg #2, kd #3: C 3.3-3.6 against 4.5-6.4) and kd #2's viability. Single switch-offs (36-run bisect, stopped at
+   31 by direction 29a) could not separate them at six colonies' noise; d33 off restored we #3 and kd #3.
+2. Year one, R42 (cold gate): pp #3's winter carbohydrate (7.45 -> 14.09 / 7.56 without it), sg #2 half its forager
+   time (idle 57 -> 10 worker gd); the turn-back half alone still worse than none (sg #2 0.58 against 1.80, pp #3
+   10.76 against 14.09).
+3. Year two, brood hygiene: waste stuck under a ceiling where no hauler reaches it (cpv #1's royal chamber: 8 items for
+   a whole year; tree A's hygiene deaths 46 in five colonies, pp #3 23, kd #3 10) -> `wasteFall`: 46 -> 9 (P) -> 5 (P3b).
+4. Year two, protein per egg: with the hygiene fixed, LARVA_P_REQ 0.8 lifts the five from 74 to 83 at the second winter.
+5. Saves: two restore gaps (point-field registry, mound mask cache) - not a growth loss, a correctness defect.
+
+**Fixes (live tree; each with its test):**
+- Point field chosen from the goal only (`locomotion/nests.ts pointField`; `locomotion/pointFieldRestore.test.ts`):
+  `outdoor/determinism.perf` green again.
+- Mound mask's hole probe reads the carve cavity only (`nest/moundRelax.ts buildMask`; `nest/moundMaskHeights.test.ts`,
+  `nest/moundRestore14.test.ts`): sg #2's year-two restore gap, 36000 equal ticks after the fix.
+- `colony/wasteFall.ts` (waste spawned on the floor; hanging waste and corpses fall once a colony cycle;
+  `WASTE_SUPPORTED_BU` 0.25, `WASTE_FALL_MAX_BU` 6; `colony/wasteFall.test.ts`).
+- Withdrawn to round 12's forms (directions 29a, 29b): D33, R44, R41, R40 a's want half, R40 b, R42 (both halves);
+  their tests removed or restored to round 12 (`prospectiveProtein.test`, `appendixE23.test`), `r40.test` cut to the
+  gate. Kept: R40 a's winter-reserve gate, R40 c, round 13's point-field seed fix, round-13 tooling and restated tests.
+- Part C item 1: no defect reproduced (5 of 5 pupae back from the shaft wall within 0.03-0.13 gd in four
+  placements); gate test `nest/passageRescue14.test.ts`; in game 0 of 86 traced late brood in a passage (tree A base).
+
+**Year one (15 round-10 hand-overs):**
+| arm | workers | viable | median P | median C | hygiene | R27 met | runs no lost | lost | larvae starved |
+|---|---|---|---|---|---|---|---|---|---|
+| arm-final12 (round 12) | 266 | 14 | 0.482 | 1.386 | 9 | 14 | 11 | 4 | 7 |
+| arm-final13c (v3) | 273 | 11 | 0.370 | 1.302 | 10 | 12 | 13 | 2 | 3 |
+| arm-y1A (tree A: round-12 economy + R42) | 266 | 12 | 0.456 | 1.373 | 11 | 12 | 14 | 2 | 5 |
+| **arm-y1P3b (P + LARVA_P_REQ 0.8)** | **280** | **13** | **0.450** | **1.430** | **5** | **13** | **12** | 4 | 8 |
+Bars (direction 29b): viable >= 14 **NOT met (13)**: pp #3 (C 1.71 / 7.45; failed in round 12 too) and sg #2 (C 4.26 /
+4.55, 0.94 of it; the colony 29b's batch classed as trajectory noise); R27 kept NOT met (sg #2 only); median P >= 0.45
+met (0.450); runs without a lost worker >= 11 met (12).
+
+**Year two (from the cache; second winter):**
+| arm (tree) | we #2 | sg #2 | cpv #1 | pp #3 | kd #3 | sum | >= 1.0 x | eggs | hatched | pupated | eclosed | P delivered / fed larvae / spoiled | R27 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| round 13 v3 | 10 | 16 | 25 | 16 | 3 | 70 | 1 | 136 | - | - | 49 | 130.9 / - / - | 4 / 5 |
+| tree A (not the dose base) | 9 | 15 | 23 | 9 | 5 | 61 | 1 | 143 | - | - | 37 | - | 5 / 5 |
+| base P (= dose (i)) | 12 | 17 | 21 | 21 | 3 | 74 | 2 | 138 | 92 | 79 | 58 | 131.1 / 93.7 / 10.8 | 3 / 5 |
+| (ii) P + base loss halved | 12 | 18 | 21 | 15 | 4 | 70 | 1 | 128 | 93 | 67 | 52 | 126.9 / 93.5 / 8.7 | 5 / 5 |
+| **(iii) P + LARVA_P_REQ 0.8** | **15** | **21** | **23** | **19** | **5** | **83** | **3** | 157 | 123 | 81 | 56 | 109.0 / 78.7 / 6.1 | 4 / 5 |
+Deaths by cause per arm: `account-y2-P.txt`, `account-y2-P2.txt`, `account-y2-P3b.txt` (old age 40 / 37 / 38). (iii)
+meets direction 29's interim year-two bars (3 of 5 at 1.0 x, 83 >= 82); R34 (4 of 5 at 1.0 x, 3 of 5 at 1.5 x) not
+met (0 at 1.5 x). (ii) did not help and is not kept.
+
+**Decision on LARVA_P_REQ (for the ruling):** direction 29 keeps the smallest set that meets the year-two interim bars
+*provided its year-one arm meets Part A's bars*. P + 0.8 is that set in year two, and its year-one arm misses viable
+>= 14 by one colony (13; the best year one of rounds 13-14 on workers, 280, and viable, 13). By the letter the dose is
+not kept: **the live tree stays at LARVA_P_REQ 1.2** (= tree P). The change is one line (`balance/colony.ts`
+LARVA_P_REQ 0.8; restate `colony/brood.test.ts` E2 to the constant); `/home/user/scratch-r14-P3b` is that tree.
+
+**Tried and reverted / stopped:** C1-C3 dose arms on tree A (stopped by direction 29b, outputs unused); a P2 + 0.8 arm
+started on a guess (killed before any result); the `removal.verify` hysteresis edit (did not cure it; the cause is the
+scout's homing after a flee).
+
+**GDD deviations (DEVIATIONS.md):** R40 (want half and b withdrawn), R41, D33, R44 (row added), R42 withdrawn.
+`wasteFall` is a fix of item placement, not a GDD deviation (GDD 02 has waste lie on chamber floors).
+
+**Known red:** `colony/workedExample` (as before); `nest/escapeDig`, `nest/flood/readersCost.verify` (red on the
+round-12 tree and v3 too); `nest/architect/layout`, `behaviours/nest/perf`, `locomotion/perf` (timing under load);
+`behaviours/nest/sfaReview.verify` (its precondition, as before), `stall.soak` (as before); **`outdoor/removal.verify`**
+(new with this tree: a scout on `scout.return` interrupted by `flee.run` walks back out - accepted as a round-15 lead).
+tsc clean.
+
+**Next (round 15):** (1) the ruling on LARVA_P_REQ 0.8 (year two met, year one 13 of 15); (2) sg #2 and pp #3 in year
+one (pp #3 has failed in rounds 12-14 alike; sg #2 brings prey while its sugar runs low: its C forage trips fail
+`untracked not-reached`); (3) `endFlee` -> `startReturn` sends a homing scout outward (`removal.verify`); (4) year-two
+brood losses that remain at the dose: larva base 23, pupa untended 14 (late pupae in the cold), larva starvation 7
+(pp #3); (5) R34's 1.5 x is far (best 1.21 x).

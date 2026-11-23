@@ -1,0 +1,106 @@
+{
+ "summary": "Round 14 is complete. Year two now meets the interim bars with the protein dose, but year one misses the viability bar by one colony, so the dose has not gone into the live tree and the integrator has to rule.\n\n**Part A (year one).** The switch-off bisect could not separate round 13's rules at six colonies' noise. Turning D33 off alone came closest: it restored we #3 and kd #3, but control we #1 lost viability. Under directions 29a and 29b I took out D33, R44, R41, R40 a's want half, R40 b and both halves of R42 (code back to its round-12 form, tests removed or restored, DEVIATIONS rows marked withdrawn). R40 a's winter-reserve gate, R40 c and the point-field fixes stay. Tree A (the round-12 economy with R42 still in) reached 12 of 15 viable. R42 cost pp #3 its winter carbohydrate, and the turn-back half on its own was still worse, so all of R42 went. The R40 c and point-field switches did not restore both sg #2 and kd #2; I recorded that as noise at this sample.\n\n**Part B (save -> load -> continue).** Two causes, both fixed with tests:\n- **Point field:** the choice between the plain and the wide field read the registry, a cache that a load rebuilds differently. It is now chosen from the goal alone, and `outdoor/determinism.perf` is green.\n- **Mound mask:** the hole probe read the whole field, which follows pile heights that the mask cache does not track. It now reads the carve cavity only. sg #2's year-two cache, re-run on the round-12 tree with this fix, stays equal for 36000 ticks after the save.\n\n**Part C (year two).**\n- **Item 1 (pupae on a passage wall):** round 13's lead did not reproduce. All 5 pupae were back in a chamber within 0.03-0.13 gd in four placements; the gate test is kept.\n- **Item 2 (hygiene), a real defect:** 8 waste items from the founding hung 0.11 mm under the royal chamber's ceiling for a whole year. Hauling treats them as out of reach, so nobody carried them out. New `colony/wasteFall.ts` drops waste and corpses to the floor below. Brood hygiene deaths fell from 46 (tree A) to 9.\n- **Dose arms on the final Part A tree P:**\n\n| Arm | Second winters | \u2265 1.0 x winter 1 | Kept |\n|---|---|---|---|\n| Base P | 74 | 2 of 5 | base |\n| Base brood loss halved | 70 | 1 of 5 | no |\n| LARVA_P_REQ 0.8 | 83 (winter 1: 82) | 3 of 5 | interim bars met; year one 13 of 15 |\n\n**The open decision.** The year-one arm of P + LARVA_P_REQ 0.8 gave 280 workers and 13 of 15 viable, with median P 0.450 and 12 runs without a lost worker. It misses viable \u2265 14 because of pp #3 (it failed in round 12 too) and sg #2 (at 0.94 of its winter need). Direction 29 keeps the dose only if year one meets its bars, so the live tree stays at LARVA_P_REQ 1.2. The 0.8 version is a one-line change and sits ready in `/home/user/scratch-r14-P3b`.\n\n**New red test:** `outdoor/removal.verify`. A homing scout interrupted by a flee walks back outward. It is accepted as a round-15 lead; the test is unchanged.\n\nEverything is in the ledger under `## Round 14` / `### Round 14 results` and in `test-output/colony-life/round-14/`.",
+ "causesRanked": [
+  "Year one, round 13's economy rules (D33, R44, R41, R40 a's want, R40 b): with them in, 3 colonies lost their R27 winter carbohydrate (we #3, sg #2, kd #3: C 3.3-3.6 against needs of 4.5-6.4) and kd #2 lost viability (v3: 11 viable; round 12: 14). Switching off D33 alone restored we #3 and kd #3.",
+  "Year one, R42 cold gate: pp #3 winter C 7.45 / 8.13 with it against 14.09 / 7.56 without; sg #2's idle time 57 -> 10 worker gd without it; the turn-back half alone still worse (sg #2 0.58 against 1.80, pp #3 10.76 against 14.09)",
+  "Year two, brood hygiene: 8 waste items hanging 0.11 mm under the royal ceiling (haul priority 0) for a whole year; tree A brood hygiene deaths 46 across the five colonies (pp #3 23); 9 with wasteFall (tree P), 5 on P + 0.8",
+  "Year two, protein per egg: once hygiene is fixed, LARVA_P_REQ 0.8 lifts the second winters from 74 to 83 (eggs 138 -> 157)",
+  "Save/load restore gaps (2 causes): a correctness defect for players' saves, not a growth loss"
+ ],
+ "fixes": [
+  {
+   "cause": "Point field chosen from registry state (a derived cache), so a loaded game walked other fields than the unsaved one",
+   "files": [
+    "/home/user/foundress/src/sim/locomotion/nests.ts",
+    "/home/user/foundress/src/sim/locomotion/pointFieldRestore.test.ts"
+   ],
+   "beforeAfter": "outdoor/determinism.perf: diverged 85 ticks after save -> equal; restore test red on round-13 code, green now",
+   "test": "src/sim/locomotion/pointFieldRestore.test.ts"
+  },
+  {
+   "cause": "Mound mask hole probe read the full field (pile overlays), which the mask cache key does not follow",
+   "files": [
+    "/home/user/foundress/src/sim/nest/moundRelax.ts",
+    "/home/user/foundress/src/sim/nest/moundMaskHeights.test.ts",
+    "/home/user/foundress/src/sim/nest/moundRestore14.test.ts"
+   ],
+   "beforeAfter": "sg #2 cached from hand-over, save at tick 99748: differed 1 tick after save -> equal for 36000 ticks",
+   "test": "src/sim/nest/moundMaskHeights.test.ts, src/sim/nest/moundRestore14.test.ts (both red with old probe)"
+  },
+  {
+   "cause": "Waste spawned at brood held under a ceiling stays out of haulers' reach forever (haul priority 0)",
+   "files": [
+    "/home/user/foundress/src/sim/colony/wasteFall.ts",
+    "/home/user/foundress/src/sim/colony/brood.ts",
+    "/home/user/foundress/src/sim/colony/economy.ts",
+    "/home/user/foundress/src/sim/balance/colony.ts",
+    "/home/user/foundress/src/sim/colony/wasteFall.test.ts"
+   ],
+   "beforeAfter": "year-two brood hygiene deaths: tree A 46 -> tree P 9 (P + 0.8: 5); kd #3 hygiene 10 -> 2",
+   "test": "src/sim/colony/wasteFall.test.ts (red without the cycle hook: 8 > 3)"
+  },
+  {
+   "cause": "Round 13's economy rules and R42 cost year-one viability (directions 29a / 29b): withdrawn to their round-12 forms",
+   "files": [
+    "/home/user/foundress/src/sim/colony/needs.ts",
+    "/home/user/foundress/src/sim/colony/economy.ts",
+    "/home/user/foundress/src/sim/colony/allocation/demand.ts",
+    "/home/user/foundress/src/sim/colony/queen.ts",
+    "/home/user/foundress/src/sim/colony/activation.ts",
+    "/home/user/foundress/src/sim/ants/behaviours/outdoor/engine.ts",
+    "/home/user/foundress/src/sim/balance/colony.ts",
+    "/home/user/foundress/docs/design/gdd/DEVIATIONS.md"
+   ],
+   "beforeAfter": "year one viable 11 (v3) -> 12 (tree A) -> 13 (P + LARVA_P_REQ 0.8); runs without a lost worker 12",
+   "test": "r41/r44/yield27a/coldGate42 tests removed; r40.test cut to its gate cases; prospectiveProtein.test and appendixE23.test restored to round 12"
+  },
+  {
+   "cause": "Part C item 1 (pupae on a passage wall): no defect reproduced",
+   "files": [
+    "/home/user/foundress/src/sim/ants/behaviours/nest/passageRescue14.test.ts"
+   ],
+   "beforeAfter": "5 of 5 pupae rescued in 0.03-0.13 gd in 4 placements (also with v3 code)",
+   "test": "src/sim/ants/behaviours/nest/passageRescue14.test.ts (gate: 5 of 5 within 0.2 gd)"
+  }
+ ],
+ "verification": [
+  "tsc clean on the live tree",
+  "colony folder 80 of 81 files green (red: workedExample, known)",
+  "locomotion folder 27 of 27 green",
+  "nest folder 61 of 64 (escapeDig and flood/readersCost.verify are also red on the round-12 tree and on v3; architect/layout fails on timing)",
+  "behaviours/nest 35 of 37 (sfaReview.verify and stall.soak known red)",
+  "outdoor 36 of 37 (removal.verify, new red, accepted as a round-15 lead)",
+  "tests/docs 8 of 8 green",
+  "sg #2 save/load: 36000 ticks equal on the round-12 tree with the mask fix",
+  "Year-one arm on P + 0.8: 280 workers, 13 of 15 viable, median P 0.450, hygiene 5, 12 runs without a lost worker",
+  "Year-two arms from round-13/cache-y2: base P sum 74; base loss halved 70; LARVA_P_REQ 0.8 sum 83 with 3 of 5 at 1.0 x"
+ ],
+ "next": [
+  "Integrator ruling on LARVA_P_REQ 0.8: year-two interim bars met (83, 3 of 5 at 1.0 x), year one 13 of 15 viable (bar 14); tree /home/user/scratch-r14-P3b; live-tree change is one line plus restating the E2 test in colony/brood.test.ts",
+  "Year one sg #2 and pp #3: pp #3 fails in rounds 12-14 alike; sg #2's sugar forage trips fail (untracked not-reached) while it brings in prey",
+  "outdoor/removal.verify: endFlee -> startReturn sends a homing scout outward after a flee",
+  "Year-two brood losses remaining at the dose: larva base 23, pupa untended 14 (late pupae in the cold), larva starvation 7 (pp #3)",
+  "R34's 1.5 x bar: best colony 1.21 x"
+ ],
+ "gddDeviations": [
+  "R40: the want half of a and all of b withdrawn (round 14); the a gate and c kept",
+  "R41 withdrawn",
+  "D33 withdrawn",
+  "R44 row added, marked withdrawn",
+  "R42 withdrawn (both halves)",
+  "New balance constants WASTE_SUPPORTED_BU 0.25 and WASTE_FALL_MAX_BU 6 (balance/colony.ts): a placement fix, not a GDD deviation"
+ ],
+ "triedAndReverted": [
+  "R13_OFF switch-off bisect (scratch copy only): 31 of 36 runs, stopped by direction 29a",
+  "C1-C3 dose arms on tree A: stopped by direction 29b, outputs unused",
+  "P2 + 0.8 arm started on a guess: killed before any result",
+  "removal.verify zone-edge hysteresis: did not cure the failure; reverted"
+ ],
+ "notesForIntegrator": [
+  "Live tree = tree P (hash e45f2148) at LARVA_P_REQ 1.2; the 0.8 version is /home/user/scratch-r14-P3b",
+  "Kept: /home/user/scratch-r14-P and /home/user/scratch-r14-P3b; round 13's scratch-r13-final3 and -dose1 left in place; all other scratch trees deleted",
+  "Probes archived to test-output/colony-life/round-14/probes/*.ts.txt and removed from tools/sim/probe; git status shows them as deleted because the check-in commits had picked them up",
+  "Ledger timestamps from 07:00 onward were estimated a few minutes ahead and were corrected against the clock where I noticed",
+  "Evidence lives in test-output/colony-life/round-14/: table-off.md, table-y1A.md, table-y1P3b.md, table-y2-P-P2.md, table-y2-P-P3b.md, account-*.txt, probe-restore-*.txt, hyg-cpv1-dose.txt, step2.txt"
+ ]
+}
