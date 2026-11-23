@@ -6115,3 +6115,153 @@ tsc clean.
 - 15:10 Round 15 closed. No process of this round running; probes archived in `round-15/probes/` and removed from the
   tree; scratch trees of the round deleted except the final tree `/home/user/scratch-r15e` (kept with
   `scratch-r14-P`, `scratch-r14-P3b` as 30c asks). Nothing committed by this engineer.
+
+### Independent sweep after round 15
+
+Independent engineer, 15:01-16:50 UTC Nov 23 (no restart; progress file `docs/design/tasks/progress/colony-life-sweep-15.md`).
+**Table: `test-output/colony-life/round-15/sweep-table.md`** (`python3 tools/sim/sweep-table.py round-15/sweep
+round-14/sweep`: columns of `econ-growth-review/sweep9-table.md` plus first workers, `worker:lost`, R27 stores, shut
+days). Previous sweep = sweep 14 (`round-14/sweep`); also compared run by run with the integrator's paired fresh sweep at
+LARVA_P_REQ 0.8 on tree P (`round-14/sweep-p08`, `round-15/sweep-review/compare-p08.md`), which has **the same
+foundings** (first workers and hand-over gd equal in 15 of 15), so against p08 the comparison is paired on round 15's
+items 1-4. Runs by `tools/sim/sweep-life.sh` then `PAR=2 UNTIL_DAY=40 tools/sim/longrun-life.sh` from a frozen copy of
+the live tree taken at 15:03 (`/home/user/frozen-sweep15`, deleted): sweep-life.sh's hash **48db2e0d** on all 15 runs;
+live src = HEAD 5151a98 + the round's six restated tests = `scratch-r15e` (src/sim, worldgen, core, tools/sim equal
+apart from those tests). 15 runs 15:02-15:55, long runs 15:55-16:42 (no JSON existed in `sweep-long`). Naturalist,
+default start, flooding on, no player, fresh foundings. Bars recomputed from the Markdown by a second script
+(`round-14/sweep-review/bars-from-md.py` -> `round-15/sweep-review/bars-from-md.txt`): same verdicts. Review outputs:
+`round-15/sweep-review/`. **This table is the one a later task compares with.**
+
+**Viability bar: MET** - viable **14 of 15** (sweep 14: 13; p08: 13): woodland-edge 3/3, suburban-garden **2/3**,
+playground-park 3/3, car-park-verge 3/3, kitchen-door 3/3. Not viable: sg #2 (R27: C 0.01 for a winter need of 4.39;
+viable in sweep 14 and p08). we #1 (sweep 14's livelock) and we #3 (short of sugar in sweeps 12 and 14) are viable.
+
+**Growth bar R19: NOT met** (5 of 7; sweep 14: 4 of 7):
+
+| check | sweep 15 | sweep 14 | p08 |
+|---|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | 15 of 15 ok | 14 | 15 |
+| median eclosions after hand-over >= 4 | 8 ok | 7 | 9 |
+| median intake/need P >= 0.7 | **0.344** FAIL | 0.427 | 0.403 |
+| median intake/need C >= 0.9 | 1.278 ok | 1.33 | 1.266 |
+| median trip success >= 50 % | 51.6 % ok (52 from the rounded Markdown) | 48.1 % | 50.8 % |
+| first workers >= 9, >= 13 of 15 | **11 of 15** FAIL (we #2, we #3, cpv #2, kd #2: 8) | 14 | 11 |
+| no `worker:lost`, >= 13 of 15 | 13 of 15 ok (we #1 3, sg #1 1) | 12 | 13 |
+
+Sums (`sweep-review/sums.txt`; sweep 14 / p08 in brackets): first workers 161 (168 / 161), workers at winter **258**
+(255 / 273), eclosions 116 (102 / 123), eggs after the hand-over 374 (302 / 349), larvae starved 8 (3 / 5). Adult deaths:
+crushed **12** (8 / 7), lost 4 (3 / 2), predation 1, drowning 1, old age 1. Brood losses: base larva 42 / egg 36, egg
+flooding 20 (18 / 9; kd #3 10, cpv #1 6), untended 20 (12 / 7), temperature 24, starvation 8, hygiene 11 (2 / 18: against p08
+pupa hygiene 12 -> 2, item 2 holds). P delivered 122 (p08 138): carrion 11.2 (18.8), prey 83.2 (86.8), `unknown` 9.3
+(13.6); forage:P trips 16 (33). Deliver share of worker time median 2.6 %, max 3.8 % (sweep 14 max 28.6 %; item 1's bar
+< 6 % holds in 15 of 15). Cost (`sweep-review/cost.txt`): behaviours 0.259 ms a tick median (sweep 14 0.245, p08
+0.260), kd #1 0.293 (26a.0's bar <= 0.30), locomotion 0.714; no round-15 system stands out.
+
+**Year two** (five long runs to the second winter; `round-15/sweep-long/longrun-table.md`, detail
+`sweep-review/long-detail.txt`; the long runs reproduce the sweep's winter counts in 5 of 5):
+
+| run | first | winter 1 (C / P) | spring (lapse loss) | y2 d15 | y2 d21 | 2nd winter (C / R27 need) | y2 eggs / eclosed | largest y2 losses | p08 2nd winter | sweep 14 2nd winter |
+|---|---|---|---|---|---|---|---|---|---|---|
+| we #2 | 8 | 11 (8.4 / 2.3) | 10 (9 %) | 15 | 14 | 13 (24.8 / 4.2) | 28 / 12 | pupa untended 6, larva base 3, larva hygiene 3 | 6 | 11 |
+| sg #2 | 11 | 17 (**0** / 5.8), not viable | **7 (59 %)** | 4 | 4 | **2**, queen starved | 0 / 0 | workers starved 9 in the lapse, queen:starvation | 20 | 16 |
+| cpv #1 | 14 | 23 (17.2 / 3.6) | 20 (13 %) | 37 | 31 | 31 (19.5 / 7.2) | 53 / 28 | predation 8 adults; larva base 7, egg temperature 7 | 33 | 15 |
+| pp #3 | 12 | 19 (12.3 / 2.4) | 18 (5 %) | 28 | 23 | 23 (16.4 / 6.8) | 37 / 20 | pupa temperature 10, pupa untended 9 | 24 | 23 |
+| kd #3 | 9 | 9 (6.6 / 4.4) | 8 (11 %) | 3 | 2 | **2** (0 / 1.2) | 13 / 2 | egg cannibalised 5, pupa hygiene 3 | 2 | 6 |
+
+- **R22 spring check**: queen alive and >= 0.7 x winter workers **4 of 5** (bar 4: met; sg #2 fails, 17 -> 7). R22's
+  day-15 check (superseded by R34): 2 of 5 (cpv #1 37 >= 28, pp #3 28 >= 24).
+- **R34**: second winter >= 1.0 x winter 1 **3 of 5** (bar 4: NOT met; we #2 1.18, cpv #1 1.35, pp #3 1.21),
+  >= 1.5 x **0 of 5** (bar 3: NOT met; best cpv #1 1.35). Direction 29's interim bars: >= 1.0 x in 3 of 5 met; the five
+  together 71 against 79 at winter 1 NOT met (p08 85 -> 85; sweep 14 74 -> 71).
+- **R24**: the four colonies viable at winter lose 5-13 % in the lapse (cap 15 %): met. sg #2 entered winter not
+  viable with no carbohydrate and lost 59 % (9 starved, then the queen): outside R24 (short stores), and it is the
+  year-one miss below, not a lapse defect.
+- R27 at the second winter: 3 of 5 over their need (kd #3 C 0, sg #2 has no queen).
+
+**Regressions against sweep 14** (script; 13 runs flagged, `sweep-table.md` "Regressions"):
+- **sg #2: viable -> NOT viable**, C intake 0.879 -> 0.49 (finding 2).
+- **P intake lower by > 0.05 in 9 of 15** (median 0.427 -> 0.344): we #3 0.984 -> 0.723, sg #1 0.602 -> 0.352, sg #3
+  0.604 -> 0.299, cpv #2 0.264 -> 0.087, kd #2 0.427 -> 0.262, pp #1 0.436 -> 0.314, pp #3 0.802 -> 0.669, we #2, cpv #3.
+- Net workers lower: we #2 +6 -> +3, sg #3 +8 -> +5, kd #2 +8 -> +5, cpv #2 +9 -> +8; eclosions lower in the same four.
+- kd #3: larvae starved 1 -> 7, C intake 0.886 -> 0.5, eclosions 0 (finding 4). we #1: lost 1 -> 3.
+- Trip success lower by > 5 points in 6 runs (sg #1 62 -> 52, pp #1 65 -> 56, pp #2 59 -> 52, we #3 76 -> 69, cpv #3
+  38 -> 29, cpv #2 53 -> 48), although the median rose 48.1 -> 51.6 %.
+- Long runs: cpv #1 15 -> 31, pp #3 23 -> 23, we #2 11 -> 13 at the second winter; sg #2 16 -> 2, kd #3 6 -> 2.
+- Against p08 (same foundings): workers at winter better 3 / worse 9 / equal 3 (273 -> 258); P intake lower in 9;
+  cpv #3 and kd #3 not viable -> viable, sg #2 viable -> not. The round's own arm from the round-10 hand-overs showed
+  +3 workers (283 / 280); on fresh foundings the same tree shows -15. Single chaotic runs: neither is a significant
+  gain or loss, but year one on fresh foundings is not better than p08 apart from the viability count.
+
+**Review of the round** (code `git diff ec35477` on src: nestNav `nearestReached`, phaseNest `deliverLegFailed`,
+hunt `sugarTrip`, wasteFall `chamberFloorUnder` / `liftBuriedItem`, stores spawn, crumbs `retraceTarget` (nearest start
++ consumption), transitions route guard / `AntFlag.HOMING`, `LARVA_P_REQ` 0.8 and the restated tests).
+- Verified: `tsc --noEmit` clean (`sweep-review/tsc.txt`, again with the verify test: `tsc-after-verify.txt`). Folder
+  tests, one worker each (`sweep-review/vitest-*.txt`): colony 81 of 83 (`workedExample`, `handoverStomach.verify`),
+  locomotion 27 of 28 (`perf` timing), nest 61 of 64 (`escapeDig`, `flood/readersCost.verify`, `architect/layout`
+  timing), behaviours/nest 35 of 37 (`sfaReview.verify`, `stall.soak`), behaviours/outdoor 39 of 40 (`appendixE23`;
+  includes the new verify file), ants/actions 10 of 11 (`runner.test`), tests/docs 1 of 1. = the round's claims.
+- Not allowed list: no lifespan, need, food, hand-over or bar change; `LARVA_P_REQ` by ruling 30a; the five restated
+  tests derive their numbers from the constants with old / new in DEVIATIONS R43 (30b item 3); `handoverStomach.verify`
+  is left red, not weakened; the burst26 / hygiene26 fixtures change stores only (30b item 4). `DELIVER_LEG_FAILS_MAX` is
+  a recovery parameter. No seed or archetype special case.
+- Each fix against its cause, and its test (`sweep-review/vitest-strength.txt`; each production file back at ec35477
+  in a scratch copy): `loneVoxel15`, `deliverRecovery15`, `sugarTripHunt15` (case 1), `retraceResume15` (both cases),
+  `wasteFall.verify` case 2 (old `stores.ts`) and `wasteFall15`'s lift case (lift switched off) are all RED, so every fix
+  is pinned at its rule. Each addresses the traced cause, not the symptom (the lone sample is read through, not the
+  timer lengthened; the spawn point is the cavity floor, not a wider haul reach).
+- Determinism: the retrace index lives in `nav.loco` (persisted `NavScratch`), the failed-leg count in `bb`, HOMING in
+  `flags`; `nearestReached` / `isLone` are pure reads of the pass flags; `HOMING` is set only by `startReturn` and
+  cleared by `startOutbound` and nest membership changes (flee / hunt resume to outbound only from an outbound phase, so
+  no stale flag path found). Per-tick cost: `nearestCrumb` runs only at a retrace start, `isLone` only on an INF read.
+- New tests (`src/sim/ants/behaviours/outdoor/round15.verify.test.ts`, GREEN on the final tree, both deliver cases RED on
+  the old phaseNest): (1) a carried prey item whose food chamber field is blind is set down in another chamber within
+  one DELIVER_MAX_S, never standing on a failed walk > 2 ticks; (2) with every chamber blind she sets it down where she
+  stands; (3) save -> load -> continue while foragers retrace and consume crumbs: equal state hashes over 1500 ticks.
+  The round's crop-only recovery test did not cover a solid load; it holds.
+
+**Findings**
+1. **Major (bar): R19's protein check is further off** - median P 0.344 (sweep 14 0.427, p08 0.403), 9 of 15 runs
+   lower by > 0.05 against sweep 14 and 9 of 15 against p08 on the same foundings. P delivered 138 -> 122 against p08,
+   most of it carrion (18.8 -> 11.2; forage:P trips 33 -> 16) and `unknown` (13.6 -> 9.3), while eggs laid rose 349 ->
+   374. Per run the carrion trips are 0-8, so no one colony or mechanism carries it; not traced. Item 4 (sugar trips do
+   not break off for prey without a deficit) is the round's only change on the protein path; prey P is nearly unchanged
+   (86.8 -> 83.2), so it is not the visible cause.
+2. **Major (viability, one run): sg #2 loses its viability on a hand-over that was viable in p08** (same founding,
+   4.868 gd, 11 workers). C 9.6 -> 2.7 on day 3 (delivered C 0.045 against p08's 3.28 that day), then 0 from doy 21;
+   tenders 1-2 a day against p08's 4-5 (tend 12.9 against 32.5 worker-gd), forage:C trips 1 of 6 successful, no
+   departures on days 9-12; and the colony digs 21.6 worker-gd (p08 4.1) with pellets made 6-23 a day on days 4-11
+   while only one plan was created (day 8), 1-4 diggers a day. In year two it starves in the lapse (17 -> 7, queen
+   dead). One chaotic run; what the diggers dig with no open plan is not traced.
+3. **Major (year two): R34 3 of 5 at 1.0 x, 0 of 5 at 1.5 x; 79 -> 71** (p08's long runs 85 -> 85). Two colonies end at
+   2 workers: sg #2 (finding 2) and kd #3 (C 0 at the second winter; in year one 0 eclosions).
+4. Minor: **kd #3 raises nothing in year one** - 0 eclosions of 29 eggs; 7 larvae starved on days 2-5 with 1.4-4.8 P
+   in store and mean larval hunger 0.70-0.97; egg flooding 10, brood hygiene 9 (p08 on the same founding: 7 eclosions,
+   0 starved, flooding 3). Nurse target 1-2 against a demand of 1.4-3.8 with 9 workers in one chamber (nursing hours
+   in the JSON); several nurses are counted outside any chamber (`nursesByChamber` -1).
+5. Minor: workers crushed 12 (sweep 14 8, p08 7; 0-3 a run); `worker:lost` 4 (we #1 3).
+6. Minor (test): **App. E 23's red comes from the consumption half of item 3's variant e.** In a scratch copy:
+   old `crumbs.ts` -> E23 green; variant e with only `crumbLen = target + 1` removed (nearest-crumb start kept) -> E23
+   GREEN and `outdoor/removal.verify` GREEN; only `retraceResume15` case 1's explicit "no crumb behind her" assertion is
+   red. So the nearest start alone fixes the removal defect; the consumption is what breaks the carrion trail. The arms
+   have not measured that variant (the round's `nN` arm was the newest start, not this one).
+7. Pre-existing (known red, unchanged): `workedExample`, `handoverStomach.verify` (R43), `appendixE23` (finding 6),
+   `sfaReview.verify`, `stall.soak`, `escapeDig`, `flood/readersCost.verify`, `runner.test`, timing tests under load.
+
+**Leads from the failing runs' own diagnostics** (most costly first):
+1. **Protein income** (finding 1; the R19 check that has never been met): carrion trips halved against p08 on the same
+   foundings and `unknown` P down a third; per colony per day, carrion known / chosen / reached, with p08's runs as
+   the pair (same hand-overs, so the first divergent day can be found).
+2. **Colonies that end short of sugar** (sg #2 here, we #3 / sg #2 / pp #3 before): sg #2's first-day collapse of
+   carbohydrate delivery and its tenders falling to 1-2, against p08's pair; and what its 1-4 diggers dig with no open
+   plan for days 4-11 (21.6 worker-gd taken from tending). Repro: the cached hand-over of sg #2 in
+   `test-output/viab/cache` (same as p08's).
+3. **Year two in small or flooded nests** (finding 3): kd #3 and sg #2 end at 2; brood lost in year two to base
+   mortality, pupa temperature and pupa untended in the late cold (pp #3 19, we #2 6), predation 8 adults in cpv #1.
+4. **Variant f for item 3** (finding 6): nearest-crumb start without consumption - E23 and removal.verify both green;
+   run the year-one arm (we #3, sg #3 first) to see whether it keeps the two colonies variant e restored.
+5. **kd #3's larvae starving with protein in store** (finding 4): the store -> nurse -> larva path in a one-chamber
+   9-worker nest, nurses outside chambers.
+
+Scratch trees `/home/user/frozen-sweep15` and `/home/user/scratch-sweep15-probe` deleted; probes ran only in the
+scratch copy; no process of this review left running. Kept: `src/sim/ants/behaviours/outdoor/round15.verify.test.ts`
+(3 cases, green).

@@ -1,0 +1,84 @@
+{
+ "viabilityMet": true,
+ "growthMet": false,
+ "tablePath": "/home/user/foundress/test-output/colony-life/round-15/sweep-table.md",
+ "numbers": {
+  "viable": "14 of 15: woodland-edge 3/3, suburban-garden 2/3 (sg #2 has R27 C 0.01 against a need of 4.39), playground-park 3/3, car-park-verge 3/3, kitchen-door 3/3",
+  "workersHeld": "15 of 15",
+  "medianEclosions": 8,
+  "medianIntakeP": 0.344,
+  "medianIntakeC": 1.278,
+  "medianTripSuccess": 51.6,
+  "firstWorkersAtLeast9": "11 of 15 (we #2, we #3, cpv #2, kd #2 have 8)",
+  "runsWithoutLost": "13 of 15 (we #1 lost 3, sg #1 lost 1)"
+ },
+ "findings": [
+  {
+   "severity": "major",
+   "title": "R19 protein check is further from the bar",
+   "where": "test-output/colony-life/round-15/sweep-review/sums.txt, compare-p08.md",
+   "detail": "Median P is 0.344, against 0.427 in sweep 14 and 0.403 in sweep-p08. P is lower by more than 0.05 in 9 of 15 runs against sweep 14, and in 9 of 15 against sweep-p08 on the same foundings. P delivered fell from 138 to 122 against p08. Carrion went from 18.8 to 11.2 (forage:P trips 33 to 16) and 'unknown' from 13.6 to 9.3, while eggs laid rose from 349 to 374. Prey P barely moved (86.8 to 83.2), so item 4 is not the visible cause. Each run makes only 0 to 8 carrion trips, so no single colony carries the drop. Not traced."
+  },
+  {
+   "severity": "major",
+   "title": "sg #2 loses viability on a hand-over that was viable in p08",
+   "where": "round-15/sweep/life-lasius-niger-suburban-garden-2.*",
+   "detail": "Same founding as p08 (4.868 gd, 11 workers). Carbohydrate fell from 9.6 to 2.7 on day 3: C delivered that day was 0.045, against 3.28 in p08. It reached 0 by doy 21. The colony had 1-2 tenders a day against 4-5 in p08 (tend 12.9 vs 32.5 worker-gd), and 1 of 6 forage:C trips succeeded. It also dug 21.6 worker-gd (p08: 4.1), making 6-23 pellets a day on days 4-11 with only one plan created (day 8). In year two it starved in the lapse: 17 workers fell to 7, 9 starved and the queen died, leaving 2 at the second winter. One chaotic run; what the diggers dig with no open plan was not traced."
+  },
+  {
+   "severity": "major",
+   "title": "Year two: R34 not met; the five colonies shrink",
+   "where": "test-output/colony-life/round-15/sweep-long/longrun-table.md",
+   "detail": "R34: 3 of 5 reach 1.0 x (bar 4: we #2 1.18, cpv #1 1.35, pp #3 1.21) and 0 of 5 reach 1.5 x (bar 3). The five together went from 79 at winter 1 to 71 at the second winter (p08's long runs: 85 to 85). sg #2 and kd #3 both end with 2 workers. R22 spring check: 4 of 5, met. R22 day-15 check: 2 of 5. R24: met; the four colonies viable at winter lost 5-13 % in the lapse."
+  },
+  {
+   "severity": "minor",
+   "title": "kd #3 raises no worker in year one; larvae starve with protein in store",
+   "where": "round-15/sweep/life-lasius-niger-kitchen-door-3.*",
+   "detail": "0 eclosions from 29 eggs. 7 larvae starved on days 2-5 while 1.4-4.8 P stood in store and mean larval hunger was 0.70-0.97. Also lost: 10 eggs to flooding and 9 brood to hygiene. On the same founding p08 had 7 eclosions and 0 starved. Nurse target was 1-2 against a demand of 1.4-3.8 (9 workers, one chamber), and several nurses were counted outside any chamber."
+  },
+  {
+   "severity": "minor",
+   "title": "Workers crushed rose to 12",
+   "where": "sweep-review/sums.txt",
+   "detail": "12 workers crushed, against 8 in sweep 14 and 7 in p08 (0-3 a run). worker:lost is 4 (3 in we #1). Not traced."
+  },
+  {
+   "severity": "minor",
+   "title": "App. E 23's red comes from the consumption half of item 3 variant e",
+   "where": "src/sim/locomotion/crumbs.ts retraceTarget; sweep-review/vitest-strength.txt",
+   "detail": "Checked in a scratch copy. With the old crumbs.ts, E23 is green. With only the consumption lines removed (nearest-crumb start kept), E23 is green and so is outdoor/removal.verify. Only retraceResume15 case 1, which asserts consumption explicitly, goes red. So the nearest start alone fixes the removal defect, and the consumption breaks the carrion trail. No arm has measured that variant."
+  }
+ ],
+ "checksRun": [
+  "Fresh 15-run sweep from a frozen copy of the tree, hash 48db2e0d on all 15 runs (tools/sim/sweep-life.sh), 15:02-15:55 UTC",
+  "Five long runs to the second winter, PAR=2 UNTIL_DAY=40 (tools/sim/longrun-life.sh), 15:55-16:42; tools/sim/longrun-table.py",
+  "Both bars computed by tools/sim/sweep-table.py, then recomputed from the Markdown by round-14/sweep-review/bars-from-md.py: same verdicts",
+  "Run-by-run comparison with sweep 14 (the previous table) and with round-14/sweep-p08, which has the same foundings (15 of 15)",
+  "Sums, brood funnel, protein deliveries and cost medians (sweep-review/sums15.py, sums.txt, cost.txt)",
+  "tsc --noEmit clean, before and after adding the verify test",
+  "Folder tests, one worker each: colony 81/83, locomotion 27/28, nest 61/64, behaviours/nest 35/37, behaviours/outdoor 39/40, ants/actions 10/11, tests/docs 1/1 (all reds known or as claimed)",
+  "Test strength: each round-15 production file put back at ec35477 in a scratch copy; every new round-15 test goes red",
+  "App. E 23 isolation: old crumbs.ts, then variant e without consumption; removal.verify and retraceResume15 under the same switch",
+  "New src/sim/ants/behaviours/outdoor/round15.verify.test.ts: solid-load deliver recovery (2 cases) and save->load->continue mid-retrace; green on the final tree, the deliver cases red on the old phaseNest",
+  "Code review of git diff ec35477 on src: forbidden-change list, determinism (all new state persisted), per-tick cost"
+ ],
+ "regressions": [
+  "sg #2: viable -> NOT viable; C intake 0.879 -> 0.49 (sweep 14), 0.782 -> 0.49 (p08)",
+  "Median P intake 0.427 -> 0.344. Lower by > 0.05 in 9 runs: we #3 0.984->0.723, sg #1 0.602->0.352, sg #3 0.604->0.299, cpv #2 0.264->0.087, kd #2 0.427->0.262, pp #1 0.436->0.314, pp #3 0.802->0.669, we #2 0.413->0.324, cpv #3 0.33->0.249",
+  "Net workers lower in we #2 (+6 -> +3), sg #3 (+8 -> +5), kd #2 (+8 -> +5), cpv #2 (+9 -> +8); eclosions lower in the same four",
+  "kd #3: larvae starved 1 -> 7, C intake 0.886 -> 0.5, 0 eclosions",
+  "we #1: worker:lost 1 -> 3",
+  "Trip success lower by > 5 points in sg #1 (62->52), pp #1 (65->56), pp #2 (59->52), we #3 (76->69), cpv #3 (38->29), cpv #2 (53->48), although the median rose 48.1 -> 51.6 %",
+  "Against p08 on the same foundings: workers at winter 273 -> 258 (better 3 / worse 9 / equal 3), eclosions 123 -> 116, P delivered 138 -> 122",
+  "Long runs at the second winter: sg #2 16 -> 2 (queen starved), kd #3 6 -> 2; five-colony sum 71 against 79 at winter 1 (p08 85 -> 85)",
+  "Workers crushed 8 -> 12"
+ ],
+ "leadsForNextRound": [
+  "Protein income (R19 P, never met). On the same foundings as p08, carrion trips halved and 'unknown' P fell by a third. Trace per colony per day what carrion was known, chosen and reached, using p08 as the pair to find the first day that differs.",
+  "Colonies that end short of sugar. sg #2's carbohydrate collapsed on day 3 and its tenders fell to 1-2 a day; find out what its 1-4 diggers dig with no open plan on days 4-11 (21.6 worker-gd). Repro: the cached sg #2 hand-over in test-output/viab/cache.",
+  "Year two in small or flooded nests: kd #3 and sg #2 end with 2 workers. In year two, brood is lost to base mortality, pupa temperature and pupa untended in the late cold; cpv #1 lost 8 adults to predation.",
+  "Item 3 'variant f': start the retrace at the nearest crumb without consumption. App. E 23 and removal.verify are both green with it. Run the year-one arm (we #3 and sg #3 first) to see whether it keeps the two colonies variant e restored.",
+  "kd #3's store -> nurse -> larva path: 7 larvae starved with 1.4-4.8 P in store in a one-chamber, 9-worker nest, and some nurses were counted outside any chamber."
+ ]
+}

@@ -52,5 +52,12 @@ Started 15:01 UTC Nov 23 (session 1). No earlier progress file; fresh start.
   Deliver share max 3.8 % (item 1 bar < 6 %). Cost `sweep-review/cost.txt`: behaviours 0.259 median, kd #1 0.293.
 - Long runs started ~15:56 (we:2 sg:2 first).
 
+- 16:32 Long runs done: we #2 (11 -> spring 10 -> W2 13), sg #2 (17 at W1 with C 0 -> spring 7, queen starved),
+  cpv #1, pp #3; kd #3 running (~16:45). Probe scratch deleted.
+
+- 16:50 Long table `round-15/sweep-long/longrun-table.md`: R22 spring 4/5 (met), R34 3/5 at 1.0 x, 0/5 at 1.5 x
+  (79 -> 71), R24 met. Ledger section "### Independent sweep after round 15" written. Frozen tree deleted. DONE.
+
 ## Remaining
+Nothing.
 table + bars, long table, review, verify tests, ledger section.

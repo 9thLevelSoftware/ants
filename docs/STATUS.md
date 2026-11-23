@@ -1386,3 +1386,32 @@ foundings; sweep 15 is the independent measure):
 - Sweep's review so far: every round-15 test goes red without its fix; App. E 23 breaks from the crumb-consumption
   half of variant e only (nearest start alone keeps `removal.verify` green) - for gate-close-sim.
 - Long runs (year two, 5 colonies) started ~15:56 UTC.
+
+### Nov 23 ~16:45 UTC — sweep 15 returned: colony-life CLOSED (viability met, growth bars not met)
+
+Saved: `docs/design/tasks/reviews/colony-life-sweep-15.json`. Tables: `test-output/colony-life/round-15/sweep-table.md`,
+`sweep-long/longrun-table.md` (local). Final tree = live src (hash 48db2e0d).
+
+| bar | sweep 14 | paired 0.8 sweep | **sweep 15 (final)** | verdict |
+|---|---|---|---|---|
+| viable, >= 2 of 3 per archetype | 13, we 1 of 3 | 13, all >= 2 | **14, all >= 2** (sg 2 of 3) | met |
+| R19 workers held >= 10 of 15 | - | - | 15 | met |
+| R19 median eclosions >= 4 | - | - | 8 | met |
+| R19 median P intake >= 0.7 | 0.427 | 0.403 | **0.344** | not met |
+| R19 median C intake >= 0.9 | - | - | 1.278 | met |
+| R19 trip success >= 50 % | 48.1 % | - | 51.6 % | met |
+| R19 first workers >= 9 in >= 13 | 14 | 11 | **11** | not met |
+| R19 no lost in >= 13 | 12 | - | 13 | met |
+| R22 spring >= 4 of 5 | 5 | 4 | 4 | met |
+| R34 >= 1.0 x in 4 of 5 / >= 1.5 x in 3 of 5 | 2 / 0 | 3 / 0 | **3 / 0** (79 -> 71) | not met |
+| behaviours <= 0.30 ms/tick | 0.245 | - | 0.259 | met |
+
+- Regressions against the paired 0.8 sweep on the same foundings: workers 273 -> 258 (3 better / 9 worse / 3 equal),
+  P delivered 138 -> 122 (carrion trips halved), sg #2 viable -> not viable (sugar collapse on day 3, diggers busy
+  with no open plan), kd #3 raises no worker (7 larvae starve with protein in store), crushed 8 -> 12. Not traced.
+- Leads handed to gate-close-sim: retrace "variant f" (nearest-crumb start without consumption: App. E 23 and
+  removal.verify both green, arms unmeasured); carrion income; sg #2's digging without a plan; kd #3's
+  store -> nurse -> larva path; the deterministic wide mound-mask probe (30b item 5).
+- Colony-life ends here by the cap (15 rounds). Unmet: R19 P intake, R19 first workers, R34 year-two growth; see the
+  ledger's "### Known limits at the close of colony-life" and "### Independent sweep after round 15".
+- Next: gate-close-sim (Workflow, Opus).
