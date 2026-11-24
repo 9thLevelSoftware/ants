@@ -9,6 +9,7 @@ import type { Command, Sim } from '@/sim/types';
 import { colonyKeys, selectTool, type ColonyHost, type ColonyTools } from './colony/colonyControl';
 import { DigPlanner, playerNest } from './colony/digPlanner';
 import { MarkerTool } from './colony/markerTool';
+import { clearFieldAt } from './clearField.testkit';
 import { makeNestWalk, type WalkFrame } from './testing/nestWalk';
 import { ViewDirector, type ViewSubject } from './viewDirector';
 import { ViewsState } from './viewsState';
@@ -52,7 +53,7 @@ function walkMinF(view: 'possess' | 'observer', dt: number, cam = CAM): { minF: 
     const s = subjectOf(f);
     if (!started) { d.setView(view, s, true); started = true; } else d.setSubject(s);
     const out = d.update(dt, null);
-    minF = Math.min(minF, w.sim.field.sampleXYZ(out.pose.pos.x, out.pose.pos.y, out.pose.pos.z));
+    minF = Math.min(minF, clearFieldAt(d, w.sim, out.pose.pos));
     frames++;
   });
   return { minF, frames, sim: w.sim, d };

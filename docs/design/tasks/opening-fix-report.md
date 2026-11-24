@@ -6,8 +6,9 @@ UTC, cut off by container restart 8) found both causes and built fixes 1 and 2; 
 out ruling 1 (wide mound-mask probe, the floor at 4 workers), added the unplug draft, and ran the close.
 A third engineer resumed after container restart 9 (05:29 UTC Nov 24): browser seeds 2-5 and the full runs, the R14
 trace, the sweep tables and this report.
-Final tree: frozen as `/home/user/frozen-openingfix` (sim tree hash `9a8cdf07`, 01:15 UTC Nov 24); `src/sim` was not
-changed after the freeze (an R14 prototype was tried in the live tree and reverted, section 6).
+Final tree: `/home/user/frozen-openingfix2` (09:31 UTC Nov 24) = the close sweep's tree `/home/user/frozen-openingfix`
+(`9a8cdf07`, 01:15 UTC) **plus fix 5**, the unplug draft limited to the floor (integrator ruling 3, section 4b). An R14
+prototype was also tried in the live tree and reverted (section 6).
 
 ## 0. Result in one screen
 
@@ -87,10 +88,16 @@ changed after the freeze (an R14 prototype was tried in the live tree and revert
 - **Fix 4 - the unplug draft** (`colony/allocation/unplugDraft.ts draftUnplugDiggers`, every allocation pass): while
   the floor is short of diggers, workers that are home, not nurses, and over their own task's target switch to `dig`.
   Seed-4 hand-over: entrance open 3000 -> 1750 ticks (snapshot probe), 1500 in the full headless run. DEVIATIONS D43.
+- **Fix 5 (ruling 3) - the draft drafts the floor's diggers only** (`unplugDraft.ts`: the shortfall is
+  `min(floor, dig target) - diggers`; it was `dig target - diggers`). At a hand-over the dig target also holds the
+  founding plan's demand (6 on suburban-garden #2), so the draft pulled every worker that was home and over its task's
+  target into `dig`, the forager included, for ~700 ticks; on that colony no aphids were tended that day. Found by the
+  integrator's floor-off arm (section 4b). DEVIATIONS D43 updated. Test: `unplugDraft.test.ts` case "drafts only up to
+  the floor, not up to a larger dig target" (red without: expected 2 to be 1).
 - **Tests.** `colony/allocation/unplugFloor.test.ts` (3: the floor puts diggers on the plug, red without it; a 216-case
   grid of 2-4 free workers where the floor never lowers the nurse target and digs whenever the nurses and queen-care's
   first half leave a worker, red without the nurse top-up; the floor's conditions), `colony/allocation/unplugDraft.test.ts`
-  (2), `founding/playerOpening.long.test.ts` (seed 1 within R14, seed 4 within beat 13's window).
+  (3), `founding/playerOpening.long.test.ts` (seed 1 within R14, seed 4 within beat 13's window).
 
 ## 2. Headless reproduction (item 2)
 
@@ -239,6 +246,49 @@ Viability drops in none of the five (bar: at most one); one gains. **Met.**
 Per colony at winter 2: cpv #1 36, kd #3 10, pp #3 28, sg #2 19, we #2 15 (kd #3 is the R34 miss, as on both earlier
 trees).
 
+
+## 4b. Rulings 2 and 3: the 249 workers explained, and fix 5
+
+**Floor + draft off on all 15 hand-overs** (the integrator's arm, `test-output/opening-fix/off-unplug15`, tree
+`/home/user/keep-off-unplug`; table `off-unplug15-table.md`), against the close sweep's own runs (R27 = winter C store /
+need; trips = trip success):
+
+| colony | sweep: viable / workers / R27 / eclosions / trips | arm: viable / workers / R27 / eclosions / trips |
+|---|---|---|
+| woodland-edge #1 | yes / 24 / 2.75 / 9 / 39 % | yes / 22 / 2.92 / 10 / 51 % |
+| woodland-edge #2 | yes / 10 / 2.52 / 3 / 40 % | yes / 13 / 1.62 / 5 / 43 % |
+| woodland-edge #3 | NO / 10 / 0.83 / 3 / 74 % | yes / 16 / 1.52 / 8 / 63 % |
+| suburban-garden #1 | yes / 16 / 3.96 / 11 / 57 % | yes / 16 / 3.31 / 10 / 56 % |
+| suburban-garden #2 | NO / 16 / 0.59 / 5 / 40 % | yes / 17 / 1.51 / 7 / 49 % |
+| suburban-garden #3 | yes / 11 / 1.47 / 2 / 44 % | yes / 13 / 1.34 / 5 / 41 % |
+| playground-park #1 | yes / 19 / 1.92 / 10 / 47 % | yes / 23 / 2.38 / 12 / 51 % |
+| playground-park #2 | yes / 19 / 2.44 / 8 / 52 % | yes / 18 / 3.06 / 9 / 64 % |
+| playground-park #3 | NO / 21 / 0.77 / 10 / 58 % | yes / 20 / 1.27 / 8 / 55 % |
+| car-park-verge #1 | yes / 24 / 3.66 / 11 / 52 % | yes / 25 / 2.27 / 13 / 54 % |
+| car-park-verge #2 | yes / 12 / 3.02 / 4 / 54 % | yes / 13 / 2.74 / 6 / 64 % |
+| car-park-verge #3 | yes / 19 / 1.56 / 8 / 36 % | yes / 19 / 2.14 / 9 / 26 % |
+| kitchen-door #1 | yes / 25 / 3.79 / 12 / 52 % | yes / 23 / 4.59 / 12 / 49 % |
+| kitchen-door #2 | yes / 12 / 2.9 / 4 / 22 % | yes / 11 / 3.64 / 3 / 33 % |
+| kitchen-door #3 | yes / 11 / 1.03 / 3 / 54 % | yes / 15 / 1.54 / 7 / 56 % |
+
+paired runs 15: viable 12 -> 15; workers at winter 249 -> 264; arm more workers minus fewer: 3
+
+Both of ruling 3's thresholds are met (+3 viable, +15 workers). **What the draft left behind** (probes `allocProbe.ts`,
+`taskTrace.ts`, archived; outputs `headless/alloc-sg2-{on,off,draftfix}.txt`, `tasks-sg2-{on,off}.txt`): on
+suburban-garden #2's hand-over the floor is on for one spell of ~320 ticks, but within it the draft moved **six** home
+workers to `dig` at +78, the colony's waiting forager among them (back to `forage` only at +774): the draft's shortfall
+was the whole dig target (the founding plan's demand, 6), not the floor's 2. Floor off: four diggers by the ordinary
+allocator, the forager stays, a `tend` worker from +878 and 1-3 tending from +1000, C stores 10.3 at +12000; with the
+draft: no tending until +10500, C 6.4. **Fix 5** limits the draft to the floor's own shortfall (section 1); on the same
+hand-over the forager stays, tending starts, C 9.96 at +12000. The opening keeps passing on seeds 1-5 headless
+(`headless/fix4/`: identical seals, workers and open ticks; on hand-over snapshots tick-exact: s1 429 -> 400,
+s2 891 -> 835, s4 and s5 unchanged) and in `playerOpening.long` (3 / 3).
+
+**The final tree from the same 15 hand-overs** (`test-output/opening-fix/draftfix15`; the draft acts only after the
+hand-over, so the close sweep's hand-over files are this tree's foundings too): DRAFTFIX15
+
+**Ruling 2 arm (a), the cavity-only mound-mask probe on the five long-set colonies** (`test-output/opening-fix/mask5`,
+tree = the close sweep's + 07583fe's `moundRelax.ts`): MASK5
 
 ## 5. Appendix E checks
 

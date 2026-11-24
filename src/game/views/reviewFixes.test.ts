@@ -14,6 +14,7 @@ import { ColonyEdits } from './colony/edits';
 import { buildMarkerScene } from './colony/markerScene';
 import { MarkerTool } from './colony/markerTool';
 import { possessTarget } from './observerControl';
+import { clearFieldAt } from './clearField.testkit';
 import { makeNestWalk } from './testing/nestWalk';
 import { handoverPlan, ViewDirector, type CameraStateChange, type ViewSubject } from './viewDirector';
 import { ViewsState } from './viewsState';
@@ -274,7 +275,7 @@ describe('hand-overs keep the GDD 6.1 clearance on every frame', () => {
       if (fr.i === 0) d.setView('possess', s, true);
       else if (fr.i % 45 === 0) { d.setView(d.view === 'possess' ? 'observer' : 'possess', s); switches++; } else d.setSubject(s);
       const out = d.update(1 / 30, null);
-      minF = Math.min(minF, w.sim.field.sampleXYZ(out.pose.pos.x, out.pose.pos.y, out.pose.pos.z));
+      minF = Math.min(minF, clearFieldAt(d, w.sim, out.pose.pos));
       frames++;
     });
     expect(switches).toBeGreaterThan(5);

@@ -1685,3 +1685,13 @@ outputs are git-ignored and are lost if the container is reclaimed (then rerun `
   (the worker cannot hand over her load: the founding cell's larder is full from the spill - R21(b)'s cap; design).
 - look-pass-6: light eased over 1.2 s at the founding shot, crossfade drawn, seeds 1 (high) and 2 (medium) pass
   beats 01-12 with the new cameras; report draft written; panels / controls / views runs pending.
+
+### Nov 24 ~10:56 UTC — check-in: draft-fix tree 8 of 8 viable so far; browser seeds 1-3 pass on it
+
+- opening-fix: the draft-fix tree (sim 741fec90) on the sweep's hand-overs: 8 of 8 viable so far (the two that failed
+  with the old draft flip, as with the floor off); headless opening seeds 1-5 pass with the same seals and open times;
+  browser `firstplay.mjs` beats 01-13 without stand-ins pass again on seeds 1, 2, 3 (seed 2: 7 workers), 4 and 5
+  running. Then the long runs and the report.
+- look-pass-6: unit-test folders green and typecheck clean; `views.mjs` needed its shaft-walk check adapted to the
+  cut-away camera (the engineer relaxed it; second note asks it to state each relaxed assertion and to do ruling 1:
+  the script's egg count and the busy lay prompt, which its to-do list did not carry).

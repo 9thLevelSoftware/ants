@@ -10,7 +10,7 @@ The machine was shared with the simulation engineer's life runs and browser all 
 
 | # | Criterion | Status | Evidence |
 |---|---|---|---|
-| 1 | Typecheck clean on my paths; tests green folder by folder | VERIFY_STATUS | "Verification" |
+| 1 | Typecheck clean on my paths; tests green folder by folder | met (see "Verification"; the whole suite was not run) | "Verification" |
 | 2 | Items 1-3: before / after pictures, same pose, three tiers, the after stands on its own | met for 1, 2, 3 with the caveats listed | below |
 | 3 | Draw calls and triangles within 5 % of look-pass-5's table | met | "Cost" |
 | 4 | No frame-time regression at low from the night lighting | met (within noise) | "Cost" |
@@ -97,7 +97,7 @@ queen whole above the card). The simulation engineer's fix landed: both seeds pa
 - **The left tool rail's last icon under "Queen's reserves"** in the time-lapse: the gauge is now at 23 rem (it was 20 rem, over the rail's fifth icon):
   `fp-s1/11-timelapse.png` shows the five icons whole.
 - **The roster's "Where" column** printing chamber ids ("Royal 5740", cut as "Nursery ..."): it prints the chamber's kind in words (`rosterSlice.ts`, `words.ts`,
-  `CHAMBER_WORDS`): HUD_ROSTER_RESULT.
+  `CHAMBER_WORDS`): `test-output/look6/roster/roster.png` (the staged colony, Roster opened with L; sheet `sheets/item4-roster-where.png`): Where reads "Tunnel", "Founding cell", "Garden bed", whole, no ids..
 - **Buildings washed to pale grey at overcast.** The haze follows GDD 08 11.4 exactly (+20 % denser at overcast, `WEATHER_LOOK.overcast.hazeMult` 1.2, visibility 300 BU on
   the lawn, FogExp2): a building 300 BU away keeps 24 % of its own colour. I did not change it; a stronger or weaker haze would depart from the GDD. Not fixed, reported.
 - **Title screen horizon** (a speckled band): the dithered fade-in of the world-edge skirt (`SKIRT_BLEND_BU` 80 BU of hashed alpha, green on brown) is the band.
@@ -105,7 +105,7 @@ queen whole above the card). The simulation engineer's fix landed: both seeds pa
   what speckle remains is the grass blades' own fuzz).
 - **Clover head's white polka dots** (`test-output/look6/clover/clover-{low,medium}-before.png`): the shader finish drew big bright cell centres on a dark net and,
   at the rim, discarded the cell corners into a lattice of discs; with parts (medium) the core under them used the same cells in purple and white. Finer cells, a
-  gentler 0.86..1.0 modulation, no discard, a uniform core under the parts: `clover/clover-medium-after.png`, `clover-low-after3.png` CLOVER_RESULT.
+  gentler 0.86..1.0 modulation, no discard, a uniform core under the parts: `clover/clover-medium-after.png`, `clover-low-after3.png` (low, `clover/clover-low-after3.png`: a smooth head with fine dimples, no discs; medium `clover/clover-medium-after.png`: no polka dots)..
 - **Weep vents as white ticks** (`test-output/look5/item3/after/full.png`): the white bar is a plastic prim of the interior catalogue
   (`src/worldgen/catalog/interior/shell.ts`, "weep-vent grilles: one plastic bar splits the open perpend into two slots"), not a render fault; the prim is not mine.
   Not changed. Needs worldgen: a buff or dark bar colour. Reproduction: seed 1 archetype kitchen-door, observer 60 mm from the wall foot.
@@ -125,7 +125,20 @@ light 0.07 -> 2.97). `WorldRenderer` now crossfades the lighting state over `LIG
 
 ## Item 6: the final scripts
 
-SCRIPTS_RESULT
+- `firstplay.mjs`, the real founding (no cheat), `FIRSTPLAY_UNTIL=12` (or 10): seed 1 low `test-output/look6/fp-s1` beats 01-12 pass; seed 1 high `fp-s1b-high` 01-12 pass; seed 2 medium
+  `fp-s2b-medium` 01-12 pass (outcome 7 workers, reserves 72 %); seed 2 low `fp-s2-low-retry` 01-10 pass. The first seed 2 low run failed at beat 08 (see "Not done"). Past 12: beat 13
+  passes at seed 1 low (`o3-s1-low`: the real founding reaches the first workers at 10:47); beat 14 fails at seed 1 ("no forager laid a trail to the food within 18 000 ticks": sim).
+  Seed 2 past beat 12 was not run.
+- `controls.mjs` (`test-output/look6/controls.log`): ok. It records the finding "after a tapped drink the action 'harvest-liquid' keeps running with a full crop" (input / sim, not mine).
+- `views.mjs`: ok with the cell camera on (`views4`, `views5`) and off (`views0`). The first run with the cell camera on failed at the shaft walk ("camera inside solid", field -2 mm): two
+  causes, one in the check and one real. The checks (`views.walk`, `clearOk`) did not know that the cell camera stands in soil its cut-away removes (they now count a camera inside
+  the cut-away, and free air during the 0.5 s blend, as clear; `src/game/views/debug.ts`, `tests/e2e/views.mjs`, `clearField.testkit.ts` for the three unit tests in
+  `views.verify.test.ts` and `reviewFixes.test.ts`). The real one: during the blend into the cell camera the camera could cross soil that the cut-away does not remove (a frame
+  at field -1.8 mm in the "release and re-possess down the shaft" test). `ViewDirector.applyCellCam` now cuts to the shot's pose at once where the blended pose would be inside
+  uncut soil (`cellSnapped`). Pictures after that change are the same: `test-output/look6/r-s1-low-final/` (`sheets/item1-s1-low-final-after.png`).
+- `panels.mjs` (`test-output/look6/panels.log`): every check passed up to "hudfix" at 844 s, then the script timed out at my 900 s limit on the loaded machine; not re-run.
+- `hud.mjs` (not in the task's list): fails its first check, "queen prompt lacks Colony orders", at seeds 1 and 2 (`hud.log`, `hud1.log`); not investigated.
+- Pictures I looked at: every one cited in this report; the staged night, tunnel and crowd pictures by contact sheet and the key ones at full size.
 
 ## Cost (acceptance 3 and 4)
 
@@ -147,7 +160,13 @@ is squeezed in a cell, which is not the table's scene.
 
 ## Verification
 
-VERIFY_BODY
+- `npm run typecheck` (whole project): no errors after my last edit (10:46 UTC).
+- `npx vitest run <folder>`, one folder at a time, while no harness was running: `src/render/camera` 94 passed; `src/render/nest` 60; `src/render/world/lighting` 59; `src/render/world/weather` 24;
+  `src/render/world/boundary` 38 (1 skipped); `src/render/world/dressing` 36; `src/game/views` 155 (3 of them were red after the cell camera and are fixed, see item 6); `src/game/flows/founding` 25;
+  `src/game/uiBridge` 74; `src/game/debug` 4; `tests/docs` 8. The whole suite was not run.
+- New or changed tests: `shotSubject.test.ts` (the queen's frame), `foundingShot.test.ts` x2 (copy of the frame; the side view holds a sphere of a body length), `lookPass2.test.ts` (night bands, EV pins, the crossfade),
+  `lighting.test.ts` (EV pins), and the three clearance tests above.
+- Not covered by a unit test: `Game.renderScene` drawing the dip as canvas opacity (checked in the browser: `rm/rm.json`), `WorldRenderer`'s use of `blendLighting` (checked: `rm/rm-light.json`).
 
 ## Decisions and deviations
 
@@ -168,11 +187,25 @@ VERIFY_BODY
 ## Not done
 
 - Seed 2 at low: only beat 07 (`s2-rec`) and the first failing run (`fp-s2`: beat 08 "the camera is inside solid in the chamber", state tunnel, field -2 mm, no cut-away). Not
-  reproduced at medium (twice) with a picture; `firstplay.mjs` now takes the picture before the check and logs the cell camera's state: RETRY_RESULT
+  reproduced at medium (twice) with a picture; `firstplay.mjs` now takes the picture before the check and logs the cell camera's state: a retry at low (`fp-s2-low-retry`, beats 01-10) passed the same check with the cell camera on (cell weight 1, cut-away true), so the failure is intermittent and unexplained; it may be the camera's 1 s settle before the check on a loaded machine (the cell camera takes 0.3 s to engage and 0.5 s to blend in). Not closed.
 - Medium and high pictures for seed 2 of beat 09 to 10 exist at medium only.
 - The 45 degree possession-camera case of look pass 5 item 6 was not revisited.
 - New moon against full moon at night was not pictured.
 
 ## Still unfinished, most serious first
 
-STILL_UNFINISHED
+1. **The flood sheet** (`render/world/weather/floodWater.ts`): in a flooded shaft or cell (seed 2, rain) the standing water is one flat sheet cut by the carve cells. Seen edge-on
+   it is a thin pale band across the picture (`test-output/look6/fp-s2b-medium/10-first-clutch.png`), seen from above a pale blocky blue shape over the queen
+   (`08-founding-chamber.png`, `fp-s2-low-retry/08-founding-chamber.png`). It reads as water now, not as a smudge, but not as a puddle with a shore.
+2. **Dithered ants in a crowded chamber**: ants between the camera and a possessed worker are drawn through the 4x4 ordered dither of GDD 01 6.5 rule 2; with eight workers round her the
+   picture is hatched legs and bodies (`test-output/look6/cc/cc-after-noon-crowd-low.png`, `-high.png`). The rule is the design's; a softer dither or a fade by distance is a decision for the GDD owner.
+3. **The cut when the cell camera takes over**: where the blend would cross uncut soil the picture cuts to the cell view at once (`cellSnapped`). Frames of that cut were not pictured.
+   Where the queen stands at the rim of her cell after the script's orbit (beats 09 and 10 at medium and low, `r-s1-medium-cc1/s1medium-09-sealed.png`) she is whole but at the top left of the frame.
+4. **The outcome card** leaves the queen whole above the card, but her head touches the card's top edge at seed 1 (`fp-s1b-high/12-outcome-card.png`); the cell is cut by the top of the frame.
+5. **Beat 14 of `firstplay.mjs` at seed 1** (sim): no forager lays a trail to the food (`o3-s1-low.log`); seed 2 past beat 12 was not run.
+6. **Weep vents on the kitchen-door wall are white ticks** (world catalogue, `src/worldgen/catalog/interior/shell.ts`, not mine).
+7. **Distant buildings at overcast** are pale grey shapes (GDD 08 11.4 haze, kept): `test-output/look6/o3-s1-low/05-site-readout.png`.
+8. **Night**: the ant at 22:00 has almost the luminance of the ground (ant contrast 0.00-0.02, `night/a/*.log`; her outline carries her); pale leaf litter is brighter than the soil it lies on
+   (`night/b/b-v1-h22-clear-observerlow-high.png`); new moon against full moon was not pictured.
+9. **Seed 2 at low, beat 08**: one run failed the camera-clearance check, not reproduced (see "Not done").
+10. **Frame times** (SwiftShader, loaded machine) mean nothing about a real GPU; the clover head's white (medium and low) is a flat white dome, brighter than a real clover.

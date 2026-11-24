@@ -95,6 +95,15 @@ function dragLook(input: InputState): { x: number; y: number } {
   return { x: d.x * k, y: -d.y * k };
 }
 
+/** True when `p` lies in the soil a cut-away removes: above a slice plane, or on the camera's side of a vertical section. */
+function inCutAway(cut: CutawayParams, p: { x: number; y: number; z: number }): boolean {
+  if (cut.section === 'vertical') {
+    const vd = cut.viewDir!;
+    return (p.x - cut.center.x) * -vd.x + (p.z - cut.center.z) * -vd.z >= (cut.offset ?? 0);
+  }
+  return p.y >= cut.planeY;
+}
+
 export class ViewDirector {
   readonly third: ThirdPersonRig;
   readonly observer: ObserverRig;
@@ -446,7 +455,7 @@ export class ViewDirector {
     const subject = this.cellSubject;
     if (candidate || c.active) cellShotSubject(subject, t, L, bu, this.world.field); else subject.open = true;
     const weight = c.update(dt, o.focusDistance, L, candidate, azimuthBetween(t.pos, o.pos, 0.3 * L), t.up.y, subject.open !== false);
-    if (weight <= 0) { this.cellCut = null; return; }
+    if (weight <= 0) { this.cellCut = null; this.cellSnapped = false; return; }
     c.steer(dt, yawDeg, t, this.third.speedMmS > CAM_AUTOFOLLOW_MIN_SPEED_BU * bu, this.third.opts.autoFollow !== 'off', L, bu, this.world.field);
     const e = weight * weight * (3 - 2 * weight), es = c.sideWeight * c.sideWeight * (3 - 2 * c.sideWeight);
     // the view from above and the side view, blended by the side weight; then the rig's own pose to the cell camera's by the weight
@@ -460,7 +469,13 @@ export class ViewDirector {
       shotDist = this.cellShot.distance + (this.cellSide.distance - this.cellShot.distance) * es;
       cut = es < 0.5 ? this.cellShot.cutaway : this.cellSide.cutaway;
     }
-    blendPoses(this.cellPose, o, shotPose, e);
+    blendPoses(this.cellPose, o, shotPose, this.cellSnapped ? 1 : e);
+    // a blend from the rig's pose to the shot's can cross soil that the cut-away does not remove (the camera over the wall on its way up): where it would, the picture cuts to
+    // the shot at once (the cut-away is in full from the first frame of the blend) and stays there until the cell camera is off again
+    if (!this.cellSnapped && e < 1) {
+      const q = this.cellPose.pos, fv = this.world.field ? this.world.field(q.x, q.y, q.z) : 1;
+      if (fv < 0.5 * this.third.clearanceMm && !inCutAway(cut, q)) { this.cellSnapped = true; blendPoses(this.cellPose, o, shotPose, 1); }
+    }
     f.pose = this.cellPose;
     f.focus = o.focusDistance + (shotDist - o.focusDistance) * e;
     f.subjectOpacity = 1;
@@ -476,19 +491,17 @@ export class ViewDirector {
 
   /** The cell camera's cut-away of the last frame, or null while the rig's own camera is the picture. */
   private cellCut: CutawayParams | null = null;
+  /** The blend into the cell camera cut to the shot's pose (see applyCellCam); cleared when the cell camera is off. */
+  private cellSnapped = false;
 
   /**
-   * True when the cell camera is fully on and `p` (the camera) stands in soil that its cut-away removes: above the slice plane, or on the camera's
+   * True when the cell camera is on (or blending in) and `p` (the camera) stands in soil that its cut-away removes: above the slice plane, or on the camera's
    * side of the vertical section. The camera is then "inside solid" in the field and still sees clear air (debug read-out for the e2e clearance check).
    */
   cameraInCutAway(p: { x: number; y: number; z: number }): boolean {
     const cut = this.cellCut;
-    if (!cut || this.cell.weight < 0.99) return false;
-    if (cut.section === 'vertical') {
-      const vd = cut.viewDir!;
-      return (p.x - cut.center.x) * -vd.x + (p.z - cut.center.z) * -vd.z >= (cut.offset ?? 0);
-    }
-    return p.y >= cut.planeY;
+    if (!cut || this.cell.weight <= 0) return false; // the cut-away is applied in full from the first frame of the blend
+    return inCutAway(cut, p);
   }
 
   /** The cell camera's state, for the debug read-out. */

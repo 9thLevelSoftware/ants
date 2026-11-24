@@ -176,3 +176,14 @@ the stamps above ran ~2 h ahead: "02:30" above = ~00:30 UTC).
   runs on the draftfix tree, browser seeds 1-5 UNTIL=13 on it, then the report. The mask arm on five colonies stays
   optional (run it only if a slot is idle). The firstplay layBatch fix and the busy prompt went to look-pass-6
   (its ruling 1): do not edit tests/e2e/firstplay.mjs's layBatch yourself.
+- 09:53 UTC off-unplug15 DONE 09:47 (integrator's arm) tabled: test-output/opening-fix/off-unplug15-table.md: floor+draft OFF
+  vs the sweep on the same 15 hand-overs: viable 12 -> 15, workers at winter 249 -> 264 (+15), more workers in 8, fewer in
+  5. Ruling 3 thresholds met (>= 2 viable and >= 15 workers) -> the draftfix (already in the live tree since 09:30,
+  frozen2) is the "clean release"; draftfix15 started 09:47 (two slots) -> test-output/opening-fix/draftfix15, then
+  mask5. Headless opening on the draftfix tree (headless/fix4): seeds 1-5 PASS, same seals / workers / open ticks as
+  fix3 (500 / 1000 / 750 / 1500 / 750 by 250-tick polls). Browser seeds 1-5 (run-seeds2.sh) waiting for look-pass-6's browser.
+- 09:52 UTC: report section 4b (off-unplug15 table, what the draft left behind, fix 5) and fix 5 in section 1 written; placeholders DRAFTFIX15, MASK5, browser final2 rows.
+- 10:06 UTC: BROWSER seed1-final2 (draftfix tree) PASS 01-13 no stand-ins: seal 108, 4 workers, open+outside <=1753 ticks (identical to seed1-final); pictures 12 (card 'First workers: 4', 73 %) and 13 (open crater mound, worker beside it) looked at. Seeds 2-5 running.
+- 10:26 UTC: draftfix15 8/8 viable so far (we#3, sg#2 flip like floor-off).
+- 10:26 UTC: BROWSER seed2-final2 PASS 01-13 (seal 223, 7 workers, open <=1753; picture 13 night 02:46 12 C, open mound; 12 card 'First workers: 7' as before).
+- 10:41 UTC: BROWSER seed3-final2 PASS 01-13 (seal 312, 7 workers, open <=753, as before).

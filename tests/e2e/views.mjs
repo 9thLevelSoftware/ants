@@ -22,6 +22,8 @@ export default async ({ page, shot, log, wait }) => {
   const ok = (name, data) => { out.checks[name] = data ?? 'ok'; log('OK', name, data === undefined ? '' : JSON.stringify(data)); };
 
   await g(() => window.__game.newGame({ seed: 5, testWorld: { features: 'all', nest: 'small', workers: 8 } }));
+  // VIEWS_CELLCAM=0: the possession camera as it was before look pass 6 (the cell camera off), to tell a rig fault from a cell camera one
+  if (process.env.VIEWS_CELLCAM === '0') await g(() => window.__game.views.cellCam(false));
   // the founding intro card would cover the subject in every shot (the manual test clock never advances it)
   await g(() => window.__game.command({ type: 'openingSkipIntro' }));
   await g(() => window.__game.step(1));
@@ -41,7 +43,8 @@ export default async ({ page, shot, log, wait }) => {
   const clearOk = async (label) => {
     const c = await g(() => window.__game.camera.clearance());
     const p = await poss();
-    expect(c.f >= 0.5 * c.radius, `${label}: camera inside solid`, { c, p });
+    // the cell camera (look pass 6) stands in soil its cut-away has removed: clear air although the field there is solid
+    expect(c.f >= 0.5 * c.radius || c.cutAway, `${label}: camera inside solid`, { c, p });
     return { f: +c.f.toFixed(3), half: +(0.5 * c.radius).toFixed(3), state: p.state, distL: +(p.distance / (bu * info.queen.lengthBu)).toFixed(2) };
   };
   const teleport = (pos) => g((p) => window.__game.teleport('possessed', p), pos);

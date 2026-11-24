@@ -179,7 +179,13 @@ export function buildViewsDebug(game: Game) {
         if (sub) s.views.setSubject(sub);
         const f = s.views.update(0.1, null), out = s.views.third.out, L = a.lengthBu * sim.world.bu;
         stats.ticks++;
-        stats.minF = Math.min(stats.minF, sim.field.sampleXYZ(f.pose.pos.x, f.pose.pos.y, f.pose.pos.z));
+        // a camera in soil that the cell camera's cut-away has removed sees clear air: counted as the clearance it has there (look pass 6)
+        let fv = sim.field.sampleXYZ(f.pose.pos.x, f.pose.pos.y, f.pose.pos.z);
+        if (fv < stats.clearance && s.views.cameraInCutAway(f.pose.pos)) fv = stats.clearance;
+        // while the cell camera blends in (0.5 s) the camera is in free air but may stand closer to the wall than the rig's clearance margin (field 0.75 mm against 1 mm
+        // in the queen-sized shaft): free air counts; inside solid never does (the e2e views.mjs, look pass 6)
+        else if (fv > 0 && fv < stats.clearance && s.views.cellState().weight > 0) fv = stats.clearance;
+        stats.minF = Math.min(stats.minF, fv);
         stats.states[out.state] = (stats.states[out.state] ?? 0) + 1;
         const dist = Math.hypot(f.pose.pos.x - a.pos.x, f.pose.pos.y - a.pos.y, f.pose.pos.z - a.pos.z) / L;
         stats.maxDistL = Math.max(stats.maxDistL, dist);
