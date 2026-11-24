@@ -87,3 +87,24 @@ change what a beat asserts. `src/render`, `src/game`, `src/ui` belong to another
 3. The sweep check of item 5 holds.
 4. Typecheck clean; tests green in every folder you touched; `outdoor/determinism.perf` green.
 5. Report complete.
+
+## Integrator ruling 1 (00:45 UTC Nov 24, after container restart 8)
+Read from your progress file: seed 2's breaking commit is round 14's mound-mask hole probe (995244e), and the
+seed-1-type failure is an allocation that leaves no digger for the plug. Both fixes so far are accepted in kind
+(`dryQueen`: a founding queen does not sit in water through the lapse; the unplug floor of 2 diggers while a nest has
+no open entrance). In addition:
+1. **Fix the breaking change itself, not only its consequence.** The cavity-only probe was written for save / restore
+   equality and has now cost the seal of the player's founding (plug 93 against 229 voxels), trip success and kd #3's
+   brood flooding (`test-output/colony-life/round-15/ab5-table.md`). Build the probe direction 30b item 5 of
+   `colony-life.md` describes: as wide as round 12's, reading only state a save restores exactly (the substrate / carve
+   field without the pile overlays). Adopt it if `nest/moundMaskHeights.test`, `nest/moundRestore14.test`,
+   `locomotion/pointFieldRestore.test`, `locomotion/pointFieldEvict.gate2.test` and `outdoor/determinism.perf` stay
+   green, a save / restore of one cached colony runs equal for 36000 ticks, and seed 2's headless opening seals as round
+   9's did (plug size and queen position reported). If it cannot be made restore-exact within about an hour, leave the
+   cavity-only probe and say why. Either way `dryQueen` stays.
+2. **The unplug floor must not starve the brood of a 4-worker founding**: state what the floor does with fewer than 5
+   first workers (the browser's seed 1 handed over 4), and cover it in the unit test.
+3. Your close sweep (mandatory, see the launch note) measures all of it together; if viability drops below 12 of 15
+   find which change costs it by switching each off on the failing colonies' hand-overs, as gate-sim-2 did, and report
+   to the integrator in the progress file before reverting anything (the last task reverted a real fix by the letter).
+4. Write real UTC times (`date -u`) in the progress file: the stamps before the restart ran two hours ahead of the clock.
