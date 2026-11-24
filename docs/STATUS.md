@@ -1607,3 +1607,14 @@ outputs are git-ignored and are lost if the container is reclaimed (then rerun `
 4. After both land, in order: winter-sugar single-rule arm; species viability + honeydew; perf; Stage 2/3 gate; QA
    playtests; GDD amendments; portable build and artifact republish (slug `dd97a4c3-a304-4801-aa70-0302442d71e6`,
    last published Nov 17 - the published build is far behind the repo); final report.
+
+### Nov 24 ~05:29 UTC — resumed at the user's request (container restart 9 happened during the pause)
+
+- The close sweep left running at the pause was cut by the restart at 5 of 15 runs (all viable). Restarted by me as
+  `test-output/opening-fix/close-resume.sh` (the close script without its freeze step; restart-safe; from
+  `/home/user/frozen-openingfix`, tree 9a8cdf07): rest of the sweep -> the five sweep-15 hand-overs to winter -> the
+  five long runs; `close.log` ends with "CLOSE DONE".
+- wf-build relaunched: task `wifkhyri1`, run `wf_8495311f-e29` (opening-fix opus / opus; look-pass-6 sonnet / opus
+  verify), each with a RESUME note pointing at its progress file. Journal:
+  `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_8495311f-e29/journal.jsonl`.
+- Check-in re-enabled (hourly while something runs).
