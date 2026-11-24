@@ -160,7 +160,7 @@ export class WorldSlot implements SubRenderer {
     };
     for (const k in p) if (typeof p[k] === 'number') out[`prims.${k}`] = p[k] as number;
     const d = this.decor.stats();
-    for (const k of ['blocks', 'blades', 'draped', 'drops', 'mossPatches', 'trianglesSubmitted', 'drawsSubmitted', 'waterSurfaces', 'revisitMismatches'] as const) {
+    for (const k of ['blocks', 'blades', 'draped', 'drops', 'mossPatches', 'trianglesSubmitted', 'drawsSubmitted', 'waterSurfaces', 'revisitMismatches', 'leafNight', 'leafDryK'] as const) {
       if (typeof d[k] === 'number') out[`decor.${k}`] = d[k];
     }
     const b = this.boundary.stats();

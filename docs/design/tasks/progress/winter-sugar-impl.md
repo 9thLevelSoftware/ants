@@ -66,3 +66,26 @@ test-output/winter-sugar/
 - 14:31 /home/user/ws-armWT ready (arm T + arm W), for the pair only if each alone is not worse. Tables:
   tools/sim/arm-table.py --base base-y1all base-long --arm armW-y1 armW-long (base-y1all = symlinks of draftfix15 for
   the 5 long colonies + base-y1). frozen-openingfix2 deleted (ws-base = same sim).
+- 15:03 Long runs base + arm W done. base: w2 113, R34 4/5, R27 w2 3/5 (pp3 0.09, sg2 0.66). arm W: w2 115,
+  R34 5/5, R27 w2 4/5 (sg2 0.33 fails). y2 eggs base 273 -> W 222 (eclosions 97 -> 101, larvae starved 16 -> 4): check
+  the laying trade before adopting. Item 4 (long): failing colonies = needC>0 on 14 summer/autumn days AND tend demand
+  unserved 15.5 / 38.6 worker-days (target << demand); meeters needC>0 2-5 days, unserved 0-4.7. Points at tending ->
+  arm T queued (jobs-2). Tables: test-output/winter-sugar/item4-long-base.md, item4-long-armW.md.
+- 15:04 Arm W trade found: y2 summer P delivered pp3 41.7 -> 27.0, cpv1 34.2 -> 30.8; queen held by p-days
+  on y2 doy 11-14 (pp3: eggs doy 12-15 base 11,12,6,8 -> W 1,0,0,2). Spec: a rule that buys sugar by stopping the
+  queen in summer is not adopted -> arm W likely NOT adopted (decide with its y1 table).
+- Requeued for speed: killed runq jobs-1 + chain2 (the 2 running life processes base-y1 we3, armW-y1 we1 continue,
+  their summary lines will be missing). New runner runq2.sh (counts all life.ts processes) on jobs-3.txt: armT-long x5
+  first, then the remaining base/armW y1, then armT-y1. Restart: cd test-output/winter-sugar; nohup setsid bash
+  runq2.sh jobs-3.txt &  (skips done JSONs; also rerun base-y1 we3 / armW-y1 we1 if their JSON is missing).
+- 15:32 Arm T long: sg2 w2 C:need 16.8:4.7 (3.58; base 0.66), pp3 12.2:7.5 (1.62; base 0.09), we2 5.14;
+  workers w2 sg2 19 (22), pp3 26 (28), we2 12 (9). cpv1, kd3 running.
+- 15:51 Arm T long done: w2 113 (=base), R34 5/5, R27 w2 5/5. Trade like W: y2 eggs 273 -> 197, P delivered
+  y2 156 -> 113 (W 130), eclosions 97 -> 100, larvae starved 16 -> 3, brood deaths 203 -> 127; no multi-day laying stop
+  except sg2 doy 14-16, cpv1 doy 14-15 (0 eggs). Same reading for W (pp3 doy 12-15). Decision rule I apply: the trade
+  clause fails a rule if eclosions or larvae fed/starved get worse or laying stops for the summer; neither does.
+  Appended armWT-long x5 to jobs-3.txt (pair, long runs first; y1 of the pair only if the long runs are not worse).
+- 15:52 Requeued again: base year-one reruns cut to 2 game days after the hand-over (base-y1short, mode
+  day7: only the first-tender ticks are new; whole-year numbers = draftfix15, identical games). Runner runq2.sh on
+  jobs-4.txt: base-y1short x10, armW-y1 remaining, armT-y1 x10, armWT-long x5. Running outside it: armW-y1 we3,
+  base-y1 sg1 (full). Trade table tools/sim/arm-trade.py -> test-output/winter-sugar/trade-long.md.

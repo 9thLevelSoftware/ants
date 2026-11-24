@@ -63,6 +63,8 @@ export function easeShotSubject(held: FoundingShotSubject, target: FoundingShotS
   held.radius = approach(held.radius, target.radius, k, grow);
   held.lift = approach(held.lift ?? 0, target.lift ?? 0, k, Infinity);
   held.fill = approach(held.fill ?? FSHOT_FILL, target.fill ?? FSHOT_FILL, k, Infinity);
+  // the floor of the framing follows the source at once (the radius it limits is the one that is eased)
+  held.minRadiusBu = target.minRadiusBu;
 }
 
 export interface FoundingShot {

@@ -81,9 +81,13 @@ export function foundingShotSubject(sim: Sim, out: FoundingShotSubject, wholeCel
   const cell = wholeCell ? cachedFootprint(sim, anchor.pos.x, planeY, anchor.pos.z) : null;
   out.minRadiusBu = cell ? CELL_MIN_RADIUS_BU : undefined;
   if (cell) {
-    // centred on the cell's circle; the animals' own sphere is kept inside it (a worker at the mouth of the throat widens the frame)
+    // centred on the cell's circle
+    // the queen and her brood are inside it; the workers (who walk the throat and the shaft) are not what the card's picture is about
+    let core = 0;
+    if (q) core = Math.hypot(q.pos.x - cell.x, q.pos.z - cell.z);
+    for (const b of st.brood) if (b.alive && b.colony === col && b.carriedBy < 0) core = Math.max(core, Math.hypot(b.pos.x - cell.x, b.pos.z - cell.z));
     out.x = cell.x; out.z = cell.z;
-    out.radius = Math.max(cell.radius + SPREAD_PAD_BU * bu * 0.5, Math.hypot(cx - cell.x, cz - cell.z) + spread + SPREAD_PAD_BU * bu);
+    out.radius = Math.max(cell.radius, core) + SPREAD_PAD_BU * bu * 0.5;
   }
   // the queen's frame: on a steep wall of the throat the view director shows the side view instead of the slice from above (look pass 6)
   out.ant = q ? { pos: q.pos, up: q.up, fwd: q.fwd, lengthMm: q.lengthBu * bu } : undefined;

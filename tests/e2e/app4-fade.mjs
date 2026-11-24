@@ -28,27 +28,28 @@ export default async ({ page, log, out }) => {
     for (const t of fr) {
       const p = { x: geo.cam.x + (geo.subj.x - geo.cam.x) * t, y: geo.cam.y + (geo.subj.y - geo.cam.y) * t, z: geo.cam.z + (geo.subj.z - geo.cam.z) * t };
       let best = null, bd = Infinity;
-      for (let dx = -2; dx <= 2; dx += 0.5) for (let dy = -2; dy <= 2; dy += 0.5) for (let dz = -2; dz <= 2; dz += 0.5) {
+      for (let dx = -1.5; dx <= 1.5; dx += 0.25) for (let dy = -1.5; dy <= 1.5; dy += 0.25) for (let dz = -1.5; dz <= 1.5; dz += 0.25) {
         const q = { x: p.x + dx * bu, y: p.y + dy * bu, z: p.z + dz * bu }, v = f(q.x, q.y, q.z), d = dx * dx + dy * dy + dz * dz;
-        if (v > 0.8 * bu && d < bd) { bd = d; best = q; }
+        if (v > 0.15 * bu && d < bd) { bd = d; best = q; }
       }
-      if (best) { gm.cheat.spawnAnts(1, 'worker', null, best); out.push({ t, pos: best }); }
+      if (best) { const who = gm.query.ants().find((a) => a.caste === 'worker' && a.id !== gm.summary().possessed.id && !out.some((o) => o.id === a.id)); if (who) { gm.teleport(who.id, best); out.push({ t, id: who.id, pos: best }); } }
     }
-    gm.step(8);
-    return out;
-  }, { geo, fr: [0.12, 0.25, 0.4, 0.7] });
-  log('workers placed', JSON.stringify(put));
+    gm.step(1); // one tick only: the workers must still be where they were put (they walk off in a second or two)
+    const near = out.map((o) => { const a = gm.query.ant(o.id); return { id: o.id, want: [o.pos.x, o.pos.y, o.pos.z].map((v) => Math.round(v * 100) / 100), got: [a.pos.x, a.pos.y, a.pos.z].map((v) => Math.round(v * 100) / 100) }; });
+    return { out, near };
+  }, { geo, fr: [0.1, 0.22, 0.38, 0.7] });
+  log('workers placed', JSON.stringify(put.out), 'near the camera', JSON.stringify(put.near));
   const pic = async (name, frames) => {
     for (let i = 0; i < frames; i++) await g(() => window.__game.renderFrame({ dt: 0.033, settle: 0 }));
     const h = await page.addStyleTag({ content: '#ui, #ui *{visibility:hidden !important}' });
     const st = await S.statsNow();
     await page.screenshot({ path: `${out}/${tag}-${where}-${name}.png`, timeout: 300000 });
     await h.evaluate((el) => el.remove());
-    log('shot', name, JSON.stringify({ calls: st.drawCalls, tris: st.triangles, ants: st.ants ? { faded: st.ants.faded, hidden: st.ants.hiddenAnts, drawn: st.ants.visible } : null }));
+    log('shot', name, JSON.stringify({ calls: st.drawCalls, tris: st.triangles, ants: st.ants ? { faded: st.ants.faded, hidden: st.ants.hiddenAnts, on: st.ants.fadeOn, maxW: st.ants.fadeMaxWeight, cam: [st.ants.fadeCx, st.ants.fadeCy, st.ants.fadeCz], subj: [st.ants.fadeSx, st.ants.fadeSy, st.ants.fadeSz], L: st.ants.fadeL } : null }));
   };
   await pic('0', 1);
   await pic('3', 3);
   await pic('8', 5);
   await pic('40', 32);
-  return { placed: put.length };
+  return { placed: put.out.length };
 };

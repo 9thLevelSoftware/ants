@@ -1778,3 +1778,15 @@ Results: `docs/design/tasks/reviews/look-pass-6.json`, report `docs/design/tasks
   plan as a player would; occluder fade, flood sheet, outcome card, night rim (0.28) written, pictures queued; full
   runs after the items are verified. It reports for the sim: the architect's food-chamber plan reads "Stalled: No
   diggers free" with 14 workers on seed 1 day 5.
+
+### Nov 24 ~16:00 UTC — check-in: both winter-sugar rules reach 5 of 5 on second-winter sugar in the long runs
+
+- winter-sugar, long runs of the arms against the baseline (113 workers at winter 2, 3 of 5 with enough sugar):
+  **arm T (tend floor before forage): 113 workers, R34 >= 1.0 x in 5 of 5, R27 at the second winter met in 5 of 5**;
+  arm W (R41 alone) reads the same way. The trade in year two: eggs laid 273 -> 197, protein delivered 156 -> 113,
+  but eclosions 97 -> 100, larvae starved 16 -> 3, brood deaths 203 -> 127; laying pauses of 2-3 days in two colonies.
+  Year-one arms (15 hand-overs each) and the pair's long runs are running; nothing adopted yet.
+- app-seams-4: occluder fade verified in the browser (a near ant fades to nothing, the possessed ant stays solid);
+  flood water now has a depth-based shore (first version was stair-stepped); outcome card framing on its fourth
+  iteration (cell whole but small -> minimum radius fixed, workers excluded from the card's radius); night rim 0.28
+  and darker leaf litter; report draft started; unit tests, then the three full runs.

@@ -179,8 +179,13 @@ export const DECOR_LEAF = {
   shadowCut: 0.03,
   /** Colour of the shadow (linear): a near-black warm brown, lit like the ground. */
   shadowRgb: [0.012, 0.010, 0.008],
-  /** Leaf albedo at full night weight, x the day value: a cream dry leaf stayed the brightest thing in a dark night frame. */
-  nightAlbedo: { dry: 0.4, fresh: 0.75 },
+  /**
+   * Leaf albedo at full night weight, x the day value: a cream dry leaf stayed the brightest thing in a dark night frame. app-seams-4 item 6: 0.4 / 0.75 ->
+   * 0.15 / 0.4. Since look pass 6 raised the night exposure (NIGHT_LOOK.targetE 4) the pale litter outshone the soil it lies on
+   * (look6/night/b/b-v1-h22-clear-observerlow-high.png); measured on the same frame (`test-output/app4/leaf2`, 22:00 clear, ant height): brightest tenth of the
+   * leaf region 0.475 (0.4), 0.412 (0.25), 0.353 (0.15) against the soil's 0.235; the leaf region's median 0.22 -> 0.169 against the soil's 0.196.
+   */
+  nightAlbedo: { dry: 0.15, fresh: 0.4 },
   /**
    * Look pass 4: detail made in the shader because the scan (256 texels a leaf) is a flat blur at an ant's eye. Distances in mm
    * (full detail up to [0], gone by [1]); the outline warp (card units, noise cells per mm); serration of the margin (alpha units);

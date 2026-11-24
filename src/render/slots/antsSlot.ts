@@ -62,7 +62,7 @@ export class AntsSlot implements SubRenderer {
   stats(): Record<string, number> {
     const s = this.ants.stats;
     return {
-      ants: s.ants, lod0: s.visible[0], lod1: s.visible[1], lod2: s.visible[2], lod3: s.visible[3], faded: s.faded ?? 0, hiddenAnts: s.hiddenAnts ?? 0, culled: s.culled, dropped: s.dropped,
+      ants: s.ants, lod0: s.visible[0], lod1: s.visible[1], lod2: s.visible[2], lod3: s.visible[3], faded: s.faded ?? 0, hiddenAnts: s.hiddenAnts ?? 0, fadeOn: s.fadeOn ?? 0, fadeMaxWeight: s.fadeMaxWeight ?? 0, fadeCx: s.fadeDbg?.[0] ?? 0, fadeCy: s.fadeDbg?.[1] ?? 0, fadeCz: s.fadeDbg?.[2] ?? 0, fadeSx: s.fadeDbg?.[3] ?? 0, fadeSy: s.fadeDbg?.[4] ?? 0, fadeSz: s.fadeDbg?.[5] ?? 0, fadeL: s.fadeDbg?.[6] ?? 0, culled: s.culled, dropped: s.dropped,
       carried: s.carried, looseItems: s.looseItems, drawCalls: s.drawCalls, triangles: s.triangles, cpuMs: s.cpuMs, variants: s.variants,
     };
   }

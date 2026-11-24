@@ -45,6 +45,11 @@ export interface AntRenderStats {
   /** Ants in or fading out of the camera-to-subject cone this frame, and of those the ones not drawn at all (occluderFade.ts). */
   faded?: number;
   hiddenAnts?: number;
+  /** Debug: the fade rule had a subject this frame (0 / 1) and the largest weight it gave an ant. */
+  fadeOn?: number;
+  fadeMaxWeight?: number;
+  /** Debug: camera xyz, subject xyz and length (mm) the fade rule used. */
+  fadeDbg?: number[];
   visible: [number, number, number, number];
   culled: number;
   dropped: number;

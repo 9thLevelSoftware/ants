@@ -144,8 +144,8 @@ export default async ({ page, log, out: outDir }) => {
     const clip = view === 'close' && gp.subject ? { x: Math.max(0, Math.min(1280 - 400, gp.subject.x - 200)), y: Math.max(0, Math.min(720 - 225, gp.subject.y - 140)), width: 400, height: 225 } : null;
     await plate(name, clip);
     const st = await statsNow();
-    shots.push({ file: name, variant: variant.name, light: lname, view, quality: q, drawCalls: st.drawCalls, triangles: st.triangles, frameMs: st.frameMs, antsFaded: st.ants?.faded ?? null, antsHidden: st.ants?.hiddenAnts ?? null, measure: m });
-    log(`${name}: draws=${st.drawCalls} tris=${st.triangles} faded=${st.ants?.faded ?? '-'}/${st.ants?.hiddenAnts ?? '-'} ground=${m.ground.median?.toFixed(3)} (n=${m.ground.n}) frame=${m.frame.median?.toFixed(3)}${m.contrast != null ? ` antContrast=${m.contrast.toFixed(2)} separable=${m.separable?.toFixed(2)}` : ''}`);
+    shots.push({ file: name, variant: variant.name, light: lname, view, quality: q, drawCalls: st.drawCalls, triangles: st.triangles, frameMs: st.frameMs, leafNight: st.world?.['decor.leafNight'] ?? null, leafDryK: st.world?.['decor.leafDryK'] ?? null, antsFaded: st.ants?.faded ?? null, antsHidden: st.ants?.hiddenAnts ?? null, measure: m });
+    log(`${name}: draws=${st.drawCalls} tris=${st.triangles} faded=${st.ants?.faded ?? '-'}/${st.ants?.hiddenAnts ?? '-'} leaf=${st.world?.['decor.leafNight']?.toFixed?.(2) ?? '-'}/${st.world?.['decor.leafDryK']?.toFixed?.(2) ?? '-'} ground=${m.ground.median?.toFixed(3)} (n=${m.ground.n}) frame=${m.frame.median?.toFixed(3)}${m.contrast != null ? ` antContrast=${m.contrast.toFixed(2)} separable=${m.separable?.toFixed(2)}` : ''}`);
     writeFileSync(`${outDir}/${tag}-shots.json`, JSON.stringify(shots));
   }
   }

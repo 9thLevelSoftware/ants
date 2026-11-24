@@ -598,7 +598,11 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   }
   const delivered = await g((id) => window.__game.query.ant(id), worker);
   const g2 = await g(() => window.__game.query.growth());
-  result.checks.delivery = { cropAfter: delivered.cropC, storesBefore: g1.stores, storesAfter: g2.stores, deliveries: [g1.deliveries, g2.deliveries] };
+  // app-seams-4 item 2: when the stores cannot take the load the panel of the ant says why (the note under her crop meter), whether or not the load went
+  await g(() => window.__hud?.game?.refreshUi?.());
+  await h.frames(3);
+  const storesFullNote = await h.visible('possessed-stores-full');
+  result.checks.delivery = { cropAfter: delivered.cropC, storesBefore: g1.stores, storesAfter: g2.stores, deliveries: [g1.deliveries, g2.deliveries], storesFullNote, note: storesFullNote ? await g(() => document.querySelector('[data-testid="possessed-stores-full"]')?.textContent ?? null) : null };
   expect(delivered.cropC < after.c * 0.5, 'the worker did not hand over her load', result.checks.delivery);
   await beat('16-worker-delivered');
   done('16');

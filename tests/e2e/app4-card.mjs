@@ -44,6 +44,14 @@ export default async ({ page, log, out }) => {
   await g(() => document.querySelector('[data-testid="founding-skip"]')?.click());
   await step(1);
   log('phase after skip', await phase());
+  // what the shot looks at, and the footprint of the cell at its slice plane
+  log('shot subject', JSON.stringify(await g(async () => {
+    const s2 = window.__hud.game.session, sim = s2.sim, src = s2.views.shotSource ? s2.views.shotSource() : null;
+    const fp = await import('/src/game/flows/founding/cellFootprint.ts');
+    const q = sim.stores.ants.get(sim.stores.colonies.get(sim.state.player.colonyId).queenId);
+    const planeY = src ? src.cutY : q.pos.y + 2;
+    return JSON.parse(JSON.stringify({ src, queen: q.pos, footprint: fp.cellFootprint(sim.field, q.pos.x, planeY, q.pos.z, sim.world.bu), bu: sim.world.bu }));
+  })));
   await pic('12-outcome-card');
   return { phase: await phase() };
 };

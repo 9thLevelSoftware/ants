@@ -202,7 +202,7 @@ export class AntRenderer {
     const subject = this.subject;
     const subjectOn = subject.valid && !this.hidePossessedRim;
     subject.valid = false;
-    let fading = false, fadedN = 0, hiddenN = 0;
+    let fading = false, fadedN = 0, hiddenN = 0, maxW = 0;
     for (const a of ants) {
       if (!reader.isLive(a)) continue;
       reader.readAnt(a, frame.alpha, smp, predicted && a.id === possessedId ? predicted : null);
@@ -226,6 +226,7 @@ export class AntRenderer {
         st.hidden = 0; // she is never faded away
       } else {
         const w = subjectOn ? occluderWeight(camPos, subject.pos, subject.lengthMm, this.sph.center, L) : 0;
+        if (w > maxW) maxW = w;
         st.hidden = st.hidden > 0 || w > 0 ? stepHidden(st.hidden, w, dt) : 0;
         if (st.hidden > 0) { fadedN++; if (fullyHidden(st.hidden)) hiddenN++; else fading = true; } // blend only while one is mid-fade (a hidden one is not drawn)
       }
@@ -291,7 +292,7 @@ export class AntRenderer {
     }
     const st = this.stats;
     st.ants = n + culled; for (let k = 0; k < 4; k++) st.visible[k] = this.sel.counts[k]!;
-    st.faded = fadedN; st.hiddenAnts = hiddenN;
+    st.faded = fadedN; st.hiddenAnts = hiddenN; st.fadeOn = subjectOn ? 1 : 0; st.fadeMaxWeight = maxW; st.fadeDbg = [camPos.x, camPos.y, camPos.z, subject.pos.x, subject.pos.y, subject.pos.z, subject.lengthMm];
     st.culled = culled; st.dropped = this.sel.dropped; st.wings = wings; st.carried = carried;
     st.looseItems = this.loose.drawn; st.drawCalls = calls + this.loose.drawCalls; st.triangles = tris + this.loose.triangles;
     st.cpuMs = performance.now() - t0; st.sampleMs = t1 - t0; st.uploadMs = t2 - t1;

@@ -88,4 +88,23 @@ describe('founding shot subject', () => {
     expect(r.cutY).toBeGreaterThan(queen.y);
     expect(r.cutY).toBeLessThanOrEqual(queen.y + 0.6 * BU);
   });
+
+  it('behind a card the whole cell is the subject (app-seams-4 item 5): the circle of the open cells at the slice plane, the queen and brood inside it, workers outside it left out', () => {
+    const queen = { x: 9, y: -5, z: 0 }; // at the rim of a round room of radius 3 BU = 12 mm round (6, 0)
+    const sim = fakeSim({ queen, workers: [{ x: 18, y: -5, z: 2 }], brood: [{ x: 4, y: -5, z: 1 }] });
+    (sim as unknown as { field: unknown }).field = { sampleXYZ: (x: number, _y: number, z: number) => 3 * BU - Math.hypot(x - 6, z) };
+    (sim.state as unknown as { tick: number }).tick = 0;
+    const plain = foundingShotSubject(sim, blank())!;
+    const card = foundingShotSubject(sim, blank(), true)!;
+    // centred on the cell, not on the animals; as wide as the cell (3 BU = 12 mm) plus half a body unit; framed at its own size
+    expect(card.x).toBeCloseTo(6, 0); expect(card.z).toBeCloseTo(0, 0);
+    expect(card.radius).toBeGreaterThan(11); expect(card.radius).toBeLessThan(15.5);
+    expect(card.minRadiusBu).toBeLessThan(4.5);
+    expect(plain.minRadiusBu).toBeUndefined();
+    // a worker standing 12 mm away outside the cell does not widen it
+    const far = fakeSim({ queen, workers: [{ x: 60, y: -5, z: 2 }], brood: [{ x: 4, y: -5, z: 1 }] });
+    (far as unknown as { field: unknown }).field = (sim as unknown as { field: unknown }).field;
+    (far.state as unknown as { tick: number }).tick = 0;
+    expect(foundingShotSubject(far, blank(), true)!.radius).toBeCloseTo(card.radius, 6);
+  });
 });
