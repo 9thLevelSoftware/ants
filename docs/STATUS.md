@@ -1761,3 +1761,6 @@ Results: `docs/design/tasks/reviews/look-pass-6.json`, report `docs/design/tasks
 - **Launched `app-seams-4`** (Sonnet / Opus verify, visual; `docs/design/tasks/app-seams-4.md`): dig planner anchor
   (beat 19 -> 20), stores-full feedback and the script's beats 13-16 on seed 2, the occluder fade, flood water with a
   shore, outcome card framing, a night rim light on ants, and three uninterrupted full runs to beat 25.
+- wf-build launched 13:44 UTC Nov 24: task `w8x4jo6ej`, run `wf_7ca88a78-830` (app-seams-4 sonnet / opus verify, visual).
+  Running beside it: `w8aer6s1c` / `wf_b0b0220d-62a` (winter-sugar). Journals under
+  `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/<run>/journal.jsonl`.
