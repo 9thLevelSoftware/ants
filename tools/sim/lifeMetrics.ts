@@ -80,6 +80,9 @@ export class EventCounter {
     on('trail-established', (e) => { if (e.colonyId === col()) this.day.trailsEstablished++; });
     on('action-failed', (e) => { if (mine(e.antId)) bump(this.day.actionFailures, `${e.action}:${e.reason}`); });
   }
+  /** Deaths by caste:cause of the day so far (not reset). */
+  peekDeaths(): Record<string, number> { return this.day.deathsByCause; }
+
   take(): DayEvents {
     const d = this.day;
     this.day = emptyEvents();

@@ -56,6 +56,7 @@ import { HerdCoverageRecorder, type HerdReport } from './lifeHerds';
 import { NursingObserver, type NursingHour } from './lifeNursing';
 import { EclosionObserver, type EclosionRecord } from './lifeEclosions';
 import { Trace13Observer, type LateBrood, type TraceHour } from './lifeTrace13';
+import { SugarObserver, type SugarReport } from './lifeSugar';
 
 declare const process: { exitCode?: number };
 
@@ -244,6 +245,10 @@ export interface LifeReport {
   /** What the founding produced (absent for a cached hand-over): eggs, eclosions, brood and adult losses. */
   /** colony-life round 13 traces (--trace13). */
   trace13?: { hours: TraceHour[]; late: LateBrood[] };
+  /** winter-sugar: for a run that lives on past Winter 1, the state at its first tick and the viable verdict on it. */
+  winter1?: { state: DayState; viable: ViableVerdict };
+  /** winter-sugar item 4: carbohydrate by source and by use, tending, by game day (tools/sim/lifeSugar.ts). */
+  sugar?: SugarReport;
   foundingFunnel?: { eggsLaid: number; eclosed: number; broodDeaths: Record<string, number>; adultDeaths: Record<string, number> };
 }
 
@@ -348,6 +353,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   const nursing = new NursingObserver(sim);
   const eclosions = new EclosionObserver(sim);
   const trace13 = o.trace13 ? new Trace13Observer(sim) : null;
+  const sugar = new SugarObserver(sim);
   if (cacheFile && !cached && !o.from && !realFailure && (phase === 'handover' || phase === 'done')) io!.write(cacheFile, snapshot(sim)); // never a failed founding
   const foundMs = performance.now() - f0;
   const workers0 = readState(sim, 0, currentSeason(sim.state)).workers;
@@ -381,6 +387,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   let badSince = -1, longestBad = 0, winter = false;
   const alertSamples: Record<string, number> = {};
   let agesY2: LifeReport['agesY2d10'] = undefined;
+  let winter1: { day: number; state: DayState; longestBad: number; deaths: Record<string, number> } | null = null;
   for (let d = 1; d <= nDays && !winter; d++) {
     let dayViol = 0;
     const r0 = performance.now();
@@ -395,6 +402,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
       nursing.tick();
       eclosions.tick();
       trace13?.tick();
+      sugar.tick();
       ticksToday++;
       if (sim.state.tick % SAMPLE_TICKS === 0) {
         stuck.sample();
@@ -407,6 +415,10 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
         if (badSince >= 0) longestBad = Math.max(longestBad, (sim.state.tick - badSince) / TICKS_PER_DAY);
       }
       if (o.untilWinter && currentSeason(sim.state) === 'winter') { winter = true; break; }
+      // winter-sugar: a run that lives on through Winter 1 keeps the state of its first tick (the viable verdict's)
+      if (!winter1 && !o.untilWinter && currentSeason(sim.state) === 'winter') {
+        winter1 = { day: d, state: readState(sim, d, 'winter'), longestBad, deaths: { ...counter.peekDeaths() } };
+      }
       if (sim.state.tick % o.every === 0) {
         const all: InvariantViolation[] = [];
         const n = checkInvariants(sim, invariants, all);
@@ -457,6 +469,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   report.verdict = judge(report);
   report.economy = { longestBadStageGd: round(longestBad), tripsPerWorkerDay: round(tripsPerWorkerDay(report)), tripsPerForagerDay: round(tripsPerForagerDay(report)), deaths: deathsByCause(report) };
   report.viable = judgeViable(report);
+  if (winter1) report.winter1 = viableAtWinter1(report, winter1, days);
   const starvedLarvae = report.days.reduce((a, d) => a + (d.events.broodDeathsByCause['larva:starvation'] ?? 0), 0);
   report.econ = econ.result(starvedLarvae);
   report.funnel = funnel.result();
@@ -467,8 +480,21 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   report.nursingHours = nursing.hours;
   report.eclosions = eclosions.records;
   if (trace13) report.trace13 = trace13.result();
+  report.sugar = sugar.result();
   if (fobs) report.foundingFunnel = { eggsLaid: fobs.eggsLaid, eclosed: fobs.eclosed, broodDeaths: fobs.deaths, adultDeaths: fobs.adultDeaths };
   return report;
+}
+
+/**
+ * The viable verdict at the first tick of Winter 1 for a run that went on (winter-sugar: the long runs' year one is
+ * judged as a `--until winter` run of the same hand-over would be): the day rows up to then plus the winter state,
+ * the longest bad stretch and the deaths counted up to that tick.
+ */
+function viableAtWinter1(r: LifeReport, w: { day: number; state: DayState; longestBad: number; deaths: Record<string, number> }, days: DayRow[]): { state: DayState; viable: ViableVerdict } {
+  const upTo = days.filter((x) => x.state.day < w.day);
+  const last = { ...days[0], state: w.state, events: { ...days[0].events, deathsByCause: w.deaths } };
+  const r1: LifeReport = { ...r, options: { ...r.options, untilWinter: true }, days: [...upTo, last], economy: { ...r.economy!, longestBadStageGd: round(w.longestBad) } };
+  return { state: w.state, viable: judgeViable(r1) };
 }
 
 /** Performance mode (see the header): the fastest of 3 segments, per system from that segment. */

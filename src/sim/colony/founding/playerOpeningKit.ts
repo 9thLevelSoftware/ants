@@ -3,7 +3,8 @@
 // tests/e2e/firstplay.mjs (tests/e2e/lib/firstplay-steps.mjs), issued straight to the sim instead of through
 // window.__game: the New colony screen's game for a seed (Lasius, suburban garden, standard, Naturalist, natural
 // start), the queen walked to the first diggable site the script's search finds, the shaft and the cell dug with
-// the script's bites, the seal (one press of E), four lay batches, the time-lapse to its end, the hand-over
+// the script's bites, the seal (one press of E), four lay batches (each waited out by the event log, as the script
+// does since look-pass-6), the time-lapse to its end, the hand-over
 // ("Take a worker") and 30 x 250 ticks waiting for the entrance to open and a worker to walk out.
 //
 // CLI: tools/sim/opening.ts (node tools/sim/run-ts.mjs tools/sim/opening.ts --seed 2 [--out DIR] [--until 11]);
@@ -23,6 +24,8 @@ import { foundingView } from '@/sim/colony/founding/view';
 import { digSpeedAt } from '@/sim/nest';
 import { setLocoObserver } from '@/sim/locomotion';
 import { stateHash } from '@/sim/save';
+import { airTemp } from '@/sim/environment/temperature';
+import { calendarTick, TICKS_PER_HOUR } from '@/sim/time';
 
 // the script's constants (tests/e2e/lib/firstplay-steps.mjs)
 const SHAFT_DEPTH_BU = 9;
@@ -30,6 +33,9 @@ const SHAFT_MAX_BITES = 260;
 const SHAFT_SLOPE_DEG = 55;
 const ROOM_MAX_ROUNDS = 4;
 const SITE_MAX_R_BU = 120;
+
+/** How often the post-hand-over wait reads the air at the nest mouth for R14's clock, ticks (a tenth of a game hour). */
+const WARM_SAMPLE_TICKS = 25;
 
 /** src/game/possessionEvents.ts EVENT_LOG_SIZE: the debug API's event log is this long. */
 const EVENT_LOG_SIZE = 200;
@@ -167,6 +173,8 @@ export interface OpeningOptions {
   log?: (line: string) => void;
   /** Called right after "Take a worker" (the CLI's --save-handover snapshot). */
   onHandover?: (sim: Sim) => void;
+  /** Lay batches of the first clutch (4, the browser script's; 2 lays the old 12-egg clutch). */
+  layBatches?: number;
 }
 
 export interface OpeningResult {
@@ -274,14 +282,28 @@ export function runOpening(o: OpeningOptions, sim: Sim = openingSim(o.seed)): { 
     beat('09-sealed');
 
     for (let i = 0; i < 40; i++) { if (depthBu(d.possessed()!.pos) >= SHAFT_DEPTH_BU - 1) break; walkDir(d, 3, H); }
-    const layBatch = () => { d.act('lay-egg'); d.step(50); d.act('lay-egg', 'stop'); d.step(5); };
-    for (let b = 0; b < 4; b++) layBatch();
+    // tests/e2e/firstplay.mjs layBatch (look-pass-6, integrator ruling 1): press, release at once, then wait for the
+    // batch to END by the event log (it cannot be stopped once wound up; a press before its end is refused
+    // 'blocked'); o.layBatches batches (the script's 4; 2 = the old fixed-step script's 12-egg clutch).
+    const layBatch = () => {
+      const seq0 = d.lastSeq();
+      d.act('lay-egg');
+      d.step(10);
+      d.act('lay-egg', 'stop');
+      for (let t = 0; t < 600; t += 5) {
+        d.step(5);
+        if (d.log.some((e) => e.seq > seq0 && (e.type === 'action-completed' || e.type === 'action-failed') && e.ev.action === 'lay-egg')) break;
+      }
+      d.step(5);
+    };
+    const batches = o.layBatches ?? 4;
+    for (let b = 0; b < batches; b++) layBatch();
     v = d.view()!;
     if (!v.clutch || v.clutch.eggs === 0) {
       const cell = d.nest().chambers.find((c) => c.type === 'founding');
       for (let i = 0; i < 3 && cell && (!v.clutch || v.clutch.eggs === 0); i++) {
         steerTo(d, cell.center.x, cell.center.z, 0.6 * bu);
-        for (let b = 0; b < 4; b++) layBatch();
+        for (let b = 0; b < batches; b++) layBatch();
         v = d.view()!;
       }
     }
@@ -305,7 +327,7 @@ export function runOpening(o: OpeningOptions, sim: Sim = openingSim(o.seed)): { 
       if (!t) {
         if (d.phase() !== 'lay' || relay >= 2) break;
         relay++;
-        for (let b = 0; b < 4; b++) layBatch();
+        for (let b = 0; b < batches; b++) layBatch();
         // the script waits for the tend button (flowView canBeginLapse: lay phase with eggs)
         for (let k = 0; k < 120 && !((d.view()?.clutch?.eggs ?? 0) > 0) && d.phase() === 'lay'; k++) { layBatch(); d.step(25); }
         if (d.phase() === 'lay') d.command({ type: 'openingBeginTimelapse' } as Command);
@@ -340,13 +362,27 @@ export function runOpening(o: OpeningOptions, sim: Sim = openingSim(o.seed)): { 
     };
     let opened = false, outOk = false, openedTick = -1, outTick = -1;
     const t0 = sim.state.tick;
+    // R14 restated (winter-sugar, integrator ruling): its 4 game hours count from the first game hour after the
+    // hand-over in which the air at the nest mouth is at or above the forage gate's full band (b): warmFromTicks
+    const nestMouth = d.nest().entrances[0]?.pos ?? d.nest().origin;
+    const fullBandC = sim.species.thermal.forageGate.b;
+    let warmFrom = airTemp(sim, nestMouth) >= fullBandC ? 0 : -1;
     const total = Math.max(250, o.afterTicks);
     for (let i = 0; i < Math.ceil(total / 250) && !(opened && outOk); i++) {
-      d.step(250);
+      for (let k = 0; k < 250; k += WARM_SAMPLE_TICKS) {
+        d.step(WARM_SAMPLE_TICKS);
+        if (warmFrom < 0 && airTemp(sim, nestMouth) >= fullBandC) {
+          const rel = sim.state.tick - t0;
+          warmFrom = Math.max(0, rel - (calendarTick(sim.state) % TICKS_PER_HOUR)); // the start of that game hour
+        }
+      }
       if (!opened && d.nest().entrances.some((e) => e.status === 'open')) { opened = true; openedTick = sim.state.tick - t0; }
       if (opened && !outOk && outside()) { outOk = true; outTick = sim.state.tick - t0; }
     }
-    res.checks.reopened = { opened, outside: outOk, openedAfterTicks: openedTick, outsideAfterTicks: outTick, phase: d.phase(), entrances: d.nest().entrances.map((e) => `${e.status}:${e.plugVoxelCount}`) };
+    res.checks.reopened = {
+      opened, outside: outOk, openedAfterTicks: openedTick, outsideAfterTicks: outTick, warmFromTicks: warmFrom, fullBandC,
+      phase: d.phase(), entrances: d.nest().entrances.map((e) => `${e.status}:${e.plugVoxelCount}`),
+    };
     expect(opened && outOk, 'the first workers did not reopen the entrance and walk out', res.checks.reopened);
     beat('13-first-workers-entrance');
   } catch (e) {

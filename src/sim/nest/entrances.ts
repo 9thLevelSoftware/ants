@@ -735,6 +735,36 @@ export function entranceToUnplug(sim: Sim, nestId: number): Entrance | null {
   return best;
 }
 
+const FACES: readonly (readonly [number, number, number])[] = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+
+/**
+ * winter-sugar A3: where a digger stands to bite a `reopening` plug from her side of it. The plug of a sloped founding
+ * shaft lies across a throat whose axis is not the shaft's (seed 4: a vertical axis, the shaft at 55 deg), so a point
+ * a fixed depth down the axis could lie in the plug soil itself. Instead: the free sample of the throat (open carve or
+ * open air, field f > 0) that touches the plug (a face neighbour is closed PLUG soil) nearest to `from` (the digger:
+ * coming up from the cell that is the free face below the plug's lowest solid samples), within `reachMm` of the
+ * opening and at most e.radius out along the axis (the unseal primitive's throat test). Writes it into `out`; false
+ * when no free face of the plug is in reach.
+ */
+export function unplugStandPoint(sim: Sim, e: Entrance, from: Vec3, reachMm: number, out: Vec3): boolean {
+  const flags = nestRuntime(sim).flags, carve = sim.carve, v = carve.voxel;
+  const b = sphereBox(sim, e.pos, throatR(sim, e), 0);
+  if (flags.noneIn(b.i0, b.j0, b.k0, b.i1, b.j1, b.k1)) return false;
+  const closedPlug = (i: number, j: number, k: number): boolean =>
+    (flags.get(i, j, k) & VoxelFlag.PLUG) !== 0 && carve.sampleAt(i, j, k) < OPEN_MIN && sim.field.substrateXYZ(i * v, j * v, k * v) < 0;
+  let bestD = Infinity;
+  forThroatSamples(sim, e, (i, j, k) => {
+    const x = i * v, y = j * v, z = k * v;
+    const dx = x - e.pos.x, dy = y - e.pos.y, dz = z - e.pos.z;
+    if (Math.hypot(dx, dy, dz) > reachMm || dx * e.dir.x + dy * e.dir.y + dz * e.dir.z > e.radius) return;
+    if (closedPlug(i, j, k) || sim.field.sampleXYZ(x, y, z) <= 0) return;
+    if (!FACES.some(([a, c, d]) => closedPlug(i + a, j + c, k + d))) return;
+    const dd = Math.hypot(x - from.x, y - from.y, z - from.z);
+    if (dd < bestD) { bestD = dd; out.x = x; out.y = y; out.z = z; }
+  });
+  return bestD < Infinity;
+}
+
 /** Nearest open entrance of a nest to p (straight-line distance; ties: lower id), or null. */
 export function nearestOpenEntrance(sim: Sim, nestId: number, p: Vec3): Entrance | null {
   const nest = sim.stores.nests.get(nestId);

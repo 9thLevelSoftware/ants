@@ -2,7 +2,7 @@
 // which issues the same commands as beats 04-13 of tests/e2e/firstplay.mjs straight to the sim.
 //
 //   node tools/sim/run-ts.mjs tools/sim/opening.ts --seed 2 [--out DIR] [--until 11] [--after-ticks 7500]
-//        [--dump-state <beat prefix>] [--save-handover FILE]
+//        [--dump-state <beat prefix>] [--save-handover FILE] [--lay-batches N (4; 2 = the old 12-egg clutch)]
 //
 // The JSON summary goes to stdout (and DIR/opening-<seed>.json with --out); a line per beat to stderr.
 // --dump-state: the whole state as JSON at that beat into DIR (to diff with firstplay.mjs FIRSTPLAY_DUMP_STATE).
@@ -32,6 +32,7 @@ function parse(args: string[]): CliOptions {
     else if (k === '--out') o.out = v;
     else if (k === '--dump-state') o.dumpState = v;
     else if (k === '--save-handover') o.saveHandover = v;
+    else if (k === '--lay-batches') o.layBatches = Number(v);
     else throw new Error(`opening: unknown option ${k}`);
   }
   return o;

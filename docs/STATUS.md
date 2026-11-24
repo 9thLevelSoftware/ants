@@ -1741,3 +1741,23 @@ Results: `docs/design/tasks/reviews/opening-fix.json`, report `docs/design/tasks
 - wf-build launched 13:07 UTC Nov 24: task `w8aer6s1c`, run `wf_b0b0220d-62a` (winter-sugar opus / opus). Journal:
   `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_b0b0220d-62a/journal.jsonl`.
   Still running beside it: `wifkhyri1` / `wf_8495311f-e29` (look-pass-6's fix stage; opening-fix's chain in it is done).
+
+### Nov 24 ~13:44 UTC — look-pass-6 landed (review failed, 6 of 7 findings fixed); app-seams-4 launched
+
+Results: `docs/design/tasks/reviews/look-pass-6.json`, report `docs/design/tasks/look-pass-6-report.md`.
+- Done: cell camera (cut-away in tight cells; reviewer's line-of-sight test green after the fix: 0 of 532 frames
+  blocked), night exposure (readable at all three tiers), founding shot framing the queen (side view on a steep wall),
+  light eased at the shot, reduced-motion crossfade drawn as two images, the lay prompt reads "busy" for the whole
+  batch (the sim already said so; a press inside a batch is refused by design), `firstplay.mjs` lays its 24 eggs,
+  `hud.mjs` passes on both seeds, title speckle and clover dots toned down, site advice names the one weak reading.
+- Pictures I looked at: `look6/sheets/item3-s1-high-real-beats-09-12-after.png` (the sealed cell, the lapse and the
+  outcome card on a real founding: the queen whole in a lit cut-away cell - good; her head touches the card's edge);
+  `item1-worker-tunnel-crowd-low-before-after.png` (tunnel views fine; **the crowded chamber after-picture is broken**:
+  hatched legs and a slab from the GDD's ordered dither of ants between camera and subject); night sheet (good).
+- Not fixed there: the crowd dither (needs a design decision - ruled below), the flood sheet (a pale rectangle), the
+  outcome card's head-at-edge, ant contrast at night; panels / controls and the full firstplay were not rerun.
+- **Ruling (GDD 01 §6.5 rule 2 changed):** an ant between camera and subject and nearer than half the boom is not drawn,
+  with a smooth alpha fade in and out; no screen-door dither.
+- **Launched `app-seams-4`** (Sonnet / Opus verify, visual; `docs/design/tasks/app-seams-4.md`): dig planner anchor
+  (beat 19 -> 20), stores-full feedback and the script's beats 13-16 on seed 2, the occluder fade, flood water with a
+  shore, outcome card framing, a night rim light on ants, and three uninterrupted full runs to beat 25.

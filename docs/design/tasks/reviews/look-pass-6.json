@@ -203,5 +203,97 @@
    "src/game/uiBridge/promptBusy.verify.test.ts (2 tests, green: with a real lay-egg press no HUD line is offered as available during the batch; the sim's own promptView already reads 'Lay egg \u2014 busy' on every tick, so markBusy adds nothing)"
   ]
  },
- "fixReport": null
+ "fixReport": {
+  "summary": "I fixed six of the seven review findings. The seventh, the crowded-chamber picture, is real but not fixed: it comes from the dither rule in GDD 01 6.5 rule 2, so criterion 2 is now reported as partial. The reviewer's cell-camera test is now green (0 of 532 frames blocked). `markBusy` is removed (the sim already words the lay line \"busy\"), the clearance allowance is narrowed to the 0.5 s blend, and reduced motion is now a real crossfade of two images. Both seeds of `hud.mjs` pass, and the night grid is now pictured at all three tiers. Typecheck is clean and every folder I touched passes. Not rerun: `panels.mjs`, `controls.mjs`, `firstplay.mjs` seed 2 past beat 12, and seed 1 past beat 9.",
+  "filesTouched": [
+   "src/render/camera/cellCam.ts",
+   "src/render/camera/cellCam.test.ts",
+   "src/render/camera/constants.ts",
+   "src/render/camera/index.ts",
+   "src/render/camera/transition.ts",
+   "src/render/camera/rigs.test.ts",
+   "src/render/app/renderApp.ts",
+   "src/game/views/viewDirector.ts",
+   "src/game/views/clearField.testkit.ts",
+   "src/game/views/clearField.test.ts",
+   "src/game/views/debug.ts",
+   "src/game/views/foundingShot.test.ts",
+   "src/game/crossfadeVeil.ts",
+   "src/game/crossfadeVeil.test.ts",
+   "src/game/Game.ts",
+   "src/game/uiBridge/hudSlices.ts",
+   "src/game/uiBridge/words.ts",
+   "src/game/uiBridge/promptBusy.test.ts",
+   "tests/e2e/hud.mjs",
+   "tests/e2e/look6-xfade.mjs",
+   "docs/design/tasks/look-pass-6-report.md",
+   "docs/design/tasks/progress/look-pass-6-fix.md"
+  ],
+  "verification": [
+   "npx vitest run src/game/views/cellCam.verify.test.ts was red (8 of 532 frames blocked) and is now green; the reviewer's test file is unmodified.",
+   "npm run typecheck: clean.",
+   "Folder-by-folder vitest, all passing: src/render/camera 98, src/game/views 160, src/game/uiBridge 77 (including the reviewer's promptBusy.verify.test.ts), src/game/accessibility 8, src/game/crossfadeVeil.test.ts 4, src/render/app 32, src/render/world/lighting 59, tests/docs 8, src/game/debug 4. The whole suite was not run.",
+   "Browser look6-xfade.mjs: ok. The veil shows at 0.53 mid-crossfade and is hidden afterwards, and nothing is left on the canvas or veil after quitting to the title. Pictures: test-output/look6/xfade/xf-{0-before,1-mid,2-after}.png, which I looked at (the mid frame blends both images).",
+   "tests/e2e/hud.mjs, HUD_SHOTS=0: seed 1 passes (test-output/look6/hud2.log) and seed 2 passes (hud3.log), including the Colony orders check and reflow 0.",
+   "tests/e2e/views.mjs with VIEWS_SKIP_HIGH=1 passes with the narrowed clearance rule (test-output/look6/views7.log).",
+   "firstplay seed 1 low, rerun to beat 09 after the cut changes: 08-founding-chamber.png and 09-sealed.png in test-output/look6/fp-s1c/ show the queen whole in her cell with the soil cut away. I looked at them. My 570 s limit stopped the run before beat 10.",
+   "Night grid looked at via contact sheets: test-output/look6/sheets/item2-night-observer-hours-low.png, item2-night-hours-medium-surface-observer.png and item2-night-hours-high-surface-observer.png. Source pictures are in test-output/look6/night/{d,e,f}."
+  ],
+  "acceptance": [
+   {
+    "criterion": "Finding 1 (major): cell camera, soil or a cut face between the camera and the queen",
+    "status": "met",
+    "evidence": "Reproduced (8 of 532 frames). Cause (a): the blend-time cut switched on a threshold; it now picks whichever cut leaves less soil in the line of sight (ViewDirector.soilInSight). Cause (b): the 3 mm snap moved the plane toward the camera; finishCut now snaps only along the plane and holds the plane. A third cause was found while fixing: the free-room probe runs level while the camera looks down, so sightRoom fits the offset against the sight lines. The reviewer's test is green. Three new tests in cellCam.test.ts."
+   },
+   {
+    "criterion": "Finding 2 (major): crowded-chamber picture broken but criterion 2 reported as met",
+    "status": "partial",
+    "evidence": "The finding is real: ants between the camera and the worker are dithered (GDD 01 6.5 rule 2). It is not fixed, because softening the rule departs from the GDD and needs the GDD owner's decision. Criterion 2 is now reported partial in the report's acceptance table, and the case is listed under 'Still unfinished'."
+   },
+   {
+    "criterion": "Finding 3 (minor): markBusy is dead code",
+    "status": "met",
+    "evidence": "Confirmed. runner.ts validate() returns 'blocked' for any running non-concurrent action and prompt.ts words it as busy. markBusy and PROMPT_BUSY are removed. promptBusy.test.ts now drives a real press: ready, busy on every tick, then 'Pick up egg'. The reviewer's promptBusy.verify.test.ts is unchanged and green."
+   },
+   {
+    "criterion": "Finding 4 (minor): relaxed clearance rule covers every frame with weight > 0, not only the 0.5 s blend",
+    "status": "met",
+    "evidence": "Narrowed to 0 < weight < 1 in clearField.testkit.ts and debug.ts walk(). New clearField.test.ts has 4 tests. views.mjs passes with the narrowed rule."
+   },
+   {
+    "criterion": "Finding 5 (minor): night pictures missing at the observer camera and at medium and high",
+    "status": "met",
+    "evidence": "Pictures now cover the full grid: 12, 18, 22, 02 and 05 h, clear and rain, ant height and observer height, at low, medium and high. They are under test-output/look6/night/{c,d,e,f}. Contact sheets are in test-output/look6/sheets/. All looked at: night reads cool and readable."
+   },
+   {
+    "criterion": "Finding 6 (minor): reduced motion is a dip, not a crossfade, and canvas opacity is never reset on leaving a session",
+    "status": "met",
+    "evidence": "The crossfade now shows the new pose live with the old frame fading out: CameraTransition stillFade, src/game/crossfadeVeil.ts, RenderApp.setAfterRender. Game.endGame resets the canvas opacity and the veil. Verified in the browser with look6-xfade.mjs. Tests added in rigs.test.ts and crossfadeVeil.test.ts."
+   },
+   {
+    "criterion": "Finding 7 (minor): hud.mjs fails on 'queen prompt lacks Colony orders'; final scripts partial",
+    "status": "partial",
+    "evidence": "Root cause: the outcome card and then the hand-over banner (ui/hud/blockingCard.ts, look pass 4) suppress the context prompts, and the script predates them. Fixed: hud.mjs clicks Continue and Stay with the queen. A second failure, layout reads inside the frame loop, came from the 5 Hz HintCard timer; the check now counts only reads made inside rAF callbacks. hud.mjs passes on seeds 1 and 2. views.mjs passes. panels.mjs, controls.mjs and firstplay seed 2 past beat 12 were not rerun. The seed 2 low beat 08 failure did not reproduce."
+   }
+  ],
+  "notDone": [
+   "Crowded-chamber dither (finding 2): not fixed. The dither of ants between the camera and the possessed worker is GDD 01 6.5 rule 2, and softening it needs a GDD-owner decision. Criterion 2 is partial for this case.",
+   "panels.mjs and controls.mjs were not rerun after this round, and firstplay.mjs seed 2 past beat 12 and seed 1 past beat 9 were not run. The seed 1 rerun stopped at beat 09 on my 570 s limit; the full run needs about 900 s on this machine.",
+   "The whole vitest suite was not run (folder by folder only).",
+   "Weep vents (worldgen's shell.ts) and the overcast haze (already conforms to GDD 08 11.4) are still as in the earlier report.",
+   "The seed 2 low beat 08 clearance failure from the first pass remains unexplained; it did not reproduce in the reviewer's run.",
+   "Not pictured: new moon against full moon at night. Flood sheet, ant-versus-ground contrast at night and the outcome card's head-at-card-edge are still in the report's unfinished list."
+  ],
+  "contractChanges": [
+   "src/render/camera (mine) additive: TransitionOutput.stillFade, ViewFrame.stillFade, RenderApp.setAfterRender, exports finishCut, makeHeldSection and HeldSection from render/camera, new constants CELLCAM_SECTION_HOLD_MM, CELLCAM_SIGHT_STEP_MM, CELLCAM_SIGHT_MARGIN_MM.",
+   "Behaviour change: the reduced-motion 'crossfade' transition now shows the new pose from the first frame (it used to switch pose at mid-transition) and its dip is 0; stillFade carries the old frame's opacity. foundingShot.test.ts reads stillFade instead of dip for the retake. No change in src/sim, src/worldgen or src/core."
+  ],
+  "notesForIntegrator": [
+   "Cause of the 'silent refusal' in ruling 1.2: the sim already worded the lay line 'busy' for the whole batch. A press that lands inside the batch is refused 'blocked' by design, with no buffering (GDD 01 and 08 5.3 are silent).",
+   "hud.mjs fails for a reason that has nothing to do with the HUD code: two cards put in front of the context prompts on purpose (the outcome card, then the hand-over banner) were never answered by the script. If the product owner wants the prompts to show behind the hand-over banner, that is a design change in ui/hud/blockingCard.ts.",
+   "The reduced-motion veil copies the game canvas after every render while reduced motion is on; that costs one canvas copy per frame for those players only. It is a 2D canvas inserted after #view in the DOM.",
+   "Scripts I wrote or changed: tests/e2e/look6-xfade.mjs (new), tests/e2e/hud.mjs. Night pictures were taken with tests/e2e/look3.mjs LOOK3_SHOTS=hNN-weather:view:quality; the batch runs are not committed.",
+   "The firstplay.mjs and fp-*.log files are one very long line; do not cat them."
+  ]
+ }
 }

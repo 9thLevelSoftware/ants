@@ -18,7 +18,7 @@ import { digBiteImpl } from './bite';
 import { carveEllipsoid, carveSphere, fillSphere, forChangedSamples, readBox, sphereBox } from './carveOps';
 import { chamberById, designateChamberImpl, findChamberAtImpl } from './chambers/registry';
 import { bestBroodChamberImpl } from './chambers/upkeep';
-import { entranceToUnplug as entranceToUnplugImpl, nearestOpenEntrance, sealEntranceImpl, unsealEntranceImpl } from './entrances';
+import { entranceToUnplug as entranceToUnplugImpl, nearestOpenEntrance, sealEntranceImpl, unplugStandPoint as unplugStandPointImpl, unsealEntranceImpl } from './entrances';
 import { pileOverOpenings } from './moundRelax';
 import { dumpPelletImpl, isPellet, placePellet, spawnPellet } from './pellets';
 import { antSlot, claimSlot, releaseSlot } from './plans/frontier';
@@ -151,6 +151,11 @@ export function unsealEntrance(sim: Sim, entranceId: number, antId: number): boo
 /** The `reopening` entrance of a nest whose plug the workers should dig out now (`unseal-entrance`), or null. */
 export function entranceToUnplug(sim: Sim, nestId: number): Entrance | null {
   return entranceToUnplugImpl(sim, nestId);
+}
+
+/** Where a digger coming from `from` stands to bite a `reopening` plug (winter-sugar A3; entrances.ts). */
+export function unplugStandPoint(sim: Sim, e: Entrance, from: Vec3, reachMm: number, out: Vec3): boolean {
+  return unplugStandPointImpl(sim, e, from, reachMm, out);
 }
 
 /** Claims a free dig slot of an active plan for an ant (writes ant.bb.planId / slotIdx). */

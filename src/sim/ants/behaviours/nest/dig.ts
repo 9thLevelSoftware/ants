@@ -9,7 +9,8 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Behaviour, DigPlan, DigSlot, Entrance, Nest, Sim } from '@/sim/types';
 import { navTo, navStop } from '@/sim/locomotion';
-import { claimDigSite, entranceToUnplug, planDigAim, releaseDigSite } from '@/sim/nest';
+import { claimDigSite, entranceToUnplug, planDigAim, releaseDigSite, unplugStandPoint } from '@/sim/nest';
+import { SEAL_THROAT_BU } from '@/sim/balance/actions';
 import { cancel, interruptible } from '@/sim/ants/actions';
 import { taskHeadcount } from '@/sim/colony';
 import {
@@ -23,6 +24,7 @@ import { carryTo, hasWayOut } from './carry';
 import { approach, endCycle, primitiveDone, recover, releaseAll, think, carryingLoad } from './common';
 import { B, bbv, setState, waitThink } from './fsm';
 import { act, entity, travel } from './travel';
+import { dist } from './places';
 
 const ENTRY = 'dig.claim';
 /** bb: failed bites at the slot; turning now; turned for this aim; force a step toward the face. */
@@ -159,13 +161,22 @@ function unplugStep(sim: Sim, ant: Ant): void {
   if (!e) { setState(sim, ant, ant.carry.kind === 'item' ? 'dig.stow' : ENTRY); return; }
   const bu = sim.world.bu;
   if (act(sim, ant, 'unseal-entrance', { kind: 'entrance', id: e.id, pos: e.pos })) return;
-  const inside = e.radius + UNPLUG_STAND_BU * bu;
-  stand.x = e.pos.x - e.dir.x * inside; stand.y = e.pos.y - e.dir.y * inside; stand.z = e.pos.z - e.dir.z * inside;
+  // winter-sugar A3: stand at the plug's free face on her side (below its lowest solid samples for a digger from the
+  // cell), inside the unseal primitive's throat test with the walk's stall tolerance to spare; the old point a fixed
+  // depth down the throat axis only when the plug shows no free face in reach (it lay in the plug of a wide mouth)
+  const reach = SEAL_THROAT_BU * bu + e.radius - SLOT_STALL_ACCEPT_BU * bu;
+  if (!unplugStandPoint(sim, e, ant.pos, reach, stand)) {
+    const inside = e.radius + UNPLUG_STAND_BU * bu;
+    stand.x = e.pos.x - e.dir.x * inside; stand.y = e.pos.y - e.dir.y * inside; stand.z = e.pos.z - e.dir.z * inside;
+  }
   const st = approach(sim, ant, entity('point', -1, stand), SLOT_ARRIVE_BU * bu, true, SLOT_STALL_ACCEPT_BU * bu);
   if (st === 'moving') return;
   // at the stand point (or as near as the walk gets) and still no bite: count it, give up after DIG_BITE_FAILS_MAX
   ant.bb[UNPLUG_FAILS] = bbv(ant, UNPLUG_FAILS, 0) + 1;
-  if (st === 'failed' || ant.bb[UNPLUG_FAILS] >= DIG_BITE_FAILS_MAX) {
+  // a walk that failed against the plug itself (she stands at its face, or the point lies in plug soil) bars her
+  // from nothing: she bites from there next think; only a walk that cannot reach the plug sets UNPLUG_RETRY_S
+  const againstPlug = st === 'failed' && (dist(ant.pos, stand) <= SLOT_STALL_ACCEPT_BU * bu || sim.field.sample(stand) <= 0);
+  if ((st === 'failed' && !againstPlug) || ant.bb[UNPLUG_FAILS] >= DIG_BITE_FAILS_MAX) {
     ant.bb[UNPLUG_UNTIL] = sim.state.tick + secondsToTicks(UNPLUG_RETRY_S);
     setState(sim, ant, ant.carry.kind === 'item' ? 'dig.stow' : ENTRY, 'stuck');
     return;

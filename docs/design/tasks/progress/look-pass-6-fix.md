@@ -1,15 +1,4 @@
-# look-pass-6-fix progress (updated 12:20)
-Findings (reviewer order): F1 cell cam blocked sight; F2 crowd picture / criterion 2 partial; F3 markBusy dead code; F4 clearance rule weight>0 vs blend; F5 night observer pictures; F6 reduced-motion crossfade + opacity reset; F7 scripts hud.mjs / panels / controls / seed2.
-
-DONE
-- F1: src/render/camera/cellCam.ts (finishCut, makeHeldSection, sightRoom; cellSideShotAt fits offset to the sight lines), constants CELLCAM_SECTION_HOLD_MM/SIGHT_STEP_MM/SIGHT_MARGIN_MM, viewDirector.applyCellCam (soilInSight picks the cut in blend, finishCut instead of 3 mm snap). cellCam.verify.test.ts now green; 3 new tests in src/render/camera/cellCam.test.ts.
-TODO in order: F4 (narrow rule), F3 (remove markBusy, keep verify test), F6 (real crossfade? + reset opacity), F7 hud.mjs triage, F5 pictures, F2 report wording, rerun tests folders (src/game/views, src/render/camera, uiBridge), typecheck, update report.
-- F4 DONE: clearField.testkit.ts + debug.ts walk() narrowed to 0<weight<1; new clearField.test.ts (4 tests).
-- F3 DONE: markBusy + PROMPT_BUSY removed (sim already words it); promptBusy.test.ts rewritten to real press (ready -> busy x N -> 'Pick up egg').
-- F6 code DONE (12:50): real crossfade. transition.ts (stillFade, crossfade = new pose live + old still fades), ViewFrame.stillFade, src/game/crossfadeVeil.ts (+test), RenderApp.setAfterRender, Game.ts (veil capture after render when reducedMotion; endGame resets canvas opacity + veil). Tests: rigs.test.ts crossfade, crossfadeVeil.test.ts, foundingShot.test.ts uses stillFade. NEXT: browser check with tests/e2e/look6-rm.mjs (picture of mixed frame), then F7/F5/F2/report.
-- F6 browser DONE: tests/e2e/look6-xfade.mjs ok, pictures test-output/look6/xfade/xf-{0-before,1-mid,2-after}.png, xfade.json. NEXT F7 hud.mjs triage, then F5 pictures, F2 wording, views.mjs run (narrowed rule), tests folders, report
-- F7: cause of hud.mjs 'queen prompt lacks Colony orders': hand-over banner (founding.handover) blocks context prompts (blockingCard.ts, look pass 4) until 'Stay with the queen' clicked; script fixed (click founding-stay). Running hud.mjs HUD_SHOTS=0 seed 1 then seed 2.
-- F7: hud.mjs fixed (continue card + stay banner clicks; reflow check counts only rAF-callback reads, HintCard timer is 5Hz by design) seed 1 passes (test-output/look6/hud2.log). Running seed 2.
-- F7 hud.mjs seed 2 passes too (hud3.log). Running views.mjs (VIEWS_SKIP_HIGH=1) to test narrowed clearance rule -> test-output/look6/views7
-- views.mjs (VIEWS_SKIP_HIGH=1) passes with narrowed rule: views7.log. F2 decision: not fixed (dither rule is GDD 01 6.5 rule 2), criterion 2 -> partial in report. NOW F5: running look3.mjs for missing night pictures into test-output/look6/night/d (low observerlow missing 6), e/ (medium), f/ (high) via LOOK3_SHOTS=hNN-weather:view:quality; background runs, check logs night-d.log etc.
-- Report text updated (Review fixes section). Night: low observerlow done: night/d + sheets/item2-night-observer-hours-low.png (looked, readable). Waiting on background nightruns.sh (e medium, f high; test-output/look6/night-done.txt appears when done). After: typecheck, vitest folders (src/game/views, src/render/camera, src/game/uiBridge, src/game, src/render/world/lighting), report picture list for night e/f, final StructuredOutput.
+# look-pass-6-fix progress (final, 16:00)
+ALL DONE. Findings F1-F7 handled; see docs/design/tasks/look-pass-6-report.md "Review fixes" and "Verification after the review fixes".
+Open: crowded-chamber dither (design rule), panels.mjs/controls.mjs/firstplay seed 2 past 12 not rerun, weep vents (worldgen), overcast haze (GDD conform).
+Only remaining step: final StructuredOutput.

@@ -93,6 +93,12 @@ clear 02:00: `night/b/b-{v0,v1}-*` (v0 = before, v1 = after). Before at low: `ni
 founding (it now reads 10:47 clear: `test-output/look6/o3-s1-low/13-first-workers-entrance.png`), so the night is shown by the staged scene above, not by beat 13.
 Not covered: new moon against full moon (the staged game has one moon phase; the model test covers moonIllum 0.2 to 1).
 
+**Pictures (review: the full grid).** Same pose, 12:00, 18:00, 22:00, 02:00, 05:00, clear and rain, ant height (surface) and observer height (observerlow), at all three tiers (`tests/e2e/look3.mjs`, `LOOK3_SHOTS=hNN-weather:view:quality`).
+Low: ant height `night/c/c-h*-surface-low.png` (all ten), observer `night/c/` plus `night/d/d-*-observerlow-low.png` (the six that were missing); sheet `sheets/item2-night-observer-hours-low.png` (all ten, observer, low).
+Medium: all twenty (ten hours-and-weathers, two views) `night/e/e-h*-{surface,observerlow}-medium.png`, sheet `sheets/item2-night-hours-medium-surface-observer.png`.
+High: all twenty `night/f/f-h*-{surface,observerlow}-high.png`, sheet `sheets/item2-night-hours-high-surface-observer.png`. All looked at: at 22:00 and 02:00 the ground, the grass, the leaf litter and the ant read, cool and low in saturation, in clear and in rain;
+05:00 is the dawn (warm in clear, grey in rain), 12:00 and 18:00 are the day references. The ant against the ground at 22:00 and 02:00 is still low in contrast (the ant is dark soil-brown on dark soil; her outline carries her), as listed under "Still unfinished" 8.
+
 ## Item 3: the real founding's outcome card and the time-lapse
 
 **Causes** (before: `test-output/look6/o3-s1-low/11-timelapse.png`, `12-outcome-card.png`; look5-fix `shot-s1/12-outcome-card.png`):
@@ -228,6 +234,15 @@ is squeezed in a cell, which is not the table's scene.
 - New or changed tests: `shotSubject.test.ts` (the queen's frame), `foundingShot.test.ts` x2 (copy of the frame; the side view holds a sphere of a body length), `lookPass2.test.ts` (night bands, EV pins, the crossfade),
   `lighting.test.ts` (EV pins), the three clearance tests above, and `promptBusy.test.ts` (the lay prompt).
 - Not covered by a unit test: `Game.renderScene` drawing the dip as canvas opacity (checked in the browser: `rm/rm.json`), `WorldRenderer`'s use of `blendLighting` (checked: `rm/rm-light.json`).
+
+### Verification after the review fixes (24 Nov, 12:00-16:00 UTC)
+
+- `npm run typecheck`: clean.
+- `npx vitest run`, one folder at a time: `src/render/camera` 98 passed (incl. 3 new `cellCam.test.ts` tests, the crossfade test in `rigs.test.ts`), `src/game/views` 160 (incl. the reviewer's `cellCam.verify.test.ts`, now green, and the new `clearField.test.ts`),
+  `src/game/uiBridge` 77 (`promptBusy.test.ts` rewritten, the reviewer's `promptBusy.verify.test.ts` unchanged and green), `src/game/accessibility` 8, `src/game/crossfadeVeil.test.ts` 4, `src/render/app` 32, `src/render/world/lighting` 59, `tests/docs` 8, `src/game/debug` 4.
+- Browser: `look6-xfade.mjs` ok (crossfade, veil hidden afterwards, nothing left after quitting to the title); `hud.mjs` seeds 1 and 2 pass (`HUD_SHOTS=0`); `views.mjs` passes with the narrowed clearance rule (`VIEWS_SKIP_HIGH=1`, `views7.log`);
+  `firstplay.mjs` seed 1 low rerun to beat 09 after the cut changes (`test-output/look6/fp-s1c/08-founding-chamber.png`, `09-sealed.png`: the queen whole in her cell, the soil cut away; the run was stopped by my 570 s limit before beat 10, it needs about 900 s on this machine).
+- Not rerun after the review: `panels.mjs`, `controls.mjs`, `firstplay.mjs` seed 2 past beat 12 or seed 1 past beat 09. The whole suite was not run.
 
 ## Decisions and deviations
 
