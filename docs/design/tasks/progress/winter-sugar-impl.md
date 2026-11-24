@@ -96,3 +96,9 @@ test-output/winter-sugar/
 - 16:55 ARM T TABLE DONE (armT-table.md): y1 15/15, workers 255 (bar 255), long 113, R34 5/5, R27 5/5.
   Both arms meet the bars alone -> pair (ws-armWT) long runs next in queue. Arm T PORTED to the live tree (allocation
   demand.ts / index.ts / targets.ts + tendFloor.test.ts; these 3 files were identical to ws-base before).
+- 17:42 Pair long (armWT-long): w2 120 (T 113, W 115, base 113), R34 5/5, R27 5/5, eclosions 106, larvae
+  starved 1, eggs 209. Better than T by 7 workers -> pair year one started: jobs-5.txt (armWT-y1 x10, runq2.sh).
+  Rule I set: adopt the pair if its y1 meets the bars (>= 14 viable, >= 255); else T alone. Then the close:
+  test-output/winter-sugar/close/close.sh (freezes live -> /home/user/frozen-wintersugar; sweep + long; pp3/sg2 to
+  day 60 = item 7). Live tree has T ported; W must be ported too if the pair is adopted (needs.ts, economy.ts,
+  demand.ts forageWant + r41w.test.ts from ws-armWT).

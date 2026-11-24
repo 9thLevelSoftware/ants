@@ -1812,3 +1812,19 @@ Results: `docs/design/tasks/reviews/look-pass-6.json`, report `docs/design/tasks
   Both meet item 6's bar alone; arm T is ported to the live tree; the pair's long runs are queued. Item 4's year-one
   table: all 15 meet R27 and the first tender follows the first workable herd by 90-600 ticks, so the year-one
   shortfalls of earlier sweeps were the draft; the year-two shortfall is the allocation order.
+
+### Nov 24 ~18:11 UTC — check-in: three full browser runs reach beat 25; seeds 2 and 3 fail the growth check (protein)
+
+- app-seams-4 full runs without stand-ins: **seeds 1, 2 and 3 all reach beat 25** (save, title, continue). Seed 1: no
+  failed check. **Seeds 2 and 3 fail one check, assertion unchanged: "no growth over game days 2-3 at 8x"** (seed 2:
+  workers 10, 10, 10, brood 8, 8, 5, protein 1.5-1.7, sugar 10 -> 14; alerts "Protein stores low, 0.3 days left" and
+  "Brood growth has stalled (protein)"; seed 3 the same with 11 workers). The colony has sugar and no protein income
+  in its first days: the player-visible form of the unmet R19 protein check. Repro saves
+  `test-output/app4/s2-trail.save`, `s2-handover.save`; log `full-s2.log`. **Next sim task after winter-sugar:
+  protein income in the first game days after the hand-over** (before species).
+- Also from app-seams-4 for the sim: `nestSpaceDiag.ts` publishes its alert with `focus: null` (the panels script
+  needs a stand-in for "alert with chamber focus"); the architect's food-chamber plan "Stalled: No diggers free" with
+  14 workers (seed 1, day 5). Night leaf litter still brighter than soil (tuning under way).
+- winter-sugar: the pair W + T on the long runs: **120 workers at winter 2** (T alone 113, W alone 115, baseline 113),
+  R34 5 of 5, R27 5 of 5, eclosions 106, larvae starved 1. The pair's year-one arm is running; the engineer adopts
+  the pair if year one keeps >= 14 viable and >= 255 workers, else T alone; then the fresh close sweep.

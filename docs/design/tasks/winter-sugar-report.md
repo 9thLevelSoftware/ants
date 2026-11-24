@@ -103,3 +103,63 @@ meet R27 rarely ask (needC > 0 on 2-5 days) and leave little or no tend demand u
 (doy 15-21) R6's autumn multiplier already makes the carbohydrate target the R27 need x 1.25 in every year, so R41's
 winter path changes summer (doy 7-14) only - where the R27 need computed at the summer's cluster temperature reads
 25-55 C against 6-9 at winter.
+
+## B5. The arms, each alone against the final tree
+
+Base = the final tree of opening-fix (sim 741fec90; frozen as `/home/user/ws-base`, sim+tests hash bcebd900): year one
+= opening-fix `draftfix15/` (15 to-winter runs from the close sweep's hand-overs `opening-fix/cache/*-b6f4323d.bin`),
+year two = `test-output/winter-sugar/base-long/` (the five long-set hand-overs to game day 40, rerun with the sugar
+observer; hashes equal the opening-fix long runs). Each arm: the same 15 hand-overs to winter (the five long-set
+colonies' year one is their long run's, identical by determinism) and the same five long runs. Trees:
+`test-output/winter-sugar/trees.txt`. Tables by `tools/sim/arm-table.py` (`armW-table.md`, `armT-table.md`), trade by
+`tools/sim/arm-trade.py` (`trade-long.md`), per day by `tools/sim/sugar-table.py` (`item4-long-*.md`).
+
+### Arm W - R41 alone (`/home/user/ws-armW`, hash 83ad1a93)
+
+`needs.ts carbStockWanted` = max(target days x C rate, `winterPathC`), the colony cycle writing the path
+(`economy.ts`, `WINTER_PATH_C_KEY`), read by `needC`, the forage want (so R39's tenders and the scout floor's
+shortfall) and the intake target: round 13's R41 as direction 27a item 1 defined it, and nothing else of round 13
+(R40 a's gate is already in the tree; R40 b, R42, R44, D33 not). Test `src/sim/colony/r41w.test.ts` in the arm tree (5).
+
+| | base | arm W | bar |
+|---|---|---|---|
+| year one viable | 15 of 15 | 14 of 15 (we #3: 0.75 of R27; base 1.77) | >= 14 |
+| workers at winter | 264 | 267 | >= 255 |
+| workers at winter 2 | 113 | 115 | >= 105 |
+| R34 >= 1.0 x | 4 of 5 | 5 of 5 | >= 4 |
+| R27 at winter 2 >= 1.0 x | 3 of 5 | 4 of 5 (sg #2 0.33; pp #3 2.61) | >= 4 |
+
+### Arm T - the tend floor (`/home/user/ws-armT`, hash e25875a5)
+
+Item 4 points at tending (B4), so arm T was run: the smallest change that keeps a tender on a known herd while needC is
+unmet is an ordering fix, not a new floor value: R39 already puts the herds' keep (`tendKeep` per workable herd) in
+the tend demand, but GDD 02 §6.3's order serves it after forage and store. `allocation/demand.ts tendFloor`
+(`TEND_FLOOR_KEY`): while needC > 0 on a workable surface, the keep, at most the tend demand; `targets.ts planTargets`
+serves it right after the brood's care with the scout floor, before forage. No constant. Test
+`src/sim/colony/allocation/tendFloor.test.ts` (2). The first tenders of year one were not late against the herds (B4),
+so nothing was changed there.
+
+| | base | arm T | bar |
+|---|---|---|---|
+| year one viable | 15 of 15 | 15 of 15 | >= 14 |
+| workers at winter | 264 | 255 (sg #2 19 -> 15, cpv #2 12 -> 10, kd #3 17 -> 15) | >= 255 |
+| workers at winter 2 | 113 | 113 | >= 105 |
+| R34 >= 1.0 x | 4 of 5 | 5 of 5 | >= 4 |
+| R27 at winter 2 >= 1.0 x | 3 of 5 | **5 of 5** (sg #2 3.58, pp #3 1.62) | >= 4 |
+
+### The trade (year two of the five long runs; `trade-long.md`)
+
+| | y2 eggs | y2 eclosions | y2 brood deaths | y2 larvae starved | y2 P delivered | summer (doy 5-15) eggs / potential | summer days potential > 10 and <= 1 egg | p-days gate share |
+|---|---|---|---|---|---|---|---|---|
+| base | 273 | 97 | 203 | 16 | 181.9 | 258 / 849 | 10 | 5.5 |
+| arm W | 222 | 101 | 159 | 4 | 160.3 | 208 / 886 | 13 | 6.1 |
+| arm T | 197 | 100 | 127 | 3 | 137.6 | 181 / 870 | 18 | 9.0 |
+
+Both arms buy their sugar partly with protein: fewer foragers go for protein (P delivered -12 % / -24 %) and the
+queen's `p-days` gate holds more of her summer potential (eggs -19 % / -28 %; W: pp #3 lays 1, 0, 0, 2 eggs on doy
+12-15 against 11, 12, 6, 8; T: sg #2 0, 0 on doy 14-15, cpv #1 0, 0 on doy 14-15). The brood is not starved by it:
+larvae starved 16 -> 4 / 3, brood deaths 203 -> 159 / 127, and the colony raises as many workers (eclosions 97 -> 101
+/ 100; workers at the second winter 113 -> 115 / 113). The eggs not laid are eggs that died in the base. I read the
+spec's "buys sugar by starving brood of protein or by stopping the queen in summer" as a cost in brood raised or a
+laying stop for the season; neither arm has that (no colony stops for more than 2-4 days, and the year's eclosions
+are not lower). The trade is reported here for the integrator to overrule.

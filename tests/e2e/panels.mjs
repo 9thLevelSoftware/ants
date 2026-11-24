@@ -49,9 +49,18 @@ export default async ({ page, shot, log, wait }) => {
   await g(() => window.__game.newGame({ seed: 5, testWorld: { features: 'all', nest: 'small', workers: 12 } }));
   await g(() => window.__game.command({ type: 'openingSkipIntro' }));
   await step(1);
-  const opening = await sim((sm) => sm.state.player.opening && !sm.state.player.opening.done);
+  // the real hand-over (as hud.mjs): the founding cheat runs the remaining opening steps, the lapse is skipped, the queen is taken again
+  const handedOver = () => sim((sm) => { const op = sm.state.player.opening; return !op || op.done || op.phase === 'handover' || op.phase === 'done'; });
+  let opening = !(await handedOver());
   if (opening) {
-    standIn('hand-over', 'opening.done is written directly (the test world starts after the founding)');
+    await g(() => window.__game.cheat.completeFounding?.(10));
+    for (let i = 0; i < 120 && !(await handedOver()); i++) await g(() => { window.__founding?.skipLapse?.(); window.__game.step(500); });
+    opening = !(await handedOver());
+    await g(() => window.__game.possess('queen'));
+    await step(2);
+  }
+  if (opening) {
+    standIn('hand-over', 'cheat.completeFounding does not finish the opening; opening.done is written directly');
     await sim((sm) => { sm.state.player.opening.done = true; });
   }
   await g(() => window.__game.release());
