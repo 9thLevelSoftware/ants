@@ -102,3 +102,11 @@ test-output/winter-sugar/
   test-output/winter-sugar/close/close.sh (freezes live -> /home/user/frozen-wintersugar; sweep + long; pp3/sg2 to
   day 60 = item 7). Live tree has T ported; W must be ported too if the pair is adopted (needs.ts, economy.ts,
   demand.ts forageWant + r41w.test.ts from ws-armWT).
+- 18:19 PAIR y1 (armWT-table.md): 14/15 (we3 0.75 R27 again, as in W alone: R41 costs we3 its year-one
+  sugar in both trees with it), workers 257. DECISION: adopt ARM T ALONE (meets every bar, keeps 15/15 in year one;
+  pair's +7 workers at w2 on 5 runs does not outweigh a systematic year-one loss). Live tree = A1-A3 + arm T.
+  CLOSE STARTED: test-output/winter-sugar/close/close.sh (frozen /home/user/frozen-wintersugar; sweep -> close/sweep,
+  cache close/cache; long -> close/sweep-long with pp3, sg2 to day 60 = item 7). Restart-safe: rerun close.sh.
+- 18:29 Live folder tests: colony 90 files / 374 green (tests-colony-live.txt), behaviours/nest 39 / 83 green,
+  nest 65 / 334 + 2 known reds (escapeDig, flood/readersCost.verify; both red on ws-base too). DEVIATIONS D45 (tend
+  floor) written. Waiting for close (sweep started 18:19).

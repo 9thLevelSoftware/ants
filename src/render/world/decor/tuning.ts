@@ -186,6 +186,8 @@ export const DECOR_LEAF = {
    * leaf region 0.475 (0.4), 0.412 (0.25), 0.353 (0.15) against the soil's 0.235; the leaf region's median 0.22 -> 0.169 against the soil's 0.196.
    */
   nightAlbedo: { dry: 0.15, fresh: 0.4 },
+  /** At night the draped items' roughness is lifted this far toward 1: at an ant's eye a smooth pale leaf mirrors the night sky (a floor of 0.42 of the display range however dark its albedo: leaf3 variants 0.04 to 0.10 all read alike). */
+  nightRoughLift: 0.9,
   /**
    * Look pass 4: detail made in the shader because the scan (256 texels a leaf) is a flat blur at an ant's eye. Distances in mm
    * (full detail up to [0], gone by [1]); the outline warp (card units, noise cells per mm); serration of the margin (alpha units);

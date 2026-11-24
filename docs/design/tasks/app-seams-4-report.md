@@ -1,10 +1,10 @@
-# app-seams-4 report (DRAFT, filled in as the runs finish)
+# app-seams-4 report
 
 Written 2026-11-24 by the app engineer of `app-seams-4`. Times are UTC. Pictures under `test-output/app4/` (git-ignored); every picture cited was looked at.
 
 ## 0. Result in one screen
 
-(see section 8 when the full runs are in)
+@@RESULT@@
 
 ## 1. Item 1: the dig plan on seed 1 (whose fault)
 
@@ -54,3 +54,41 @@ low `sheets/item3-fade-sequence-low.jpg`, medium `sheets/item3-fade-medium.jpg` 
 `sheets/item3-fade-crowd-high.jpg`. The near ant is whole at frame 0, a ghost at frame 8, gone at frame 40; the possessed worker is solid throughout; no hatching anywhere.
 The earlier crowd pictures (`test-output/app4/crowd/cc-noon-*-low.png`) are the nests' own staging and show no ant in the zone (`faded 0`); they are kept as the "nothing got worse" check.
 
+## 4. Item 4: flood water that reads as water
+
+**Before** (`test-output/look6`, seed 2's flooded cell): a flat sheet cut by the carve cells, a blocky pale shape with stair-stepped edges (299 cells x 2 triangles).
+**Now** (`src/render/world/weather/floodShore.ts`, `floodWater.ts`, `tuning.ts` `FLOOD_WATER`): the sheet is a lattice mesh over the cavity (820 triangles on the staged cell, 0 extra draw calls) whose vertices carry the carve
+openness at the water level (`aShore`) and the water depth under them (`aDepth`, a downward march of the field); the fragment shader draws the outline as the iso-contour of the shore and of the depth
+(`min((shore - 0.5) / 0.5, depth / depthSoftMm)`: smooth, not the cell grid; a soft edge where the water meets the wall), tints and fades by depth (shallow water is paler and more transparent, the deep middle darker
+and less transparent: a cool blue-green, darker than before), a Fresnel term on the alpha, a thin bright meniscus at the wall and a faint specular ripple. The queen stands in the water and is seen through it from
+the cell camera. Tests: `floodSheet.test.ts` (shore geometry, depth attribute, `waterDepthMm`, shader patch).
+**Pictures:** `test-output/app4/sheets/item4-water-before-after.jpg` (seed 2's flooded cell, cell camera and colony view, before and after), `sheets/item4-water2.jpg` (the final depth-based shore,
+`water2/after2-08-cell-camera.png`, `after2-colony-view-low.png`, `after2-colony-view-high.png`), and the outdoor puddle in rain for comparison (`water2/after2-outdoor-puddle.png`).
+The outline is smooth, the water is darker and more transparent than before, the queen is visible through it. The outdoor puddle (the reference the spec names) is itself a pale polygon with straight edges at a grazing
+angle and, at night, a black one (`sheets/item6-night-final.jpg`): the flood sheet is now the better-looking of the two; the puddle (decor `water` layer, `src/render/world/decor`) is listed as unfinished below.
+Cost: no extra draw call, 820 triangles against 598, medium/high scene counts unchanged within noise (section 9).
+
+## 5. Item 5: the outcome card's picture
+
+**Cause** (found with `tests/e2e/app4-card.mjs`, which projects the field onto the screen: `card6/s1-14-overlay.png`, `card7/s1-14-overlay.png`): the slice shows the cell as one blob from above, but the queen
+stands in the throat of the shaft, where the cell reaches the plane, and the cell itself lies 15 to 20 mm under her. A circle on the plane (the first fix) framed the throat only (10 mm), the visible blob was 30 mm: the cell was still
+cut by the top of the frame (`card4/s1-12-outcome-card.png`). Two more causes on the way: `easeShotSubject` did not carry the new `minRadiusBu` field, and workers walking the throat widened the subject.
+**Fix.** `src/game/flows/founding/cellFootprint.ts`: the open voxels of the carve field at or under the slice plane that connect (6-connected, 1 mm grid, 10 BU each way, 12 BU deep) to the queen; the bounding sphere is measured by
+its reach on the screen at the shot's pitch (a height difference counts cos(pitch)) and its centre is moved from the box's centre toward the queen until she stands in the middle third of it. `shotSubject.ts` frames that sphere
+behind a card (`wholeCell`; brood is kept inside, workers are not counted), `cardFraming.ts` turns the card's size into the shot's `lift` and `fill` (the free band between 1.5 rem from the top and 1 rem above the card),
+`foundingShot.ts` carries `minRadiusBu`. Tests: `cardFraming.test.ts` (the band arithmetic end to end through `foundingShotAt`, the 3D footprint, a cell under a throat, null cases), `shotSubject.test.ts` (the card subject).
+**Pictures:** seed 1 `card9/s1-13-outcome-card-settled.png` (cell whole between the HUD band and the card, queen in the upper middle of the band, the card clear of it); the real foundings of seeds 1 to 3 in `sheets/item5-cards.jpg`
+and `u12-s1/`, `u12-s2/`, `full-s3/12b-outcome-card-settled.png` (the settled card: the camera eases to the cell over a second or two, beat 12 of `firstplay.mjs` is taken at 0.5 s and still shows the ease; beat 12b is taken settled).
+@@CARDS@@
+
+## 6. Item 6: night contrast
+
+**Ants and creatures.** A faint cool rim light on the moon side: `ANT_MOON_RIM` (floor 0.25, ramps from -0.15 to 0.65 of the dot with the moon direction) weights the existing `ANT_FILL.rim` term by the moon side
+(`uMoonDir`, `uMoonK` from `AntRenderer.setMoon`, fed by `antsSlot` from `LightingState.keyDir` and `nightW`), `ANT_FILL.rim.night` 0.15 -> 0.28 (the mean over the body stays under 0.22: pinned in `lookReview3.test.ts`);
+creatures: `CREATURE_MOON_RIM` emissive chunk in `creatureChunk.ts`, fed by `creaturesSlot` (rewritten as a `CreaturesRenderer` subclass). The ground's exposure is untouched (`ground=0.215` with and without the rim in `rimperf.log`).
+The variants (rim 0.15 / 0.30 / 0.55) are in `sheets/item6-rim-variants-22h.jpg`; the chosen value is the smallest one that separates the ant from the soil (antContrast 0.00 -> 0.04 to 0.10 in the staged shots).
+**Leaf litter.** `DECOR_LEAF.nightAlbedo` (dry / fresh) scales the draped leaves' albedo by the night weight (`DecorRenderer`: `uDcDry`, `uDcFreshTint`; stats `leafNight`, `leafDryK`).
+@@LEAF@@
+**Pictures:** `sheets/item6-night-final.jpg` (22:00 and 02:00 clear, 22:00 rain, at ant height on the surface and from the observer's low camera, medium quality; the files are `nightf/nf-*.png`), `sheets/item6-rim-variants-22h.jpg`,
+`sheets/item6-leaf-variants.jpg`. Draw calls and triangles with the rim off / on (same staged scene, `rimperf.log`): medium 89 / 668,876 -> 89 / 670,572 (+0.25 %), high 102 / 947,607 -> 102 / 958,807 (+1.2 %); low is not
+comparable (the staged scene differs between the two runs: 86 vs 57 draws before any rim code ran).

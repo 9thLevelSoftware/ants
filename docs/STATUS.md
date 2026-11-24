@@ -1828,3 +1828,15 @@ Results: `docs/design/tasks/reviews/look-pass-6.json`, report `docs/design/tasks
 - winter-sugar: the pair W + T on the long runs: **120 workers at winter 2** (T alone 113, W alone 115, baseline 113),
   R34 5 of 5, R27 5 of 5, eclosions 106, larvae starved 1. The pair's year-one arm is running; the engineer adopts
   the pair if year one keeps >= 14 viable and >= 255 workers, else T alone; then the fresh close sweep.
+
+### Nov 24 ~19:16 UTC — check-in: winter-sugar adopts the tend floor alone; its fresh close sweep is running
+
+- winter-sugar: the pair's year-one arm fell short of the tend floor alone (workers 257 and a year-one viability loss
+  that W brings with it), so **arm T alone is adopted** (15 of 15 in year one, 255 workers; long runs 113, R34 5 of 5,
+  R27 at the second winter 5 of 5). Live tree = A1-A3 + the tend floor (DEVIATIONS D45). Fresh close sweep started
+  18:19 UTC from `/home/user/frozen-wintersugar` (then long runs, with pp #3 and sg #2 to day 60 = a third spring).
+- app-seams-4: other scripts strict: controls, views, hud, save, lifecycle pass; `stage1a` failed on the old
+  camera-in-solid check with the cut-away on (script now accepts the cut-away, as `views.mjs` does); `panels` strict
+  cannot pass without two sim-side changes (test world's hand-over; `diag-nest-space` alert without a chamber focus).
+  Outcome card: seeds 2 and 3 fine, seed 1's cell still cut by the top of the frame (being probed); night leaf litter
+  floor traced to a specular sheen (roughness lifted at night; variants queued).

@@ -1,6 +1,6 @@
 // app-seams-4 item 5: the cell whole between the top of the screen and the outcome card.
 import { describe, expect, it } from 'vitest';
-import { cardFraming } from './cardFraming';
+import { cardFraming, perspectiveGrow } from './cardFraming';
 import { cellFootprint, QUEEN_CENTRAL_SHARE } from './cellFootprint';
 import { FSHOT_FOV_DEG } from '@/render/camera';
 import { foundingShotAt, makeFoundingShot } from '@/render/camera/foundingShot';
@@ -29,6 +29,13 @@ describe('cardFraming', () => {
     const half = h / 2, d = shot.distance;
     const radiusPx = (20 / (d * Math.tan((FSHOT_FOV_DEG * Math.PI) / 360))) * half;
     expect(radiusPx).toBeCloseTo(120, 0); // 240 px band
+  });
+
+  it('grows the subject by the perspective of the nearest part of the cell (about 11 % at the card shot\'s fill)', () => {
+    const f = cardFraming(720, 16);
+    expect(perspectiveGrow(f.fill)).toBeGreaterThan(1.08);
+    expect(perspectiveGrow(f.fill)).toBeLessThan(1.15);
+    expect(perspectiveGrow(0)).toBe(1);
   });
 
   it('falls back to the 720 px numbers on unusable input', () => {

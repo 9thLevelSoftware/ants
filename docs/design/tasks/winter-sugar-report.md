@@ -163,3 +163,24 @@ larvae starved 16 -> 4 / 3, brood deaths 203 -> 159 / 127, and the colony raises
 spec's "buys sugar by starving brood of protein or by stopping the queen in summer" as a cost in brood raised or a
 laying stop for the season; neither arm has that (no colony stops for more than 2-4 days, and the year's eclosions
 are not lower). The trade is reported here for the integrator to overrule.
+
+### The pair (arm W + arm T, `/home/user/ws-armWT`) and the adoption (item 6)
+
+Both arms alone meet item 6's bars, so the pair was run on the same 15 + 5 (`armWT-table.md`):
+
+| | base | arm W | arm T | W + T | bar |
+|---|---|---|---|---|---|
+| year one viable | 15 | 14 (we #3) | **15** | 14 (we #3) | >= 14 |
+| workers at winter | 264 | 267 | 255 | 257 | >= 255 |
+| workers at winter 2 | 113 | 115 | 113 | 120 | >= 105 |
+| R34 >= 1.0 x | 4 of 5 | 5 of 5 | 5 of 5 | 5 of 5 | >= 4 |
+| R27 at winter 2 >= 1.0 x | 3 of 5 | 4 of 5 | **5 of 5** | 5 of 5 | >= 4 |
+| y2 eggs / eclosions / larvae starved | 273 / 97 / 16 | 222 / 101 / 4 | 197 / 100 / 3 | 209 / 106 / 1 | - |
+
+**Adopted: arm T alone** (the tend floor, DEVIATIONS D45). It meets every bar, keeps year one at 15 of 15 and brings
+all five colonies into the second winter over their R27 need, and it is the cause item 4 found (an ordering defect
+against R39's own keep), with no new constant. R41 (arm W) is not adopted: with it woodland-edge #3 enters its first
+winter at 0.75 of the R27 need in both trees that carry it (W alone and the pair: the same 4.5 C for 6.0; 1.77 in the
+base and with T alone), a systematic year-one cost and the same kind of cost that withdrew R41 in round 14; its gain over
+T alone is +7 workers at the second winter on five runs (pair) and nothing on R27. The pair's trade is the same as T's.
+Arm T's cost: 9 fewer workers at the first winter (264 -> 255, at the bar), 3 colonies of 15 lower by 2-4.

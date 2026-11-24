@@ -214,6 +214,7 @@ export class DecorRenderer {
     // a pale dry leaf under the moon would be the brightest thing in a dark scene (look-pass-3 review): the leaf albedo follows the night weight
     const n = Math.min(1, Math.max(0, frame.nightW ?? 0)), kd = 1 + (DECOR_LEAF.nightAlbedo.dry - 1) * n, kf = 1 + (DECOR_LEAF.nightAlbedo.fresh - 1) * n;
     this.leafNight = n; this.leafDryK = kd;
+    d.uDcNight.value = n * DECOR_LEAF.nightRoughLift;
     d.uDcDry.value.set(se.dryTint[0] * kd, se.dryTint[1] * kd, se.dryTint[2] * kd, se.saturation);
     d.uDcFreshTint.value.set(se.freshTint[0] * kf, se.freshTint[1] * kf, se.freshTint[2] * kf);
     d.uDcBias.value.set(DRAPE.viewBiasLinK, DRAPE.viewBiasDepthUnits / (Math.max(cam.near, 1e-3) * 16777216));

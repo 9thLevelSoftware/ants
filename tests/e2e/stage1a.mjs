@@ -415,7 +415,9 @@ export default async ({ page, shot, log }) => {
   await render(1);
   await timed('chamber', () => shot('04-chamber-queen'));
   const c4 = await g(() => window.__game.camera.clearance());
-  if (c4.f < c4.radius * 0.5) {
+  // look pass 6: in the cell the rig's camera is squeezed against the ant and the cell camera cuts the soil between camera and ant away
+  // (cutAway), as views.mjs accepts it; a camera in solid with no cutaway is still the failure
+  if (c4.f < c4.radius * 0.5 && !c4.cutAway) {
     // diagnosis for the report: is the queen herself inside solid (sim), or only the camera (rig)?
     result.chamberCamera = await g(() => {
       const gm = window.__game, s = gm.summary(), p = s.possessed?.pos;
@@ -423,7 +425,7 @@ export default async ({ page, shot, log }) => {
     });
     log('chamber camera', JSON.stringify(result.chamberCamera));
   }
-  expect(c4.f >= c4.radius * 0.5, 'camera inside solid in the chamber', c4);
+  expect(c4.f >= c4.radius * 0.5 || c4.cutAway, 'camera inside solid in the chamber (no cutaway)', c4);
   expect((await summary()).camera.underground === true, 'the chamber view is not marked underground');
   // colony view from the possessed queen underground: the cutaway slice opens the ground over the nest
   result.colonyView = await g(() => window.__game.camera.set('colony'));
