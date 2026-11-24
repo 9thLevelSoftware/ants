@@ -121,13 +121,13 @@ export function apportion(total: number, weights: number[]): number[] {
  */
 function autoTargets(
   demand: Float32Array, w: Workforce, threat: boolean, target: Int16Array, hygiene: boolean, prospForage: number,
-  scoutFloor: number, unplugFloor = 0,
+  scoutFloor: number, unplugFloor = 0, tendFloor = 0,
 ): void {
   const fi = ti('forage');
   const extra = Math.max(0, Math.min(prospForage, demand[fi]));
   demand[fi] -= extra;
   const free = new Free(w.all, w.adult, w.outside);
-  planTargets(demand, free, threat, target, hygiene, scoutFloor, unplugFloor);
+  planTargets(demand, free, threat, target, hygiene, scoutFloor, unplugFloor, tendFloor);
   demand[fi] += extra;
   if (extra > 0) target[fi] += free.take(poolOfTask('forage'), Math.max(0, Math.round(demand[fi]) - target[fi]));
 }
@@ -139,6 +139,7 @@ function autoTargets(
  */
 function planTargets(
   demand: Float32Array, free: Free, threat: boolean, target: Int16Array, hygiene: boolean, scoutFloor = 0, unplugFloor = 0,
+  tendFloor = 0,
 ): void {
   let sum = 0;
   for (const t of PRIORITY) sum += demand[ti(t)];
@@ -153,12 +154,15 @@ function planTargets(
   const floorAfter = scoutFloor > 0 ? careEnd : -1;
   const floorScouts = Math.min(Math.round(scoutFloor), Math.round(demand[si]));
   const floorDiggers = Math.min(Math.round(unplugFloor), Math.round(demand[di]));
+  const tei = ti('tend'), floorTenders = Math.min(Math.round(tendFloor), Math.round(demand[tei]));
   for (let k = 0; k < order.length; k++) {
     const i = ti(order[k]);
     target[i] += free.take(poolOfTask(order[k]), Math.max(0, Math.ceil(0.5 * demand[i]) - target[i]));
     // the closed nest's plug before any work outside, then the scout floor
     if (k === careEnd && floorDiggers > 0) serveUnplugFloor(demand, target, free, floorDiggers);
     if (k === floorAfter) target[si] += free.take(poolOfTask('scout'), Math.max(0, floorScouts - target[si]));
+    // winter-sugar arm T: the herds' keep while carbohydrate is short, before `forage` (demand.ts tendFloor)
+    if (k === careEnd && floorTenders > 0) target[tei] += free.take(poolOfTask('tend'), Math.max(0, floorTenders - target[tei]));
   }
   for (const t of order) {
     const i = ti(t);
@@ -211,13 +215,13 @@ function manualTargets(
 export function computeTargets(
   col: Colony, available: number, threat: boolean,
   workforce: Workforce = { all: available, adult: available, outside: available }, hygiene = false, prospForage = 0,
-  scoutFloor = 0, unplugFloor = 0,
+  scoutFloor = 0, unplugFloor = 0, tendFloor = 0,
 ): number {
   const target = col.alloc.target;
   target.fill(0);
   const a = col.directives.allocation;
   const w = { ...workforce, all: available };
-  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target, hygiene, prospForage, scoutFloor, unplugFloor);
+  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target, hygiene, prospForage, scoutFloor, unplugFloor, tendFloor);
   else manualTargets(col.alloc.demand, w, a, col.directives.taskShares, target);
   let assigned = 0;
   for (let i = 0; i < target.length; i++) assigned += target[i];

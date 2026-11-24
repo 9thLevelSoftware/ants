@@ -353,6 +353,8 @@ export default async (ctx) => {
         result.checks.shotAtOutcome = await shotInfo();
         log('shot at outcome', JSON.stringify(result.checks.shotAtOutcome));
         await beat('12-outcome-card', ['founding-outcome']);
+    // the camera eases to the cell over a couple of seconds (the player sees the end state): the same card again, settled
+    await beat('12b-outcome-card-settled', ['founding-outcome'], { settle: 4 });
         done('12');
         await click('founding-continue');
         await step(1);

@@ -1790,3 +1790,25 @@ Results: `docs/design/tasks/reviews/look-pass-6.json`, report `docs/design/tasks
   flood water now has a depth-based shore (first version was stair-stepped); outcome card framing on its fourth
   iteration (cell whole but small -> minimum radius fixed, workers excluded from the card's radius); night rim 0.28
   and darker leaf litter; report draft started; unit tests, then the three full runs.
+
+### Nov 24 ~17:06 UTC — check-in: first full browser run to beat 25; both sugar rules meet the bar alone
+
+- **app-seams-4: `firstplay.mjs` seed 1 ran to beat 25 without a stand-in and without a failure** (16:36-16:55 UTC;
+  the first time in the project). One finding: no scout found the sugar spill in 9000 ticks (the trail came from the
+  forage marker). "Stores full - dig a food chamber" shows at beat 16. Seeds 2 and 3 running. Outcome card framing
+  rebuilt on the real cell (the slice shows the deep cell, the old footprint was only the throat): cell whole, queen in
+  the middle third.
+- **winter-sugar arms, each alone against the baseline** (15 year-one hand-overs + 5 long runs;
+  `test-output/winter-sugar/armW-table.md`, `armT-table.md`):
+
+  | | baseline | arm W (R41 alone) | arm T (tend floor) |
+  |---|---|---|---|
+  | year one viable | 15 | 14 (we #3 0.75 of R27) | 15 |
+  | year one workers | 264 | 267 | 255 |
+  | winter 2 workers (five) | 113 | 115 | 113 |
+  | R34 >= 1.0 x | 4 of 5 | 5 of 5 | 5 of 5 |
+  | R27 met at winter 2 | 3 of 5 | 4 of 5 | 5 of 5 |
+
+  Both meet item 6's bar alone; arm T is ported to the live tree; the pair's long runs are queued. Item 4's year-one
+  table: all 15 meet R27 and the first tender follows the first workable herd by 90-600 ticks, so the year-one
+  shortfalls of earlier sweeps were the draft; the year-two shortfall is the allocation order.

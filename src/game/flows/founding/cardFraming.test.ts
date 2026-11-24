@@ -1,7 +1,7 @@
 // app-seams-4 item 5: the cell whole between the top of the screen and the outcome card.
 import { describe, expect, it } from 'vitest';
 import { cardFraming } from './cardFraming';
-import { cellFootprint } from './cellFootprint';
+import { cellFootprint, QUEEN_CENTRAL_SHARE } from './cellFootprint';
 import { FSHOT_FOV_DEG } from '@/render/camera';
 import { foundingShotAt, makeFoundingShot } from '@/render/camera/foundingShot';
 
@@ -38,21 +38,39 @@ describe('cardFraming', () => {
 
 describe('cellFootprint', () => {
   const bu = 4;
-  /** A round open room of radius r BU at the origin, solid elsewhere. */
-  const room = (r: number) => ({ sampleXYZ: (x: number, _y: number, z: number) => r * bu - Math.hypot(x, z) });
+  /** A round cavity of radius r BU centred (cx, cy, cz) BU, solid elsewhere. */
+  const ball = (r: number, cx: number, cy: number, cz: number) => ({
+    sampleXYZ: (x: number, y: number, z: number) => r * bu - Math.hypot(x - cx * bu, y - cy * bu, z - cz * bu),
+  });
 
-  it('finds the bounding circle of the connected open cells (an off-centre start, the queen on the wall)', () => {
-    const f = cellFootprint(room(9), 8.8 * bu, 0, 0, bu)!;
+  it('bounds the connected open voxels at or under the plane, the queen (on the wall) in the middle third of the sphere', () => {
+    // a cavity of 5 BU radius whose top is cut off by the plane at y = 0; the queen stands at its rim, near the plane
+    const field = ball(5, 0, -4, 0), anchor = { x: 4.8 * bu, y: -0.5 * bu, z: 0 };
+    const f = cellFootprint(field, anchor, 0, bu)!;
     expect(f).not.toBeNull();
-    expect(f.radius / bu).toBeGreaterThan(8.7);
-    expect(f.radius / bu).toBeLessThan(9.8);
-    expect(Math.hypot(f.x, f.z) / bu).toBeLessThan(0.8);
+    expect(f.cells).toBeGreaterThan(1000);
+    // every open voxel under the plane is inside the sphere: the lowest point of the cavity and the far rim
+    for (const p of [{ x: 0, y: -9 * bu + 1, z: 0 }, { x: -4.9 * bu, y: -4 * bu, z: 0 }, { x: 0, y: -4 * bu, z: 4.9 * bu }]) {
+      expect(Math.hypot(p.x - f.x, p.y - f.y, p.z - f.z)).toBeLessThanOrEqual(f.radius + 1e-6);
+    }
+    expect(Math.hypot(anchor.x - f.x, anchor.y - f.y, anchor.z - f.z)).toBeLessThanOrEqual(f.radius * QUEEN_CENTRAL_SHARE + 1e-6);
+    expect(f.radius / bu).toBeLessThan(12);
+  });
+
+  it('a cell under the queen is found, not only the throat at the plane (the footprint on the plane is a small part of it)', () => {
+    // a thin shaft up to the plane from a wide chamber 6 BU below: the circle on the plane would be 1 BU, the cell is 9 BU across
+    const chamber = ball(4.5, 0, -6.5, 0);
+    const field = { sampleXYZ: (x: number, y: number, z: number) => Math.max(chamber.sampleXYZ(x, y, z), y > -6.5 * bu ? bu - Math.hypot(x, z) : -1) };
+    const f = cellFootprint(field, { x: 0, y: -0.5 * bu, z: 0 }, 0, bu)!;
+    expect(f.y).toBeLessThan(-1.5 * bu); // well under the plane (pulled toward the queen at its top by the middle-third rule)
+    expect(f.radius / bu).toBeGreaterThan(5);
   });
 
   it('is null for a start in solid, no field, or an open region that runs off the probe (a tunnel is no cell)', () => {
-    expect(cellFootprint(room(9), 30 * bu, 0, 0, bu)).toBeNull();
-    expect(cellFootprint(undefined, 0, 0, 0, bu)).toBeNull();
-    expect(cellFootprint({ sampleXYZ: () => 1 }, 0, 0, 0, bu)).toBeNull();
-    expect(cellFootprint({ sampleXYZ: (_x: number, _y: number, z: number) => 1.5 * bu - Math.abs(z) }, 0, 0, 0, bu)).toBeNull(); // a corridor along x
+    const field = ball(4, 0, -3, 0);
+    expect(cellFootprint(field, { x: 30 * bu, y: -3 * bu, z: 0 }, 0, bu)).toBeNull();
+    expect(cellFootprint(undefined, { x: 0, y: 0, z: 0 }, 0, bu)).toBeNull();
+    expect(cellFootprint({ sampleXYZ: () => 1 }, { x: 0, y: -bu, z: 0 }, 0, bu)).toBeNull();
+    expect(cellFootprint({ sampleXYZ: (_x: number, _y: number, z: number) => 1.5 * bu - Math.abs(z) }, { x: 0, y: -bu, z: 0 }, 0, bu)).toBeNull(); // a corridor along x
   });
 });

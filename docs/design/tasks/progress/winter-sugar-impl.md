@@ -89,3 +89,10 @@ test-output/winter-sugar/
   day7: only the first-tender ticks are new; whole-year numbers = draftfix15, identical games). Runner runq2.sh on
   jobs-4.txt: base-y1short x10, armW-y1 remaining, armT-y1 x10, armWT-long x5. Running outside it: armW-y1 we3,
   base-y1 sg1 (full). Trade table tools/sim/arm-trade.py -> test-output/winter-sugar/trade-long.md.
+- 16:28 ARM W TABLE DONE (test-output/winter-sugar/armW-table.md): y1 14/15 viable (we3 0.75 R27, base
+  1.77), workers 264 -> 267; long 113 -> 115, R34 5/5, R27 w2 4/5 (sg2 0.33). Meets item 6's bars; trade eggs -19 %,
+  eclosions +4. Item 4 y1 table test-output/winter-sugar/item4-y1.md (all 15 meet R27; first tender follows the first
+  workable herd by 90-600 ticks). Report sections A and B4 drafted. Waiting: armT-y1 x10, armWT-long x5.
+- 16:55 ARM T TABLE DONE (armT-table.md): y1 15/15, workers 255 (bar 255), long 113, R34 5/5, R27 5/5.
+  Both arms meet the bars alone -> pair (ws-armWT) long runs next in queue. Arm T PORTED to the live tree (allocation
+  demand.ts / index.ts / targets.ts + tendFloor.test.ts; these 3 files were identical to ws-base before).

@@ -30,7 +30,7 @@ const FALLBACK_HALF_HEIGHT_BU = 1.5;
 const CELL_MIN_RADIUS_BU = 1.5;
 
 /**
- * `wholeCell`: the subject also covers the cell's footprint at the slice plane (cellFootprint.ts), so a shot framed behind a card shows
+ * `wholeCell`: the subject is the sphere around the cell the slice shows (cellFootprint.ts: the open voxels under the plane that connect to the queen), so a shot framed behind a card shows
  * the cell whole, not only the sphere of the animals in it. Not used by the time-lapse, which frames the animals.
  */
 export function foundingShotSubject(sim: Sim, out: FoundingShotSubject, wholeCell = false): FoundingShotSubject | null {
@@ -78,16 +78,15 @@ export function foundingShotSubject(sim: Sim, out: FoundingShotSubject, wholeCel
   out.x = cx; out.y = cy; out.z = cz;
   out.radius = spread + SPREAD_PAD_BU * bu;
   out.cutY = planeY;
-  const cell = wholeCell ? cachedFootprint(sim, anchor.pos.x, planeY, anchor.pos.z) : null;
+  const cell = wholeCell ? cachedFootprint(sim, anchor.pos, planeY) : null;
   out.minRadiusBu = cell ? CELL_MIN_RADIUS_BU : undefined;
   if (cell) {
-    // centred on the cell's circle
-    // the queen and her brood are inside it; the workers (who walk the throat and the shaft) are not what the card's picture is about
-    let core = 0;
-    if (q) core = Math.hypot(q.pos.x - cell.x, q.pos.z - cell.z);
-    for (const b of st.brood) if (b.alive && b.colony === col && b.carriedBy < 0) core = Math.max(core, Math.hypot(b.pos.x - cell.x, b.pos.z - cell.z));
-    out.x = cell.x; out.z = cell.z;
-    out.radius = Math.max(cell.radius, core) + SPREAD_PAD_BU * bu * 0.5;
+    // the sphere of the cell the slice shows (queen in its middle third); the brood is in it by the fit, check anyway: the sphere grows to hold
+    // the queen's brood, never the workers (who walk the throat and the shaft: not what the card's picture is about)
+    let r = cell.radius;
+    for (const b of st.brood) if (b.alive && b.colony === col && b.carriedBy < 0) r = Math.max(r, Math.hypot(b.pos.x - cell.x, b.pos.y - cell.y, b.pos.z - cell.z));
+    out.x = cell.x; out.y = cell.y; out.z = cell.z;
+    out.radius = r + SPREAD_PAD_BU * bu * 0.5;
   }
   // the queen's frame: on a steep wall of the throat the view director shows the side view instead of the slice from above (look pass 6)
   out.ant = q ? { pos: q.pos, up: q.up, fwd: q.fwd, lengthMm: q.lengthBu * bu } : undefined;

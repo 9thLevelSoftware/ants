@@ -59,3 +59,47 @@ as the browser script; warm = R14's clock start, -1 = never warm before the entr
 | 4 | 24 | 7 | 1750 | **1250** | -1 | met / met (cold throughout) |
 | 5 | 24 | 5 | 500 | 500 | 0 | met / met |
 | 4, two batches | 12 | 4 | 1750 | **1250** | -1 | met / met |
+
+## B4. Measurement before any change (item 4)
+
+New tool-side observer `tools/sim/lifeSugar.ts` (wired into `tools/sim/life.ts` as `report.sugar`; reads only): per
+game day C delivered by source class (honeydew from a herd, honeydew film, nectar, crumb, sugar, fruit, other = C carried
+with protein loads, unknown), C spent from the pool (worker upkeep, queen, larvae, spoiled, rations: the colony's
+lifetime ledger), tend and forage worker-days, mean tend demand and tend target, workable / known herds, mean needC,
+the carbohydrate forage want, stores and R27's need; and the first tick after the hand-over with an open entrance, then
+the first tender (allocation actual), tend demand, workable herd and tender outside. Its runs are the same games as the
+final tree's: rerun state hashes equal the opening-fix runs' (pp #3 long c84a5641, we #1 b8a036bd, we #3 7eae6e68).
+`life.ts` also records `report.winter1` (state and viable verdict at the first tick of Winter 1) for runs that go on
+past it (used from arm T on). Tables: `tools/sim/sugar-y1-table.py` (year one), `tools/sim/sugar-table.py` (per colony
+and year from `report.sugar`).
+
+Year one (15 hand-overs: `test-output/winter-sugar/item4-y1.md`; first tenders from 2-day reruns `base-y1short/`, the
+year's numbers from opening-fix `draftfix15/`, which are the same games): **all 15 meet R27 (1.33-3.76 x)**. The first
+tender after the entrance opens comes 0-18217 ticks after it (median ~550), always 90-600 ticks after the colony's first
+workable herd: in year one tending starts as soon as a herd is known, and herd discovery is what sets it (we #2 knows
+no herd until +13673, sg #3 until +9181). The lowest ratios (sg #3 1.33, sg #2 1.38, pp #3 1.48, we #2 1.54) are the
+late or small herds. Year one is not where the winter sugar fails.
+
+Year two (the five long runs, `item4-long-base.md`; columns per colony and year: first tender, tend worker-days and
+share, herds, C in by source, C in, C out, days with needC > 0.05, unserved tend demand, winter C / R27):
+
+| colony | y2 C in / out | needC > 0 days (doy 8-21) | tend unserved, worker-days (days at 0) | herds (doy 11) | winter 2 C / R27 |
+|---|---|---|---|---|---|
+| car-park-verge #1 | 77.8 / 74.5 | 2 | 0.0 (0) | 2 | 27.4 / 6.6 (4.13) |
+| kitchen-door #3 | 51.2 / 46.0 | 3 | 0.0 (0) | 3 | 23.0 / 6.6 (3.47) |
+| woodland-edge #2 | 47.3 / 45.2 | 5 | 4.7 (3) | 2 | 10.9 / 3.1 (3.47) |
+| suburban-garden #2 | 52.3 / 58.0 | 14 | **38.6 (2)** | 4 | **3.7 / 5.6 (0.66)** |
+| playground-park #3 | 48.3 / 65.6 | 14 | **15.5 (1)** | 2 | **0.7 / 8.6 (0.09)** |
+
+**What separates them: demand asks, the allocation does not answer.** The two colonies short at winter 2 have needC >
+0 on 14 of the summer and autumn days and spend more carbohydrate than they bring (30-40 workers and the summer brood),
+yet on those days the tend target stays far under the tend demand: sg #2 doy 10-11 tend demand 10.8 / 12.1, target 0.0
+/ 0.0 (needC 0.88 / 1.00); doy 15-16 demand 7.0, target 3.9-5.1; pp #3 doy 10-11 demand 6.0, target 1.2 / 0.2 (needC
+0.95). GDD 02 §6.3's fixed order serves `forage` and `store` before `tend`, and on brood-peak days nurse + queen-care
++ forage + store take every worker: the herds the colony already works lose their tenders while carbohydrate is short
+(herd honeydew in year two: 0.47 C per tender-day on sg #2 against ~0.15 C per forager-day). The three colonies that
+meet R27 rarely ask (needC > 0 on 2-5 days) and leave little or no tend demand unserved. It is not herds in range (sg
+#2 works 4 herds, more than any other) and not demand never asking. The stock target is not the gap either: in autumn
+(doy 15-21) R6's autumn multiplier already makes the carbohydrate target the R27 need x 1.25 in every year, so R41's
+winter path changes summer (doy 7-14) only - where the R27 need computed at the summer's cluster temperature reads
+25-55 C against 6-9 at winter.

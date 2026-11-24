@@ -130,6 +130,21 @@ export function forageWant(col: Colony): { c: number; p: number } {
 }
 
 /**
+ * core.acc key (winter-sugar arm T): the tend floor, worker-equivalents: while the colony's carbohydrate need is unmet
+ * (needC > 0) on a workable surface, the keep of R39 (tendKeep per workable herd, at most the tend demand); the
+ * auto allocation serves it with the scout floor, before `forage` (targets.ts planTargets). 0 otherwise.
+ */
+export const TEND_FLOOR_KEY = 'alloc.tendFloor';
+
+/** The tend floor (TEND_FLOOR_KEY) for this allocation pass. */
+export function tendFloor(sim: Sim, col: Colony, workable: boolean, tendDemandNow: number): number {
+  if (!workable || col.needs.needC <= 0) return 0;
+  let keep = 0;
+  for (const h of sim.stores.herds.list) if (herdWorkable(sim, col, h)) keep += tendKeep(h.a);
+  return Math.min(keep, tendDemandNow);
+}
+
+/**
  * Tenders that keep a herd's claim: TEND_KEEP, or as many as hold its `tend` above RIVAL_TEND_GUARD for a herd that
  * needs more than 1 / RIVAL_TEND_GUARD tenders at full tending (tend = present / tendersNeeded, plants/tending.ts).
  */
@@ -338,6 +353,7 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census, broodAmongWast
   core.acc[PROSPECTIVE_FORAGE_KEY] = d[T('forage')] - plainForage;
   // R39: tenders for the carbohydrate the colony wants, at most Σ tenderSlots over its workable herds (GDD 02 §6.2)
   d[T('tend')] = tendDemand(sim, col, known, workable);
+  core.acc[TEND_FLOOR_KEY] = tendFloor(sim, col, workable, d[T('tend')]);
   d[T('dig')] = digDemand(sim, col);
   // pellets: the nest's lying in-nest pellets weighted by haul urgency (spoil nearing tamping age counts more)
   const pellets = haulPelletLoad(sim, col.id);

@@ -8,7 +8,7 @@ import { BROOD_HAZARD, IDLE_REEVAL_S, SURPLUS_CHECK_S } from '@/sim/balance';
 import { secondsToTicks, TICKS_PER_SECOND } from '@/sim/time';
 import { censusOf, cycleWaste, isWorkerCaste } from '../census';
 import { coreOf } from '../core';
-import { PROSPECTIVE_FORAGE_KEY, SCOUT_FLOOR_KEY, computeDemand, unplugFloor } from './demand';
+import { PROSPECTIVE_FORAGE_KEY, SCOUT_FLOOR_KEY, TEND_FLOOR_KEY, computeDemand, unplugFloor } from './demand';
 import { computeTargets } from './targets';
 import { draftUnplugDiggers } from './unplugDraft';
 import { eligible, groupOf, GROUP_TASKS, thresholdBand } from './groups';
@@ -51,7 +51,7 @@ export function allocateColony(sim: Sim, col: Colony, def: SpeciesDef, surplusPa
   const unplug = unplugFloor(sim, col);
   computeTargets(
     col, cen.available, (acc['threat'] ?? 0) > 0, workforce, hygiene, acc[PROSPECTIVE_FORAGE_KEY] ?? 0,
-    acc[SCOUT_FLOOR_KEY] ?? 0, unplug,
+    acc[SCOUT_FLOOR_KEY] ?? 0, unplug, acc[TEND_FLOOR_KEY] ?? 0,
   );
   col.alloc.lastTick = sim.state.tick;
   draftUnplugDiggers(sim, col, def, unplug);
