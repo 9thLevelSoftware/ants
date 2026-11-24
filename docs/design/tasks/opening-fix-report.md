@@ -109,7 +109,34 @@ hand-over snapshot (`--save-handover`, `tools/sim/probe/reopenProbe.ts`).
 
 ## 3. Browser (items 1 and 6)
 
-BROWSER_SECTION
+All runs on the final tree (`src/sim` == the frozen copy), `FIRSTPLAY_UNTIL=13 FIRSTPLAY_DUMP=1`, no stand-ins, no soft
+failures, no console errors. Logs and pictures: `test-output/opening-fix/firstplay/seedN-final{.log,/}`; the hand-over
+and reopen ticks are the `dump.jsonl` lines `12-outcome-card` and `reopen-check` (beat 13 polls every 250 ticks, so
+"open + worker outside" is known to the 250-tick step).
+
+| seed | site (q, word, r) | seal | eggs | first workers | hand-over (game time) | open + worker outside after | R14 (4 h = 1000 ticks) | headless (fix3) |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 0.713 poor, 2 BU | 108 | 12 | 4 | ~02:00, night | 1503-1753 ticks (6-7 h) | missed | seal 165, 13 w, open 500 (not the browser's game) |
+| 2 | 0.651 poor, 2 BU | 223 | 12 | 7 | 19:46, night | 1503-1753 ticks (6-7 h) | missed | seal 223, 11 w, open 1000 |
+| 3 | 0.711 poor, 2 BU | 312 | 12 | 7 | ~08:00, 25 C | 503-753 ticks (2-3 h) | **met** | seal 361, 8 w, open 750 |
+| 4 | 0.767 fair, 2 BU | 235 | 12 | 4 | ~01:15, night | 1253-1503 ticks (5-6 h) | missed | seal 235, 4 w, open 1287 (tick-exact) |
+| 5 | BROWSER_S5 |
+
+Pictures 12 and 13 looked at for every seed: 12 = the outcome card ("First workers: N", queen's reserves) over the
+queen in her cell; 13 = the open entrance in its crater mound (seed 2 at night, dark but readable; seeds 1 and 4 at dawn, a worker visible beside the mound in seed 1;
+seed 3 by day). Seed 1's run is from 01:33 UTC (second engineer), on the same `src/sim`.
+
+**Headless against browser (item 2, items 7).** No seed is an exact match. The state hash differs from tick 1 (beat 03)
+on every seed because the configs differ in fields that do not change the world: the browser's New-colony screen sets
+`seedText` to the typed code (`00000002`) and `cheats: false`; `openingSim` sets `seedText "2"`, `cheats: true` and a
+fixed archetype / size (`playerOpeningKit.ts openingSim`). The world, the site the search picks and (for seeds 2 and 4)
+the seal match; the games then drift with the input timing (the browser walks and digs per rendered frame, the
+headless driver per fixed step), and the lapse amplifies it: seed 2 hands over 7 workers in the browser against 11
+headless, seed 1 4 against 13. Seed 4 is the closest (hand-over tick 38810 against 38811, same seal and worker
+count). That is why seeds 3-5 were run in the browser too.
+
+**Full runs (item 6).** FULL_RUNS
+
 
 ## 4. Sweep check (item 5)
 
@@ -124,11 +151,28 @@ this task: R13 (a flood-safe site does not fill in the lapse; seed 2) and R14 (o
 
 ## 6. Still wrong
 
-1. **R14 on small foundings.** Seed 4 (4 first workers, one possessed, one away scouting, a 235-voxel plug) opens 1500
-   ticks (6 game hours) after the hand-over: one digger until the player lets go of her worker. The floor gives the
-   brood's care first by ruling; R14's 4 hours needs either more diggers than care allows or a smaller player plug.
-2. **The headless script is not the browser's game on seed 1** (input timing diverges by beat 06); seed 1 is confirmed
-   in the browser only.
+1. **R14 (open within 4 game hours of the hand-over) is met by day, missed by night.** Browser: seed 3 (hand-over
+   ~08:00, 25 C) opens within 503-753 ticks; seeds 1, 2, 4 (hand-over at night) take 1253-1753 ticks (5-7 game h).
+   Beat 13 itself passes on all of them (its window is 30 x 250 ticks). **Trace (resume, item 3 of the integrator's
+   note)** on the seed-4 hand-over snapshot (`tools/sim/probe/unplugTrace.ts`, archived; output
+   `test-output/opening-fix/headless/trace-s4.txt`): plug 235 voxels, open at +1287 ticks, **the same tick the plug
+   count reaches 0** - there is no stall at the surface in the player's opening (gate-sim-2's lead, the shaft's top
+   sphere keeping 2 surface samples just below open, belongs to the plain-fill escape dig of `nest/escapeDig`, a
+   different path: a founding plug is dug by `unseal-entrance`, not by a plan's spheres). The time is the bite rate:
+   the unplugging digger ran `unseal-entrance` for 1092 ticks for about 60 bites, ~19 ticks a bite (0.625 s of nanitic
+   work / work rate ~0.33 at the night's 12-15 C), each opening ~2 plug voxels, with at most UNPLUG_DIGGERS_MAX = 2
+   diggers in the throat: 235 voxels / (2 x 2) x 19 ~ 1100 ticks. By day the same plug takes about a third of that.
+   So the night misses come from the plug size and the cold work rate, both balance, which the spec forbids changing
+   here (no rebalancing). One small defect was found and **not** kept: the unplug stand point (`dig.ts unplugStep`,
+   radius + 1.5 BU down the throat axis) lies inside the plug when the mouth is wide (seed 4: f = -2, no nav
+   component), so a digger coming up from the cell fails the walk at once and is barred from unplugging for
+   UNPLUG_RETRY_S (600 ticks). A prototype (stand at the nearest open point of her own nav component inside the
+   throat) brought the second digger to the plug at +103 instead of +719, but the entrance opened at +1224 instead of
+   +1287 (5 %), because the barred digger had meanwhile dug the founding plan through the same plug. Not worth
+   changing every hand-over and restarting the sweep: reverted (06:05 UTC), the tree stayed the frozen one. Worth a
+   small task: the stand point, and a pellet rule or a third digger if R14 must hold at night (a balance decision).
+2. **The headless script is not an exact match of the browser on any seed** (section 3: config text fields from tick 1,
+   input timing after that); every seed 1-5 was confirmed in the browser as well.
 3. Pre-existing red tests in the touched folders (also red on HEAD `07583fe`): `nest/escapeDig.test` (gate-sim-2 §6
    item 8), `nest/architect/layout.test` (50 ms timing under load), `nest/flood/readersCost.verify.test`.
 
@@ -147,3 +191,5 @@ this task: R13 (a flood-safe site does not fill in the lapse; seed 2) and R14 (o
 - Browser: `test-output/opening-fix/firstplay/`.
 - Sweep: `test-output/opening-fix/sweep/`, `f15/`, `sweep-long/`, `close.log`.
 - Probes archived: `test-output/opening-fix/probes/`.
+- R14 trace: `test-output/opening-fix/headless/trace-s4.txt` (frozen tree), `trace-s4-stand.txt` (the reverted prototype).
+- Sweep tables: `test-output/opening-fix/sweep-table.md` (against gate-sim-2 sweep2), `sweep-table-vs-sweep.md` (against gate-sim-2 sweep), `f15-table.md`, `sweep-long/longrun-table.md`.

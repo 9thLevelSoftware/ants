@@ -152,4 +152,9 @@ export const SKIRT_NIGHT_ALBEDO = 0.3;
  * gradually. A haze FLOOR on the skirt (tried first) turned the row that touches the terrain 60 % sky-coloured in one
  * step: a hard line (reviewer, look-pass 2). The skirt and the terrain must meet with equal colour, never with a step.
  */
-export const SKIRT_BLEND_BU = 80;
+export const SKIRT_BLEND_BU = 28;
+/*
+ * Look pass 6: 80 -> 28. The dither (hashed alpha) is a band of speckles along the horizon where the skirt's green meets the terrain's brown; at
+ * 80 BU the band was the thin speckled line of the title screen (look5 firstplay/seed1/01-title.png). A third of the width is a third of the
+ * speckle, and still no step: the skirt and the terrain continuation meet over 28 BU of dither.
+ */

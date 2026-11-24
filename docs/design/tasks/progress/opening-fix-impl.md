@@ -100,3 +100,13 @@ the stamps above ran ~2 h ahead: "02:30" above = ~00:30 UTC).
   this sweep's hand-overs (cavity-only mask; unplug floor + draft off) to explain 249 workers against 271 / 270 -
   report, change nothing unless an arm wins 4 of 5 (then wait for a ruling); R14 on a night hand-over: state
   temperatures and dig rate, restate R14 from the first active hour if cold is the whole cause.
+- 06:53 UTC: f15 DONE: 5/5 viable on this tree vs 4/5 in sweep 15 (sg #2 NO -> yes); workers we#2 11->13, sg#2 17->17,
+  cpv#1 23->23, pp#3 19->21, kd#3 9->10 (test-output/opening-fix/f15-table.md). Item-5 paired bar MET. LONG START 06:36.
+  Browser: look-pass-6 runs browsers back to back; my queue re-armed with a 2 s poll (run-seeds.sh / run-full.sh restarted
+  06:43; seed 4 not started yet). tsc --noEmit whole project: exit 0 (06:21).
+- 07:10 UTC: BROWSER seed4-final PASS 01-13 no stand-ins: q 0.767 'fair' rBu 2, seal 235, 12 eggs, 4 workers, hand-over tick 38810 (headless 38811), open+outside by the 6th poll (<=1503 ticks, R14 miss; headless exact 1287). Seed 5 running.
+- 07:27 UTC: FOUNDRESS_LONG=1 vitest founding/playerOpening.long.test.ts: 3/3 pass (414 s; test-output/opening-fix/long-test.txt). Report sections 3 (browser table seeds 1-4, headless vs browser) and 6 (R14 trace) written; waiting: seed 5 browser, full runs 1+2, long runs (3/5 done).
+- 07:30 UTC: vitest founding + allocation + nest/moundMaskLip + outdoor/determinism.perf: 34 files passed, 4 skipped (LONG), 106 tests pass (test-output/opening-fix/folder-tests.txt).
+- 07:42 UTC: CLOSE DONE 07:37. Long runs (test-output/opening-fix/sweep-long/longrun-table.md): winter 1 -> winter 2 workers
+  83 -> 108 (gate-sim-2 reverted 85 -> 94, item-4 tree 85 -> 105); R22 5/5; R34 >=1.0x 4/5 (bar 4), >=1.5x 2/5 (bar 3;
+  was 0/5 and 1/5). Per colony w2: cpv#1 36, kd#3 10, pp#3 28, sg#2 19, we#2 15.

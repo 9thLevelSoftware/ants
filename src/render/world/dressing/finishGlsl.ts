@@ -292,7 +292,9 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
         if (r > 0.3) discard;
         c = mix(vec3(0.22, 0.16, 0.1), vec3(0.42, 0.36, 0.28), pit);
       }
-      else if (fin == ${F.cloverHead}) c = mix(wrCol * 0.7, vec3(0.45, 0.3, 0.3), pit);
+      // the florets of the parts cover the ball; the core under them is the flower's own colour, only a little darker between them (look pass 6: the
+      // bright cell centres on a dark purple showed as big white polka dots)
+      else if (fin == ${F.cloverHead}) c = wrCol * mix(0.66, 0.82, pit);
       else c = mix(vec3(0.2, 0.3, 0.1), wrCol * 0.6, pit);
       // seen from below, a real head is a small green cup under its petals: the wide flat underside of the
       // collision ellipsoid is not drawn there (the parts' undersides show instead)
@@ -321,10 +323,12 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
       if (wrNoise(vec2(a * 30.0, ln.y * 40.0)) > 0.82 - 0.2 * (1.0 - abs(ln.y))) discard;
       wrTransl = 1.0;
     } else if (fin == ${F.cloverHead}) {
-      float cell = wrCells(vec2(a * 6.0, lp.y / max(hs.y, 1e-3) * 4.0));
-      c *= mix(0.75, 1.05, smoothstep(0.42, 0.1, cell));
+      // look pass 6: the florets are small and close (about 90 round the head) and the light between them only a little darker; at 6 x 4 cells with
+      // 0.75 .. 1.05 the head read as a ball of big white dots on a dark net
+      float cell = wrCells(vec2(a * 14.0, lp.y / max(hs.y, 1e-3) * 9.0));
+      c *= mix(0.86, 1.0, smoothstep(0.5, 0.15, cell));
       c = mix(c, vec3(0.55, 0.42, 0.33), smoothstep(-0.2, -0.8, lp.y / max(hs.y, 1e-3)) * 0.6);
-      if (cell > 0.43 && r > 0.8) discard;
+      if (cell > 0.5 && r > 0.85) discard;
     } else {
       float cell = wrCells(lp.xz * 0.9 + lk.w * 5.0);
       if (cell > 0.36 && r > 0.55) discard;

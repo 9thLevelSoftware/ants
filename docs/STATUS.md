@@ -1634,3 +1634,19 @@ outputs are git-ignored and are lost if the container is reclaimed (then rerun `
 - look-pass-6: real founding on seed 1 passes beats 01-13 with the new cameras; side-view framing for the outcome card
   fixed after its first picture cut the queen; night exposure raised (variant v1; pictures at low only so far); found
   that the camera-transition dip / crossfade was computed and never drawn (now drawn).
+
+### Nov 24 ~07:41 UTC — check-in: opening-fix long runs 83 -> 108 (R34 4 of 5 / 2 of 5); browser seeds 1, 3, 4 pass
+
+- Close runs done 07:37 (tree 9a8cdf07). Long runs (`test-output/opening-fix/sweep-long/longrun-table.md`): five
+  colonies **83 at winter 1 -> 108 at winter 2** (gate-sim-2: 85 -> 105 with item 4, 85 -> 94 without); R22 5 of 5;
+  **R34 >= 1.0 x in 4 of 5 (bar 4: met), >= 1.5 x in 2 of 5 (bar 3; was 1 of 5)**; winter 2 per colony cpv #1 36,
+  kd #3 10, pp #3 28, sg #2 19, we #2 15.
+- The five sweep-15 hand-overs on this tree: 5 of 5 viable (sweep 15: 4 of 5), workers +0 to +2 each
+  (`f15-table.md`).
+- Browser `firstplay.mjs` without stand-ins: seeds 1, 3, 4 pass beats 01-13 (seed 4: 4 workers, open within 1503
+  ticks); seed 5 running; seed 2 and the two full runs queued. The long headless test (seeds 1, 2, 4) passes.
+- Still to come from opening-fix: ruling 2's two switch-off arms, seed 2 / 5 in the browser, the full runs, the report.
+- look-pass-6: night pictures taken (low / medium / high and hours), title speckle and clover dots edited (after
+  pictures pending); the grey square in seed 2's shaft is the flood-water sheet seen edge-on (recoloured); **its
+  firstplay seed 2 fails at beat 08 "camera is inside solid in the chamber"** with the cell camera not engaged in a
+  tunnel - under investigation by the engineer.

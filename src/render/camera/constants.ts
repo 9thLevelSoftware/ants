@@ -245,8 +245,14 @@ export const FSHOT_PITCH_DEG = 52;
 /** The subject's bounding sphere fills 1 / this much of the frame height. */
 export const FSHOT_FILL = 0.92;
 /** Behind a card in the middle of the screen (outcome, failure): the cell is shown this far above the middle of the frame, filling this much. */
-export const FSHOT_CARD_LIFT = 0.42;
-export const FSHOT_CARD_FILL = 0.74;
+export const FSHOT_CARD_LIFT = 0.55;
+export const FSHOT_CARD_FILL = 0.55;
+/*
+ * Look pass 6: 0.42 / 0.74 -> 0.55 / 0.55. The outcome card (1280 x 720: 450 px wide, 160 high, its top at 39 % of the height) covered the queen's
+ * thorax and head in the real founding (test-output/look6/fp-s1/12-outcome-card.png, before the change): the sphere of the queen and the workers round her
+ * (radius 12 mm) is 533 px with fill 0.74, so her 290 px stood from 64 to 354. At 0.55 the sphere is 396 px, centred 162 px from the top: she stands in
+ * the free top 39 % of the frame, whole, over the card and not under it.
+ */
 /** The subject sphere never counts as smaller than this radius (BU): a lone queen still gets a chamber-sized frame. */
 export const FSHOT_MIN_RADIUS_BU = 4.5;
 /**

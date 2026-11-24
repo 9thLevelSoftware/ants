@@ -25,25 +25,29 @@ export default async ({ page, log, out }) => {
   const c = ch?.center ?? S.start.pos;
   const subject = { x: c.x, y: c.y, z: c.z, radius: 6 * bu, cutY: c.y + 1.5 * bu };
   await g(() => window.__game.renderFrame({ settle: 1 }));
-  const luma = () => g(async () => {
-    const cv = document.getElementById('view');
-    const im = new Image(); im.src = cv.toDataURL('image/png'); await im.decode();
-    const w = 160, h = 90, t = document.createElement('canvas'); t.width = w; t.height = h;
-    const x = t.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, w, h);
-    const d = x.getImageData(0, 0, w, h).data; let s = 0;
-    for (let i = 0; i < d.length; i += 4) s += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
-    return Math.round((s / (d.length / 4)) * 1000) / 1000;
-  });
+  // one frame of `dt` seconds, then the canvas read in the same task (the drawing buffer is cleared after it): mean luminance 0..1, and the canvas opacity
+  // (the dip / crossfade of a camera transition is drawn as the opacity of the canvas)
   const frames = async (n, dt) => {
     const r = [];
     for (let i = 0; i < n; i++) {
-      await g((d) => window.__game.renderFrame({ dt: d }), dt);
-      r.push({ luma: await luma(), opacity: Number(await g(() => getComputedStyle(document.getElementById('view')).opacity)) });
+      r.push(await g(async (d) => {
+        window.__game.renderFrame({ dt: d });
+        const cv = document.getElementById('view');
+        const url = cv.toDataURL('image/png');
+        const im = new Image(); im.src = url; await im.decode();
+        const w = 160, h = 90, t = document.createElement('canvas'); t.width = w; t.height = h;
+        const x = t.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, w, h);
+        const px = x.getImageData(0, 0, w, h).data; let sum = 0;
+        for (let k = 0; k < px.length; k += 4) sum += (0.2126 * px[k] + 0.7152 * px[k + 1] + 0.0722 * px[k + 2]) / 255;
+        const v = window.__hud?.game?.session?.views;
+        return { luma: Math.round((sum / (px.length / 4)) * 1000) / 1000, opacity: Number(getComputedStyle(cv).opacity), dip: v?.frameOut?.dip ?? null, running: v?.transition?.running ?? null, kind: v?.transition?.kind ?? null, reduced: v?.third?.opts?.reducedMotion ?? null };
+      }, dt));
     }
     return r;
   };
   const res = {};
   res.before = (await frames(2, 0.1)).map((f) => f.luma);
+  res.setting = await g(() => window.__game.getSettings?.()?.camera ?? window.__game.settings().camera);
   await g((s) => { window.__hud.game.session.views.setFoundingShot(() => s); }, subject);
   res.on = await frames(16, 0.1);
   await g(() => window.__game.renderFrame({ settle: 1 }));

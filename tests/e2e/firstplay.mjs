@@ -243,10 +243,11 @@ export default async (ctx) => {
         result.checks.readiness = v.readiness;
         expect(v.phase === 'seal', 'the founding cell never became ready', { phase: v.phase, readiness: v.readiness });
         await render(1);
-        const camCell = await g(() => ({ state: window.__game.camera.state(), clear: window.__game.camera.clearance() }));
+        const camCell = await g(() => ({ state: window.__game.camera.state(), clear: window.__game.camera.clearance(), cell: window.__game.views.possession().cell, pose: window.__game.camera.pose() }));
         result.checks.chamberCamera = camCell;
-        expect(camCell.clear && (camCell.clear.f > 0 || camCell.clear.cutAway), 'the camera is inside solid in the chamber', camCell);
+        // the picture first (look pass 6): a failed camera check leaves the frame it failed on
         await beat('08-founding-chamber', ['founding-readiness']);
+        expect(camCell.clear && (camCell.clear.f > 0 || camCell.clear.cutAway), 'the camera is inside solid in the chamber', camCell);
         done('08');
 
         // ---- 8. sealing: E at the shaft (held seal-entrance) ------------------------------------------------------------
