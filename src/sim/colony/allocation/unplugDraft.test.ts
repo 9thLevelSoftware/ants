@@ -45,4 +45,13 @@ describe('the unplug draft (opening-fix)', () => {
     expect(forager.task).toBe('forage');
     expect(store.task).toBe('store');
   });
+
+  it('drafts only up to the floor, not up to a larger dig target (a plan\'s demand)', () => {
+    const { sim, col, forager, store } = scene();
+    const def = sim.getSpecies(col.species)!;
+    col.alloc.target[T('dig')] = 6;
+    expect(draftUnplugDiggers(sim, col, def, 1)).toBe(1);
+    expect([forager.task, store.task].filter((t) => t === 'dig').length).toBe(1);
+    expect(draftUnplugDiggers(sim, col, def, 1)).toBe(0); // the floor (1) is met; the other 5 come by the allocator
+  });
 });

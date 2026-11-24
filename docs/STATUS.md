@@ -1665,3 +1665,23 @@ outputs are git-ignored and are lost if the container is reclaimed (then rerun `
   `/home/user/keep-off-unplug`) to settle it.
 - look-pass-6: cell camera before / after replays looked at by the engineer (queen whole in the cell after); queue of
   browser runs continues (seed 2 with the cell camera, clover, light series, frame time, panels / controls / views).
+
+### Nov 24 ~09:51 UTC — check-in: the unplug draft was the cost - floor off = 15 of 15 viable; draft fixed
+
+- My floor-off arm on all 15 hand-overs of the close sweep (`test-output/opening-fix/off-unplug15-table.md`):
+  **viable 15 of 15, workers 264** (sweep with the floor: 12 of 15, 249); R19 P 0.439, trips 51.1 %.
+- Cause (engineer, traced on sg #2): `allocation/unplugDraft.ts` drafted up to the whole dig target (6 at a hand-over),
+  not up to the floor of 2 - it pulled every home ant to the plug, the forager included, for the first 700 ticks; the
+  colony without it had a honeydew tender from tick 878, the drafted one none until 10500 (stores C at +12000: 6.4
+  against 10.3). **A colony's winter sugar is decided in its first game hours: who tends, and how soon** - the lead
+  for the winter-sugar task.
+- Fix in the tree (draft only up to the floor; test red without); frozen as `/home/user/frozen-openingfix2`
+  (sim 741fec90); running: the fixed tree on all 15 hand-overs, browser seeds 1-5 again; then long runs.
+- Ruling 3's other answer: the player's founding hands over 4 workers because **`firstplay.mjs` lays 12 eggs, not the
+  24 it intends** (its second and fourth presses land 3 ticks before a batch ends and are refused); of 12 eggs the
+  model's base mortality at a "Poor" site takes 8, as the on-screen forecast ("First workers 3-5") says. Not a sim
+  defect. The script fix and a busy state for the lay prompt went to look-pass-6 (its ruling 1).
+- Full browser runs: seed 1 fails after beat 13 (no trail with 4 workers), seed 2 passes to beat 15 and fails at 16
+  (the worker cannot hand over her load: the founding cell's larder is full from the spill - R21(b)'s cap; design).
+- look-pass-6: light eased over 1.2 s at the founding shot, crossfade drawn, seeds 1 (high) and 2 (medium) pass
+  beats 01-12 with the new cameras; report draft written; panels / controls / views runs pending.

@@ -135,3 +135,44 @@ the stamps above ran ~2 h ahead: "02:30" above = ~00:30 UTC).
   do not start a copy; table it when DONE; if it is better by >= 2 viable or >= 15 workers, find what the draft leaves
   behind and make the floor release cleanly); (2) the player's founding hands over 4 workers from 12 eggs with the
   queen at 73 % reserves: answer where the 8 eggs go (defect?) and what the opening tells the player about clutch size.
+- 08:49 UTC: FULL seed 2: beats 01-15 pass (trail 0.005 via forage marker), fails 15->16 'did not hand over her load': larder cap R21(b) (founding cell only, LARDER_NEED_GD 1, stores 11.6 C full from the 400-unit spill; unload-crop ends when the pool takes nothing). Design, not fixed. Report section 3 full runs written.
+- 08:50 UTC: read rulings 2 and 3 late (missed the 06:36 note). Now: (a) clutch probe tools/sim/probe/clutchProbe.ts (seed 4 headless: where 8 of 12 eggs go); then R14 temperatures/dig rate; mask arm on the 5 long-set colonies after the integrator's off-unplug15 is DONE (machine full); off-unplug15 table when DONE.
+- 08:55 UTC: ruling 2 arm (a) queued: test-output/opening-fix/mask5.sh (cavity-only mask on we#2 sg#2 cpv#1 pp#3 kd#3 from this sweep's hand-overs, tree /home/user/scratch-of/off-mask recreated), waits for the integrator's off-unplug15 DONE. Arm (b) = the integrator's off-unplug15 (superset). (a) clutch: seed 4 headless 12 eggs -> 5 egg:base + 3 larva:base deaths -> 4 workers, queen 52/56 loads (test-output/opening-fix/headless/clutch-s4.txt). R14 dig rate: digrate-s4.txt (body T 10-13 C, work rate 0.24-0.43, 94 bites, open +1287).
+- ~08:58 UTC RULING 3 (a)/(b) ANSWERED (headless seed 4, clutch-s4.txt): the script presses lay-egg 4 times (layBatch: act,
+  step 50, stop, step 5), but a batch at the cell's 17 C takes 58 ticks (OPEN_LAY_ACTION_S 4 s / queen work rate ~0.69;
+  lay-egg is lockedAfterWindup, so 'stop' does not end it) -> presses 2 and 4 land 3 ticks before the batch ends and are
+  refused `blocked` -> 2 batches = 12 eggs instead of the script's intended 24. Same in every browser seed (all 12 eggs,
+  2 batches). Of the 12: seed 4 loses 5 eggs + 3 larvae to `base` mortality (GDD 06 §5.12 mu = 0.42 (1.1 - Q)), queen
+  ends at 52/56 loads -> 4 workers; the on-screen forecast after the clutch said "First workers 3-5" (seeds 1-4: expected
+  3.8-4.8; outcomes 4, 7, 7, 4; seed 5 forecast 0.9, got 4). Not a defect: the losses are the model's, the forecast is
+  right. Guidance on screen: "Eggs 12 of 48 / First workers 3-5 / Reserves then 76 % / Safe up to 47 eggs" (picture
+  seed1-final/10-first-clutch.png). For the app / script owner: layBatch must wait for the batch to end (poll the
+  queen's action, or step >= 60) - then the script lays its 24 like the autoplayer; a press while a batch is ending is
+  silently refused (input UX: buffer it or show "busy"). Not changed in the sim.
+- 09:02 UTC: report sections 6 (R14 numbers + restatement) and 6b (ruling 3 a/b) written. Waiting: integrator's off-unplug15 (table it), then mask5 (queued).
+- ~09:05 UTC pre-look at ruling 3's "what the draft leaves behind" on sg#2 (probes allocProbe.ts, taskTrace.ts; scratch
+  /home/user/scratch-of/off-unplug2 = frozen + floor 0; outputs headless/alloc-sg2-{on,off}.txt, tasks-sg2-{on,off}.txt):
+  both arms open the entrance by +500. ON: at +78 the draft moves 6 home ants to dig incl. the forager 5979
+  (forage.wait -> dig; back to forage only at +774); OFF: 4 diggers by the allocator at +113-123, forager stays.
+  Then OFF gets a `tend` worker at +878 and tends 1-3 from +1000 (stores C 11.3 -> 10.3 at +12000); ON has no tend
+  until +10500 (C 11.4 -> 6.4). One colony; waiting for the 15-run arm before calling it systematic.
+- 09:10 UTC DEFECT FOUND in the draft (not yet in the live tree): allocation/unplugDraft.ts drafts up to the whole dig
+  TARGET (`short = target[dig] - actual[dig]`), not up to the floor; at a hand-over the founding plan's dig demand puts
+  the target at 6, so the draft pulls everyone home and over target - the forager too (sg#2: 6 to dig at +78, forager
+  5979 off foraging until +774). Fix prepared in scratch /home/user/scratch-of/draftfix: `short = min(unplug,
+  target[dig]) - actual[dig]` + test case "drafts only up to the floor" (red without: expected 2 to be 1; green with).
+  Opening on the fix (headless hand-over snapshots, tick-exact open): s1 429 -> 400, s2 891 -> 835, s4 1287 -> 1287,
+  s5 550 -> 550. Waiting for the integrator's off-unplug15 table (ruling 3: adopt only if floor-off wins by >= 2 viable
+  or >= 15 workers; then sweep + seeds 1-5 again).
+- 09:11 UTC: draftfix on sg#2 hand-over (alloc-sg2-draftfix.txt): forager kept (forage 2 at +250), tend from ~+4750, stores C 9.96 at +12000 (current draft 6.41, floor off 10.26).
+- 09:18 UTC: off-unplug15 8/8 viable so far (we#3, sg#2 flip). mask5.sh waiting script stopped; plan if the threshold is met: apply the draftfix to the live tree, freeze /home/user/frozen-openingfix2, run the fixed tree from all 15 sweep hand-overs (draftfix15; the draft acts only after the hand-over, so the hand-over caches stay valid), then mask5; browser seeds 1-5 UNTIL=13 on the new tree in parallel.
+- 09:28 UTC: SRC/SIM CHANGED after 05:30 (ruling 3 threshold met: off-unplug15 has we#3, sg#2, pp#3 viable = +3): draftfix applied to the live tree (allocation/unplugDraft.ts + unplugDraft.test.ts). Re-freeze next.
+- 09:31 UTC: frozen /home/user/frozen-openingfix2 (freeze2.txt, sim 741fec90 = 9a8cdf07 + draftfix). Queued: draftfix15.sh (15 hand-overs on it, then mask5 arm; after the integrator's off-unplug15 DONE) and browser run-seeds2.sh (seeds 1-5 UNTIL=13 on the live tree = frozen2 -> firstplay/seedN-final2). Tests: allocation+founding 32 files green; tsc clean for my paths.
+- 09:39 UTC: FOUNDRESS_LONG playerOpening.long on the draftfix tree: 3/3 pass (long-test2.txt).
+- 09:51 UTC INTEGRATOR NOTE: off-unplug15 is DONE and tabled (test-output/opening-fix/off-unplug15-table.md):
+  **15 of 15 viable, 264 workers** against the sweep's 12 of 15 and 249 on the same hand-overs. Threshold met; your
+  draft fix (draft only up to the floor) is the right response - agreed. The close is now: draftfix15 on all 15
+  hand-overs (bar: >= 14 of 15 viable and >= 260 workers, i.e. the floor no longer costs what it cost), the five long
+  runs on the draftfix tree, browser seeds 1-5 UNTIL=13 on it, then the report. The mask arm on five colonies stays
+  optional (run it only if a slot is idle). The firstplay layBatch fix and the busy prompt went to look-pass-6
+  (its ruling 1): do not edit tests/e2e/firstplay.mjs's layBatch yourself.

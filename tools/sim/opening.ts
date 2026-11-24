@@ -6,7 +6,7 @@
 //
 // The JSON summary goes to stdout (and DIR/opening-<seed>.json with --out); a line per beat to stderr.
 // --dump-state: the whole state as JSON at that beat into DIR (to diff with firstplay.mjs FIRSTPLAY_DUMP_STATE).
-// --save-handover: a sim snapshot right after "Take a worker" (tools/sim/probe/reopenProbe.ts restores it).
+// --save-handover: a sim snapshot right after "Take a worker" (the probe test-output/opening-fix/probes/reopenProbe.ts.txt restored it).
 
 import type { Sim } from '@/sim/types';
 import { snapshot } from '@/sim/save';

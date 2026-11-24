@@ -79,3 +79,16 @@ possession camera's behaviour in tight spaces, cards), GDD 01's opening, `docs/r
 server or a browser running; never the whole vitest suite in one process; no vitest while a harness run is going. Disk
 is short (about 8 GB free): keep pictures, delete videos, traces and duplicate runs. Check `date -u` before writing a
 timestamp.
+
+## Integrator ruling 1 (09:51 UTC Nov 24) - two things the opening engineer found that are yours
+1. **`tests/e2e/firstplay.mjs` lays half the eggs it means to.** `layBatch` presses lay-egg four times (act, step 50,
+   stop, step 5), but a batch at the cell's 17 C takes 58 ticks and cannot be stopped once wound up, so presses 2 and 4
+   land 3 ticks before the batch ends and are refused `blocked`: 12 eggs in every browser seed where the script
+   intends 24, and the colony hands over 4 workers (no trail forms with 4, so the run fails right after beat 13).
+   Make `layBatch` wait for the batch to end (poll the queen's action; no fixed step count), keep every assertion as
+   it is, and rerun seed 1 past beat 13. This is a script fix, not a stand-in.
+2. **A lay-egg press while a batch is ending is silently refused.** A player mashing E loses presses the same way.
+   Either buffer one press during the last moments of a batch, or show the prompt as busy ("Laying…", greyed) until
+   the queen can lay again - whichever GDD 08's input rules say (cite them; if silent, show busy). Picture of the
+   prompt in both states; a unit test at the prompt / input layer.
+Both before you close; they come ahead of item 4's leftovers.

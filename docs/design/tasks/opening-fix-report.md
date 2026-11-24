@@ -138,7 +138,38 @@ headless driver per fixed step), and the lapse amplifies it: seed 2 hands over 7
 headless, seed 1 4 against 13. Seed 4 is the closest (hand-over tick 38810 against 38811, same seal and worker
 count). That is why seeds 3-5 were run in the browser too.
 
-**Full runs (item 6).** FULL_RUNS
+**Full runs (item 6).** One uninterrupted run per seed, no `FIRSTPLAY_UNTIL`, no stand-ins, `FIRSTPLAY_DUMP=1`
+(`test-output/opening-fix/firstplay/full-seed1{.log,/}`, `full-seed2{.log,/}`; 08:00-08:48 UTC). Both pass beats 01-13
+again (a second, independent confirmation of acceptance criterion 1) and stop later on a beat of the colony half:
+
+- **Seed 1: first failure at the 13 -> 14 trail check**, "no forager laid a trail to the food within 18000 ticks"
+  (4 workers; the script's sugar spill 88 mm from the entrance, 9000 ticks of waiting, then the player's forage marker
+  on it and 9000 more; `trail 0` at the midpoint). **Cause: sim balance by design, not a hand-over defect.**
+  Reproduced headless on the 4-worker seed-4 hand-over (`tools/sim/probe/trailProbe.ts`, archived; output
+  `test-output/opening-fix/headless/trail-s4.txt`): the spill is known at once, the one forager harvests it 9 times in
+  18000 ticks (about one trip per 8 game hours; the other three workers are nurse / queen-care / store) and switches
+  trail laying on for 3 return trips, but at most 2 trail cells are ever active (max 0.13 ph) and they never link the
+  source to the entrance: GDD 02 §8.3's dab size scales with sizeFactor(N), 0.3 at 4 workers
+  (`SIZE_FACTOR_MIN`, full strength at 75), and one weak trip every 8 hours evaporates before the next. A 4-worker
+  colony forages alone (and it has 4 workers because the script's clutch is 12 eggs, not the 24 it means: section 6b); beat 14's expectation (a trail within 3 game days) holds for the 7-worker seed 2 (below) but not
+  for 4 workers. Not changed (rebalancing is out of this task's scope); the script already has the recorded stand-in
+  `FIRSTPLAY_STANDIN_TRAIL` for this case. For the integrator / app: either the script waits for a 7+-worker colony or
+  uses the stand-in when the colony has fewer than N0 = 10 workers, or a design decision on trail strength in tiny colonies.
+- **Seed 2: beats 14 (worker following the trail, `trail 0.005`, via the forage marker) and 15 (harvesting) pass;
+  first failure at 15 -> 16**, "the worker did not hand over her load" (crop 0.24 C kept; the colony's C store 11.599 ->
+  11.600). This is the failure the spec quotes from the Nov 23 stand-in run. **Cause: the larder cap (ruling R21 (b)),
+  by design, not a defect.** The nest still has only its founding cell, so the stores are a larder of
+  `LARDER_NEED_GD` = 1 game day of the colony's need (`balance/colony.ts`, `colony/stores.ts poolCapacity`); the 400-unit
+  spill the script spawns filled it before the possessed worker came home (11.6 C was already in store at the start of
+  her walk), and `unload-crop` ends at once when the pool takes nothing (`ants/actions/defs/nestCare.ts`). R21 (b) makes
+  that refusal the trigger for the first food chamber (`larderRefusedTick`), so the cap is the designed path to it.
+  Not changed. For the app / script owner: deliver to a nestmate (`trophallaxis-give`), or wait for the food chamber,
+  or surface the refusal ("the stores are full") to the player; and the script could assert on the refusal reason
+  instead of the crop.
+
+Neither failure is in the opening (beats 01-13), and neither is a sim defect of the hand-over kind this task fixed, so
+neither was fixed here (spec item 6: "fix it if it is a sim defect of the same kind").
+
 
 
 ## 4. Sweep check (item 5)
@@ -164,9 +195,24 @@ cost by switch-off runs if viability drops below 12) is not crossed, so no switc
 workers are identical in all 15 runs on both trees (the foundings are equal up to the hand-over); the difference is
 after it: 249 workers at winter against 270-271. **Not attributed**: the closing tree of gate-sim-2 (item 4 + the
 point-field eviction fix + the tier argument) was never swept itself, and the machine had no free core for switch-off
-runs while the close and the browser runs were going. If the integrator wants it attributed: run sg #2, we #3, pp #3
-and two viable colonies from `test-output/opening-fix/cache` hand-overs with the mound-mask probe switched back
-(`moundRelax.ts buildMask`) and with the unplug floor / draft off (`UNPLUG_FLOOR_DIGGERS = 0`).
+runs while the close and the browser runs were going. **Switch-off runs anyway (informative, after the close finished):** the three non-viable colonies' own hand-over files
+(`test-output/opening-fix/cache`), run to winter on scratch copies of the final tree with one change off
+(`test-output/opening-fix/switchoff.txt`; R27 C-store ratio, viable at >= 1):
+
+| colony | control (final tree) | mound probe back to round 14's cavity-only | unplug floor + draft off |
+|---|---|---|---|
+| suburban-garden #2 | 0.59 NO | 0.53 NO | 1.51 yes |
+| woodland-edge #3 | 0.83 NO | 1.04 yes | 1.52 yes |
+| playground-park #3 | 0.77 NO | 0.38 NO | 1.27 yes |
+
+The controls reproduce the sweep's own runs exactly (the continuation from the hand-over file is the same game). The
+floor-off column looks like a cost of the floor, but `tools/sim/probe/floorProbe.ts` on the same hand-overs shows the
+floor on for **one spell of 229-321 ticks right after the hand-over and never again** in 10 game days
+(`test-output/opening-fix/floor-probe.txt`): its only direct effect is who digs for the first ~1.3 game hours. The flips
+are the chaotic divergence of a whole season from a small early difference, plus regression to the mean (the three
+runs were picked for failing; the mask switch flips one of them too). This is not evidence of a systematic cost, and
+the floor stays (R14 and seed 1 need it). A real attribution needs paired switch-off runs over all 15 foundings (or
+more seeds): about two hours of two cores.
 
 **Item 5, the paired check** (`f15-table.md`): the five sweep-15 hand-overs of the long-run set, run to winter on this
 tree from sweep 15's own hand-over files:
@@ -224,10 +270,58 @@ this task: R13 (a flood-safe site does not fill in the lapse; seed 2) and R14 (o
    +1287 (5 %), because the barred digger had meanwhile dug the founding plan through the same plug. Not worth
    changing every hand-over and restarting the sweep: reverted (06:05 UTC), the tree stayed the frozen one. Worth a
    small task: the stand point, and a pellet rule or a third digger if R14 must hold at night (a balance decision).
+   **Ruling 2's question, numbers** (`tools/sim/probe/digRateProbe.ts`, output
+   `test-output/opening-fix/headless/digrate-s4.txt`, seed-4 hand-over, game hours after it):
+
+   | hour after hand-over | diggers' mean body T | mean work rate | unseal bites | plug voxels left |
+   |---|---|---|---|---|
+   | 1 | 11.4 C | 0.33 | 10 | 201 |
+   | 2 | 10.6 C | 0.29 | 11 | 164 |
+   | 3 | 9.9 C | 0.24 | 11 | 138 |
+   | 4 | 10.9 C | 0.31 | 23 (second digger joins) | 80 |
+   | 5 | 13.0 C | 0.43 | 34 | 9 |
+   | open at +1287 ticks (5.1 h), 94 bites | | | | |
+
+   Both diggers stay on the plug the whole time once there (no rest rule, no allocation gap); the one other hold is the
+   stand-point lockout above (the second digger arrives at +719 instead of +103, cost ~63 ticks). So cold is the cause:
+   Lasius' work rate at 10-13 C is a quarter to a half of its rate at 18 C and above (the forage gate's full band starts
+   at b = 18 C), and a bite is 0.625 s of nanitic work divided by it. Weighted by the work rate, the seed-4 plug took
+   **1.7 full-rate game hours**. Proposed restatement (ruling 2): *R14 - the entrance is open within 4 game hours of the
+   hand-over, counting only time at full work rate (equivalently: within 4 game hours of the first hour in which the
+   diggers' body temperature reaches the forage gate's full band, 18 C for Lasius)*; seed 4 then meets it (it even opens
+   before the morning warms), and seeds 1 and 2 (same 12-15 C night, plugs of 108 and 223) open in 6-7 game hours of
+   cold work, which is the same rate.
 2. **The headless script is not an exact match of the browser on any seed** (section 3: config text fields from tick 1,
    input timing after that); every seed 1-5 was confirmed in the browser as well.
 3. Pre-existing red tests in the touched folders (also red on HEAD `07583fe`): `nest/escapeDig.test` (gate-sim-2 §6
    item 8), `nest/architect/layout.test` (50 ms timing under load), `nest/flood/readersCost.verify.test`.
+
+## 6b. Integrator ruling 3 (a) and (b): why a player's founding hands over 4 workers
+
+**(a) Where 8 of 12 eggs go.** Headless seed 4 (`tools/sim/probe/clutchProbe.ts`, archived; output
+`test-output/opening-fix/headless/clutch-s4.txt`): 12 eggs laid; 5 eggs and 3 larvae die of `base` mortality (GDD 06
+§5.12 step 2, mu = 0.42 (1.1 - Q) per GD, Q 0.767, over the long development of a 17 C cell), none of flood, intruder,
+cannibalism or starvation; the queen ends at 52.5 of 56 loads (the 73-76 % shown on the card). 4 workers is what the
+game's own forecast predicted: the forecast panel after the clutch read "First workers 3-5" (seeds 1-4: expected
+3.8-4.8; outcomes in the browser 4, 7, 7, 4; seed 5's forecast 0.9, outcome 4). The GDD's calibration (clutch 12 at
+Q 0.5-0.7: 3.8-5.7 workers at 19.5 C) agrees. **No defect in the lapse**; the queen keeps her reserves because the
+clutch is small, not because the brood is starved.
+
+**The real cause of the small clutch: the script lays 2 batches, not the 4 it presses.** `firstplay.mjs` (and the
+headless driver, which copies it) presses `lay-egg` four times (`layBatch`: press, 50 ticks, release, 5 ticks). In the
+cell's 17 C a batch takes 58 ticks (`OPEN_LAY_ACTION_S` 4 s divided by the queen's work rate ~0.69; `lay-egg` is
+`lockedAfterWindup`, so the release does not end it), so presses 2 and 4 come 3 ticks before the running batch ends and
+are refused `blocked` (`clutch-s4.txt`: `t 5855 action-failed lay-egg blocked`). Every browser seed shows `batches: 2`,
+`eggs: 12`. With the four batches the script means to lay (24 eggs, as the sweeps' autoplayer does) the same model gives
+8-16 first workers.
+
+**(b) What the opening tells the player.** After each batch the HUD shows (picture `seed1-final/10-first-clutch.png`):
+"Eggs 12 of 48 / First workers 3-5 / Reserves then 76 % / Safe up to 47 eggs". The guidance is there and is honest; it
+invites a much larger clutch (safe up to 44-48 on seeds 1-5). For the app engineer / script owner: (1) `layBatch` must
+wait for the batch to end (poll the queen's action, or step at least 60 ticks) - then the script lays the clutch it
+intends; (2) a press that lands while a batch is ending is refused silently - buffer it or show that the queen is busy,
+since a player pressing at a steady rhythm in a cool cell loses every other press the same way. Nothing changed in the
+sim (no design number touched without a ruling).
 
 ## 7. Contract changes (additive)
 

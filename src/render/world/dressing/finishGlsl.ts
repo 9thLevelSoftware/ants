@@ -328,7 +328,7 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
       float cell = wrCells(vec2(a * 14.0, lp.y / max(hs.y, 1e-3) * 9.0));
       c *= mix(0.86, 1.0, smoothstep(0.5, 0.15, cell));
       c = mix(c, vec3(0.55, 0.42, 0.33), smoothstep(-0.2, -0.8, lp.y / max(hs.y, 1e-3)) * 0.6);
-      if (cell > 0.5 && r > 0.97) discard; // only the very rim is ragged: from 0.85 the cell corners cut the flanks of the head into a lattice of discs
+      // no ragged rim: the cell corners cut the flanks of the head into a lattice of white discs (look pass 6)
     } else {
       float cell = wrCells(lp.xz * 0.9 + lk.w * 5.0);
       if (cell > 0.36 && r > 0.55) discard;
