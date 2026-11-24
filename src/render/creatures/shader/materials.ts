@@ -9,7 +9,7 @@ import {
 } from 'three';
 import {
   CREATURE_BEGIN_NORMAL, CREATURE_BEGIN_VERTEX, CREATURE_COLOR_FRAGMENT, CREATURE_COLOR_VERTEX, CREATURE_DEPTH_BEGIN_VERTEX, CREATURE_FRAG_PARS,
-  CREATURE_ROUGHNESS, CREATURE_VERT_PARS,
+  CREATURE_MOON_RIM, CREATURE_ROUGHNESS, CREATURE_VERT_PARS,
 } from './creatureChunk';
 import { PIT_FRAG_CLIP, PIT_FRAG_PARS, PIT_VERT_INSTANCE, PIT_VERT_MESH, PIT_VERT_MESH_PARS, PIT_VERT_PARS } from './pitDepth';
 import { CREATURE_SURFACE, PIT_DEPTH } from '../tuning';
@@ -23,15 +23,19 @@ export interface MotionUniforms {
   retract: [number, number, number, number];
 }
 
-export interface SharedCreatureUniforms { uTime: Uniform<number> }
+export interface SharedCreatureUniforms {
+  uTime: Uniform<number>;
+  /** Moon rim (app-seams-4 item 6, the same cool edge light as the ants' form light): direction toward the key light (world) and amplitude (0 by day). */
+  uMoonDir: Uniform<Vector3>; uMoonRim: Uniform<number>;
+}
 
 export function createSharedUniforms(): SharedCreatureUniforms {
-  return { uTime: new Uniform(0) };
+  return { uTime: new Uniform(0), uMoonDir: new Uniform(new Vector3(0, 1, 0)), uMoonRim: new Uniform(0) };
 }
 
 function uniformsFor(m: MotionUniforms, shared: SharedCreatureUniforms) {
   const v = (a: [number, number, number, number]) => new Uniform(new Vector4(a[0], a[1], a[2], a[3]));
-  return { uTime: shared.uTime, uLeg: v(m.leg), uWave: v(m.wave), uBody: v(m.body), uMisc: v(m.misc), uRetract: v(m.retract) };
+  return { uTime: shared.uTime, uMoonDir: shared.uMoonDir, uMoonRim: shared.uMoonRim, uLeg: v(m.leg), uWave: v(m.wave), uBody: v(m.body), uMisc: v(m.misc), uRetract: v(m.retract) };
 }
 
 function patch(shader: WebGLProgramParametersWithUniforms, withNormal: boolean): void {
@@ -56,7 +60,8 @@ function patchSurface(shader: WebGLProgramParametersWithUniforms): void {
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', '#include <common>\n' + CREATURE_FRAG_PARS)
     .replace('#include <color_fragment>', CREATURE_COLOR_FRAGMENT)
-    .replace('#include <roughnessmap_fragment>', CREATURE_ROUGHNESS);
+    .replace('#include <roughnessmap_fragment>', CREATURE_ROUGHNESS)
+    .replace('#include <emissivemap_fragment>', CREATURE_MOON_RIM);
 }
 
 export interface CreatureMatOptions {

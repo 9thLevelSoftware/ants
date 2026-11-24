@@ -307,3 +307,9 @@ export const SITE_FACTOR_WORD: Record<SiteFactor, string> = {
 
 /** Overall site words (GDD 08 §9.3). */
 export const SITE_QUALITY_WORD: Record<SiteWord, string> = { poor: 'Poor', fair: 'Fair', good: 'Good', excellent: 'Excellent' };
+
+/**
+ * The possessed worker's panel note while she carries food the colony's stores cannot take (app-seams-4 item 2; GDD 02 `stores-full`,
+ * GDD 08 5.2): why she cannot hand over her load, and what lets her. The alert of the same kind ("Stores are full") follows after a while.
+ */
+export const STORES_FULL_NOTE = 'Stores full - dig a food chamber';

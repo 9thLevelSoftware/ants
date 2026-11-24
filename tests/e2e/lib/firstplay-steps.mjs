@@ -127,6 +127,76 @@ export async function digBite(h, slopeDeg, ticks, hd) {
   }, { slope: slopeDeg, n: ticks, hd });
 }
 
+/**
+ * Soil beside an open cell, the way a player sees it in the colony view's slice: the open cells of the slice plane `planeY` connected to the open sample
+ * nearest (x, z), their centre, and for 12 directions out of it the point `dBu` BU beyond the first wall. Returns [{ x, z, dir }] (mm) or [].
+ * Reads the field only (window.__game.query.field); nothing is written. The click that follows is the player's: views.project + views.click.
+ */
+export async function soilBesideCell(h, x, z, planeY, dBu) {
+  return h.g(({ cx, cz, planeY, dBu }) => {
+    const gm = window.__game, bu = gm.query.world().bu, f = (px, pz) => gm.query.field(px, planeY, pz).f;
+    const step = 0.5 * bu, N = 40, key = (i, k) => k * (2 * N + 1) + i + N;
+    let start = null;
+    for (let d = 0; d < 12 && !start; d++) for (let i = -d; i <= d && !start; i++) for (let k = -d; k <= d && !start; k++) if (Math.max(Math.abs(i), Math.abs(k)) === d && f(cx + i * step, cz + k * step) > 0) start = [i, k];
+    if (!start) return [];
+    const seen = new Set([key(start[0], start[1])]), q = [start], cells = [];
+    while (q.length && cells.length < 3000) {
+      const [i, k] = q.pop(); cells.push([i, k]);
+      for (const [di, dk] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const a = i + di, b = k + dk; if (Math.abs(a) > N || Math.abs(b) > N || seen.has(key(a, b))) continue; seen.add(key(a, b)); if (f(cx + a * step, cz + b * step) > 0) q.push([a, b]); }
+    }
+    let mx = 0, mz = 0; for (const [i, k] of cells) { mx += i; mz += k; } mx = cx + (mx / cells.length) * step; mz = cz + (mz / cells.length) * step;
+    const out = [];
+    for (let a = 0; a < 12; a++) {
+      const th = (a / 12) * 2 * Math.PI, dx = Math.cos(th), dz = Math.sin(th);
+      let t = 0; while (t < 30 * bu && f(mx + dx * t, mz + dz * t) > 0) t += 0.25 * bu;
+      if (t >= 30 * bu) continue;
+      const px = mx + dx * (t + dBu * bu), pz = mz + dz * (t + dBu * bu);
+      if (f(px, pz) < 0) out.push({ x: px, z: pz, dir: a });
+    }
+    return out;
+  }, { cx: x, cz: z, planeY, dBu });
+}
+
+/**
+ * Plans a chamber of `type` (size small) beside the queen's cell in the colony view, as a player does it (app-seams-4 item 1): the colony view framed on the
+ * cell with the slice cut, the Dig tool, a click on the soil of the slice a little beside the open cell, the ghost turned (Q / E, 15 degrees) until it is valid.
+ * Returns { placed, preview } ({ validity, codes, reason } of the last ghost looked at). Leaves the tool off and the colony camera where it is.
+ */
+export async function placeChamberPlan(h, type, { distBu = 36, beside = 2.5 } = {}) {
+  const bu = await h.bu(), nest = await nestOf(h);
+  const ch = nest.chambers.find((c) => c.type === 'founding') ?? nest.chambers[0];
+  const c0 = ch ? ch.center : nest.origin;
+  const queen = (await h.g(() => window.__game.query.ants().find((a) => a.caste === 'queen')))?.pos ?? c0;
+  const planeYmm = Math.min(0, c0.y + 0.5 * bu);
+  await h.g(() => window.__game.camera.set('colony'));
+  await h.step(1);
+  await h.g((o) => window.__game.views.colonyCamera(o), { x: queen.x, z: queen.z, distBu, pitchDeg: 62, yawDeg: 20, cutaway: 'slice', planeYBu: c0.y / bu + 0.5, radiusBu: 50 });
+  await h.render(1); // the camera the clicks are projected with is the one drawn: a click before this frame projects with the old pose
+  await h.g(() => window.__game.views.tool('dig'));
+  await h.g((t) => window.__game.views.planner({ template: 'chamber', chamberType: t, size: 's', yawDeg: 0 }), type);
+  let placed = false, pv = null;
+  for (const sp of await soilBesideCell(h, queen.x, queen.z, planeYmm, beside)) {
+    if (placed) break;
+    const scr = await h.g((p) => window.__game.views.project(p), { x: sp.x, y: planeYmm, z: sp.z });
+    if (!scr) continue;
+    const hover = async () => (await h.g(([x, y]) => window.__game.views.hoverPlan(x, y), [scr.x, scr.y])).planner;
+    pv = await hover();
+    for (let i = 0; i < 23 && pv?.preview && pv.preview.validity === 'invalid' && !pv.preview.codes.includes('anchor-not-in-nest'); i++) {
+      await h.g(() => window.__game.views.rotate(1));
+      pv = await hover();
+    }
+    const before = (await nestOf(h)).digPlans.length;
+    if (pv?.preview && pv.preview.validity !== 'invalid') {
+      let st = await h.g(([x, y]) => window.__game.views.click(x, y), [scr.x, scr.y]);
+      if (st.message && /confirm/.test(st.message)) st = await h.g(([x, y]) => window.__game.views.click(x, y), [scr.x, scr.y]);
+      await h.step(2);
+      placed = (await nestOf(h)).digPlans.length > before;
+    }
+  }
+  await h.g(() => window.__game.views.tool(null));
+  return { placed, preview: pv?.preview ? { validity: pv.preview.validity, codes: pv.preview.codes, reason: pv.preview.reason ?? null } : null };
+}
+
 export const lastSeq = (h) => h.g(() => { const e = window.__game.events(undefined, 1); return e.length ? e[e.length - 1].seq : 0; });
 export const nestOf = async (h) => (await h.g(() => window.__game.query.nest()))[0];
 

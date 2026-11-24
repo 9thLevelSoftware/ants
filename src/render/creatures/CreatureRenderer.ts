@@ -157,6 +157,12 @@ export class CreatureRenderer {
     this.settings = creatureLodFor(q.id, q.density.crowdLod, q.shadows.enabled);
   }
 
+  /** The moon rim of the night look (shader/creatureChunk.ts CREATURE_MOON_RIM): direction toward the key light and the amplitude already scaled by the exposure (0 by day). */
+  setMoon(dir: { x: number; y: number; z: number }, amplitude: number): void {
+    this.shared.uMoonDir.value.set(dir.x, dir.y, dir.z);
+    this.shared.uMoonRim.value = Number.isFinite(amplitude) ? Math.max(0, amplitude) : 0;
+  }
+
   setLod(o: Partial<CreatureLodSettings>): CreatureLodSettings { Object.assign(this.settings, o); return this.settings; }
 
   update(frame: CreatureFrameInfo): void {

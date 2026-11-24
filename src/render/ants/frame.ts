@@ -42,6 +42,9 @@ export interface PickTarget { kind: 'ant' | 'brood' | 'item'; id: number }
 
 export interface AntRenderStats {
   ants: number;
+  /** Ants in or fading out of the camera-to-subject cone this frame, and of those the ones not drawn at all (occluderFade.ts). */
+  faded?: number;
+  hiddenAnts?: number;
   visible: [number, number, number, number];
   culled: number;
   dropped: number;

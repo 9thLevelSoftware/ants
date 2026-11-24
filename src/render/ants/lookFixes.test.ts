@@ -56,9 +56,9 @@ describe('queen wing membrane (int-1A review finding 3)', () => {
   });
 });
 
-describe('camera-to-ant capsule (GDD 01 6.5 rule 2)', () => {
-  const view = (id: number, x: number, flags = 0) => {
-    const p = { x, y: 0, z: 0 };
+describe('ants between the camera and the possessed ant (GDD 01 6.5 rule 2, ruled by the integrator)', () => {
+  const view = (id: number, x: number, flags = 0, z = 0) => {
+    const p = { x, y: 0, z };
     return {
       id, alive: true, colony: 0, caste: 'worker', pos: p, prevPos: { ...p }, up: { x: 0, y: 1, z: 0 }, prevUp: { x: 0, y: 1, z: 0 },
       fwd: { x: 0, y: 0, z: 1 }, prevFwd: { x: 0, y: 0, z: 1 }, speed: 0, footOffset: 0, medium: 'surface', lengthBu: 1, sizeClass: null,
@@ -66,29 +66,47 @@ describe('camera-to-ant capsule (GDD 01 6.5 rule 2)', () => {
     };
   };
 
-  it('spans from the camera to the possessed ant with radius 0.6 L, and is off without a possessed ant', async () => {
-    const { CAMERA_CAPSULE } = await import('./tuning');
+  it('ants in the cone between camera and subject, nearer than half the boom, fade out with alpha and are then not drawn', () => {
     const camera = new PerspectiveCamera(40, 16 / 9, 0.1, 5000);
-    camera.position.set(-20, 10, 0); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
+    camera.position.set(-40, 3, 0); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
     const r = new AntRenderer();
     r.init({ scene: new Scene(), camera, quality: getPreset('test') });
-    const shared = (r as unknown as { shared: { uCapA: { value: { x: number } }; uCapB: { value: { x: number; y: number } }; uCapR: { value: number } } }).shared;
-    const ants = [view(1, 0), view(2, -10)];
+    // subject at x = 0; ant 2 stands in the cone near the camera, ant 3 is beside it, ant 4 is behind the subject, ant 5 is in the far half
+    const ants = [view(1, 0), view(2, -32), view(3, -32, 0, 14), view(4, 14), view(5, -10)];
     const state = { tick: 0, ants, brood: [], items: [], colonies: [{ id: 0, species: 'lasius-niger' }], player: { possessedAntId: 1 } };
     r.setSim({ state } as never);
     const frame = { dt: 1 / 60, time: 0, alpha: 1, camera, viewportHeightPx: 720 };
+    const hidden = (id: number): number => (r as unknown as { states: { peek(id: number): { hidden: number } | undefined } }).states.peek(id)?.hidden ?? -1;
     r.update(frame);
-    const L = 4; // lengthBu 1 x Lasius BU 4 mm
-    expect(shared.uCapR.value).toBeCloseTo(CAMERA_CAPSULE.radiusL * L, 6);
-    expect(shared.uCapA.value.x).toBe(-20);
-    expect(shared.uCapB.value.x).toBeCloseTo(0, 6);
-    expect(shared.uCapB.value.y).toBeGreaterThan(0); // the thorax, above the feet
-    // photo mode with the rim hidden: no capsule (the possessed ant would read as "another ant" inside it)
-    r.update({ ...frame, hidePossessedHighlight: true });
-    expect(shared.uCapR.value).toBe(0);
+    r.update(frame);
+    // mid-fade: still drawn, with alpha between (the batches are blended while anything fades)
+    expect(hidden(2)).toBeGreaterThan(0);
+    expect(hidden(2)).toBeLessThan(1);
+    const mat = (r as unknown as { store: { entries: { lods: { mesh: { material: { transparent: boolean } } }[] }[] } }).store.entries[0]!.lods[0]!.mesh.material;
+    expect(mat.transparent).toBe(true);
+    for (let i = 0; i < 40; i++) r.update(frame);
+    expect(hidden(2)).toBe(1);
+    expect(hidden(1)).toBe(0); // the possessed ant is never faded away
+    expect(hidden(3)).toBe(0);
+    expect(hidden(4)).toBe(0);
+    expect(hidden(5)).toBe(0); // past half the boom
+    const drawnHidden = r.stats.visible.reduce((a, b) => a + b, 0);
+    expect(mat.transparent).toBe(false); // nothing is mid-fade any more: the crowd is opaque again
+    // the ant steps out of the cone: it comes back with alpha, solid at the end
+    ants[1] = view(2, -32, 0, 4.6);
+    r.update(frame);
+    expect(hidden(2)).toBeLessThan(1);
+    expect(hidden(2)).toBeGreaterThan(0);
+    for (let i = 0; i < 60; i++) r.update(frame);
+    expect(hidden(2)).toBe(0);
+    expect(r.stats.visible.reduce((a, b) => a + b, 0)).toBe(drawnHidden + 1); // she is drawn again
+    // photo mode with the rim hidden, and no possessed ant: nothing fades
+    ants[1] = view(2, -32);
+    for (let i = 0; i < 40; i++) r.update({ ...frame, hidePossessedHighlight: true });
+    expect(hidden(2)).toBe(0);
     state.player.possessedAntId = -1;
-    r.update(frame);
-    expect(shared.uCapR.value).toBe(0);
+    for (let i = 0; i < 40; i++) r.update(frame);
+    expect(hidden(2)).toBe(0);
     r.dispose();
   });
 

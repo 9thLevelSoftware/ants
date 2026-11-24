@@ -5,7 +5,9 @@ import { tsAt, tsToArray } from '@/core/timeSeries';
 import type { Ant, Colony, Sim, Task } from '@/sim/types';
 import { AntFlag, REASON_CODES } from '@/sim/types';
 import { promptView, type PromptLine } from '@/sim/ants/player';
-import { daysOfStock } from '@/sim/colony';
+import { daysOfStock, poolSpace } from '@/sim/colony';
+import { STORES_FULL_SPACE } from '@/sim/balance/colony';
+import { TROPH_DONOR_MIN } from '@/sim/balance/actions';
 import { activeAlerts, currentAims, queenHandedOver } from '@/sim/progression';
 import { alertText } from '@/content/text';
 import { GROUP_TASKS } from '@/sim/colony/allocation';
@@ -161,6 +163,18 @@ function homeOf(sim: Sim, a: Ant): { angleDeg: number; distBu: number } | null {
   return { angleDeg: Math.round(deg), distBu: Math.round(Math.sqrt(bestD) / sim.world.bu) };
 }
 
+/**
+ * The ant carries food in her crop and the colony's pool has no room for that kind (poolSpace under STORES_FULL_SPACE, the same test as the
+ * stores-full alert): a `unload-crop` ends at once and a forager rests with a full crop. The panel says so (app-seams-4 item 2).
+ */
+export function carriesIntoFullStores(sim: Sim, a: Ant): boolean {
+  if (a.caste === 'queen' || a.caste === 'gyne' || a.caste === 'male') return false;
+  const col = sim.stores.colonies.get(a.colony);
+  if (!col) return false;
+  const space = poolSpace(col);
+  return (a.cropC > TROPH_DONOR_MIN && space.c < STORES_FULL_SPACE) || (a.cropP > TROPH_DONOR_MIN && space.p < STORES_FULL_SPACE);
+}
+
 export function possessedOf(sim: Sim, underground: boolean): UiPossessed | null {
   const a = sim.stores.ants.get(sim.state.player.possessedAntId);
   if (!a) return null;
@@ -179,6 +193,7 @@ export function possessedOf(sim: Sim, underground: boolean): UiPossessed | null 
     heatStress: a.heatLoad >= HEAT_STRESS_LOAD || a.thermalState === 'heat-stupor',
     home: underground ? null : homeOf(sim, a),
     colonyOrders: isQueen && queenHandedOver(sim),
+    storesFull: carriesIntoFullStores(sim, a),
   };
 }
 

@@ -13,6 +13,8 @@ taken from the first DIR that has it. Columns per colony and year:
                  sugar, other = with protein loads, unknown), loads
   C out          carbohydrate spent from the pool in the year (workers, queen, larvae, spoiled, rations), loads
   needC>0 days   summer and autumn days of the year whose mean needC was > 0.05 (demand asking for sugar)
+  tend unserved  summer and autumn days (doy 8-19) with needC > 0.3: the sum of the day's mean tend demand less its
+                 mean tend target (worker-equivalents x days), and the days whose tend target was < 0.5 with demand >= 1
   winter         C in store / R27 need at the winter's first row (year 1: the last row before the lapse) and the
                  ratio; workers then
 """
@@ -58,8 +60,8 @@ def fmt(v, nd=1):
 
 
 def main(dirs):
-    print('| colony | year | first tender (y1: ticks after open; y2: spring doy) | tend gd (share of tend+forage) | herds workable / known (doy 11) | C in by source | C in | C out | needC>0 days (summer+autumn) | winter C / R27 need (ratio) | workers at winter |')
-    print('|---|---|---|---|---|---|---|---|---|---|---|')
+    print('| colony | year | first tender (y1: ticks after open; y2: spring doy) | tend gd (share of tend+forage) | herds workable / known (doy 11) | C in by source | C in | C out | needC>0 days (summer+autumn) | tend unserved (worker-days; days at 0) | winter C / R27 need (ratio) | workers at winter |')
+    print('|---|---|---|---|---|---|---|---|---|---|---|---|')
     for name, f in runs(dirs).items():
         rep = json.load(open(f))
         s = rep.get('sugar')
@@ -82,6 +84,9 @@ def main(dirs):
                     cin[k] = cin.get(k, 0) + v
             cout = sum(sum(x['cOut'].values()) for x in sd)
             asking = sum(1 for x in sd if x['doy'] >= 8 and x['needC'] > 0.05)
+            short = [x for x in sd if 8 <= x['doy'] <= 19 and x['needC'] > 0.3]
+            gap = sum(max(0, x['tendDemand'] - x['tendTarget']) for x in short)
+            zero = sum(1 for x in short if x['tendDemand'] >= 1 and x['tendTarget'] < 0.5)
             byc = ', '.join(f"{SHORT.get(k, k)} {v:.1f}" for k, v in sorted(cin.items(), key=lambda kv: -kv[1]) if v >= 0.05)
             if win is not None:
                 need = win.get('winterStoresNeedC') or 0
@@ -91,7 +96,7 @@ def main(dirs):
                 wtxt, wn = 'not reached', '-'
             print(f"| {name} | {y} | {first} | {tend:.1f} ({100 * tend / max(1e-9, tend + forage):.0f} %) | "
                   f"{(str(mid['herdsWorkable']) + ' / ' + str(mid['herdsKnown'])) if mid else '-'} | {byc or '-'} | "
-                  f"{sum(cin.values()):.1f} | {cout:.1f} | {asking} | {wtxt} | {wn} |")
+                  f"{sum(cin.values()):.1f} | {cout:.1f} | {asking} | {gap:.1f} ({zero}) | {wtxt} | {wn} |")
 
 
 if __name__ == '__main__':

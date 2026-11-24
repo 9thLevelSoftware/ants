@@ -12,6 +12,7 @@ import { TICKS_PER_DAY } from '@/sim/time';
 import { foundingActions, publishFounding, type FoundingActions } from '@/ui/screens/founding/store';
 import type { GameSession } from '../../session';
 import type { GameMode } from '../../time/speedRules';
+import { cardFraming } from './cardFraming';
 import { FSHOT_CARD_FILL, FSHOT_CARD_LIFT, FSHOT_FILL, type FoundingShotSubject } from '@/render/camera';
 import { buildFoundingUi, type FlowFlags } from './flowView';
 import { foundingShotSubject } from './shotSubject';
@@ -189,11 +190,14 @@ export class FoundingFlow implements FoundingActions {
 
   /** The shot's subject this frame: the cell centred while the lapse plays, shifted up behind the card once there is one. */
   private shotSubjectNow(): FoundingShotSubject | null {
-    const s = this.sim ? foundingShotSubject(this.sim, this.shotSubject) : null;
-    if (!s) return null;
     const card = this.phase() !== 'timelapse';
-    s.lift = card ? FSHOT_CARD_LIFT : 0;
-    s.fill = card ? FSHOT_CARD_FILL : FSHOT_FILL;
+    const s = this.sim ? foundingShotSubject(this.sim, this.shotSubject, card) : null;
+    if (!s) return null;
+    if (card) {
+      // behind a card: the whole cell between the top of the screen and the card's top edge (cardFraming.ts)
+      const f = typeof document !== 'undefined' ? cardFraming(window.innerHeight, parseFloat(document.documentElement.style.fontSize) || 16) : { lift: FSHOT_CARD_LIFT, fill: FSHOT_CARD_FILL };
+      s.lift = f.lift; s.fill = f.fill;
+    } else { s.lift = 0; s.fill = FSHOT_FILL; }
     return s;
   }
 

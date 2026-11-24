@@ -23,6 +23,8 @@ export interface FoundingShotSubject {
    */
   lift?: number;
   fill?: number;
+  /** The subject sphere counts as at least this many BU across half (default FSHOT_MIN_RADIUS_BU): a subject that is the whole cell (card shot) may be smaller than a lone queen's frame. */
+  minRadiusBu?: number;
   /**
    * The queen's own frame, when she is part of the subject (the cards' shot): where she stands, her surface normal and heading, her length.
    * With it the view director takes the cell camera's choice between the view from above and the side view, so a queen on a steep wall of the
@@ -36,7 +38,7 @@ export interface FoundingShotSubject {
 /** Copies the numbers of a subject (no allocation). */
 export function copyShotSubject(out: FoundingShotSubject, s: FoundingShotSubject): FoundingShotSubject {
   out.x = s.x; out.y = s.y; out.z = s.z; out.radius = s.radius; out.cutY = s.cutY;
-  out.lift = s.lift ?? 0; out.fill = s.fill ?? FSHOT_FILL;
+  out.lift = s.lift ?? 0; out.fill = s.fill ?? FSHOT_FILL; out.minRadiusBu = s.minRadiusBu;
   out.ant = s.ant;
   return out;
 }
@@ -104,7 +106,7 @@ export function applyLift(o: CameraPose, lift: number): void {
  * (cellCam.ts) frames one ant, not a chamber.
  */
 export function foundingShotAt(out: FoundingShot, s: FoundingShotSubject, yawRad: number, bu: number, minRadiusBu = FSHOT_MIN_RADIUS_BU): FoundingShot {
-  const r = Math.max(s.radius, minRadiusBu * bu);
+  const r = Math.max(s.radius, (s.minRadiusBu ?? minRadiusBu) * bu);
   const d = foundingShotDistance(r, s.fill), p = FSHOT_PITCH_DEG * DEG, cp = Math.cos(p);
   const o = out.pose;
   o.pos.x = s.x + Math.sin(yawRad) * cp * d;

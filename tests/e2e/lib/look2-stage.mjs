@@ -55,7 +55,7 @@ export async function stage(page, log, { arch = null, seed = 1 } = {}) {
   const frames = () => g(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const statsNow = async (benchN) => g((n) => {
     const p = window.__game.perf();
-    return { drawCalls: p.drawCalls, triangles: p.triangles, frameMs: p.frameMs, world: p.renderers.world };
+    return { drawCalls: p.drawCalls, triangles: p.triangles, frameMs: p.frameMs, world: p.renderers.world, ants: p.renderers.ants ?? null };
   }, benchN);
 
   // --- scenario staging -------------------------------------------------------------------------------------------

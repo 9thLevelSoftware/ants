@@ -8,7 +8,7 @@ import { buildAntVariant } from './geometry/buildAnt';
 import type { AntVariant } from './geometry/rig';
 import { morphCaste, resolveMorph, variantKey, type AppearanceLike } from './morph/catalog';
 import { InstanceBatch } from './batches';
-import { makeAntDepthMaterial, makeAntMaterial, makeWingMaterial, type SharedAntUniforms } from './shader/materials';
+import { makeAntDepthMaterial, makeAntMaterial, makeWingMaterial, setFadeBlend, type SharedAntUniforms } from './shader/materials';
 import { PART } from './geometry/rig';
 import type { ItemDef } from './items/itemDef';
 
@@ -106,6 +106,14 @@ export class VariantStore {
   /** Flags the used ranges of every batch for upload (end of a frame). */
   commitAll(): void {
     for (const e of this.entries) { for (const b of e.lods) b.commit(); e.wings?.commit(); for (const b of e.items.values()) b.commit(); }
+  }
+
+  /** Blends (or stops blending) every body and carried-item material: on while an ant fades out of the camera cone (shader/materials.ts). */
+  setFadeBlend(on: boolean): void {
+    for (const e of this.entries) {
+      for (const b of e.lods) setFadeBlend(b.mesh.material as Material, on);
+      for (const b of e.items.values()) setFadeBlend(b.mesh.material as Material, on);
+    }
   }
 
   forEachBatch(fn: (b: InstanceBatch) => void): void {

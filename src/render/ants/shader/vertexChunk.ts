@@ -16,7 +16,7 @@
  *   aExtra  x ants: leg spread 0..1 (falling) | carried-item batches: item size factor  y highlight (+ possessed, - hovered)
  *           z callow 0..1  w antenna activity (1 normal, 0 calm, 2 searching / alarmed)
  *   aFootA  foot placement of tripod A (L1 R2 L3): x angle (rad), y, z offset (body frame, rig units)  w walking direction +1 / -1
- *   aFootB  the same for tripod B (R1 L2 R3)  w unused
+ *   aFootB  the same for tripod B (R1 L2 R3)  w hidden 0..1: the ant is fading out of the camera-to-subject cone (alpha = 1 - w, occluderFade.ts)
  *
  * Feet do not slide: the CPU (gait.ts) tracks each tripod's placement through its stance with the exact inverse of the
  * body's motion (forward, sideways, turning), so a stance foot here is just R(angle) * restFoot + offset. In swing the
@@ -57,10 +57,7 @@ varying vec3 vAntMat;   // x roughness override (<0: none), y sheen gain, z 1 = 
 varying vec3 vRest;     // rest-frame position (eye facets, cuticle micro-variation)
 varying float vAntHi;   // highlight (+ possessed, - hovered)
 varying vec2 vAntK;      // x clearcoat gain (1 on sclerites, low on a stretched membrane: dull, not glassy), y form-light rim gain (thin legs and antennae are all edge: a full rim drew them as pale wire)
-varying float vCapIn;   // 1: an ant other than the possessed one inside the camera-to-ant capsule (GDD 01 6.5 rule 2)
-uniform vec3 uCapA;     // capsule: camera position (world, mm)
-uniform vec3 uCapB;     // capsule: the possessed ant's thorax (world, mm)
-uniform float uCapR;    // capsule radius, mm (0 = off)
+varying float vAntA;    // 1 - hidden: alpha of an ant fading out of the camera-to-subject cone (GDD 01 6.5 rule 2, occluderFade.ts)
 
 mat3 antRotAxis(vec3 k, float a) {
   float c = cos(a), s = sin(a), t = 1.0 - c;
@@ -219,13 +216,7 @@ export const ANT_COLOR_VERTEX = /* glsl */ `#include <color_vertex>
   vAntK = vec2(1.0, 1.0);
   if (aRig.x > 5.5 && aRig.x < 6.5) vAntK.x = 1.0 - ${GASTER_MEMBRANE.clearcoatCut.toFixed(2)} * aRig.w * smoothstep(${GASTER_MEMBRANE.fullFrom.toFixed(2)}, ${GASTER_MEMBRANE.fullTo.toFixed(2)}, aPose.z);
   if (aRig.x > 2.5 && aRig.x < 5.5) vAntK.y = ${ANT_FILL_RIM_THIN.toFixed(3)};
-  vCapIn = 0.0;
-  if (uCapR > 0.0 && aExtra.y <= 0.0) {
-    vec3 antO = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-    vec3 ab = uCapB - uCapA;
-    float h = clamp(dot(antO - uCapA, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
-    if (length(antO - uCapA - ab * h) < uCapR) vCapIn = 1.0;
-  }
+  vAntA = 1.0 - aFootB.w;
   vAntMat = vec3(-1.0, 1.0, 0.0);
   if (aRig.x > 2.5 && aRig.x < 5.5) vAntMat.y = ${CUTICLE.hairRimSheen.toFixed(3)};
   if (aRig.x > 0.5 && aRig.x < 1.5 && aRig.w > 0.5) vAntMat = aRig.w > 1.5 ? vec3(0.08, 0.0, 0.0) : vec3(0.22, 0.15, 1.0);

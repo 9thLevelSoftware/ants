@@ -6,7 +6,7 @@
  * blended pose), cull against the frustum, stage its instance data, pick LODs under the caps (the possessed ant is
  * always drawn at LOD0), then copy the staged data into the batches and upload only the used ranges.
  */
-import { Color, Frustum, Group, Matrix4, Sphere, type PerspectiveCamera } from 'three';
+import { Color, Frustum, Group, Matrix4, Sphere, Vector3, type PerspectiveCamera } from 'three';
 import type { QualityPreset } from '@/render/app/quality';
 import type { AntFrameInfo, AntRenderContext, AntRenderStats, PickTarget } from './frame';
 import {
@@ -16,7 +16,8 @@ import { AntStateTable, smoothFactors, stepAntState, trackOffscreen, type Smooth
 import { footTarget } from './gait';
 import { copyPose, poseTarget, withAlarm, withCarry, NEUTRAL_POSE, type PoseTarget } from './poses';
 import { selectLods, type SelectResult } from './select';
-import { ANT_FILL, CAMERA_CAPSULE, GAIT, HIGHLIGHT, lodSettingsFor, type AntLodSettings } from './tuning';
+import { ANT_FILL, GAIT, HIGHLIGHT, lodSettingsFor, type AntLodSettings } from './tuning';
+import { fullyHidden, occluderWeight, stepHidden } from './occluderFade';
 import { createSharedUniforms, type SharedAntUniforms } from './shader/materials';
 import { VariantStore } from './variantStore';
 import { ItemCatalog, type ItemRef } from './items/catalog';
@@ -53,6 +54,8 @@ export class AntRenderer {
   private vIdx = new Int32Array(0); private stagedId = new Int32Array(0); private stagedCount = 0; private carryKey: (string | null)[] = []; private carrySize = new Float32Array(0);
   private winged = new Uint8Array(0);
   private sel: SelectResult = { counts: [0, 0, 0, 0], dropped: 0, sorted: false };
+  /** The possessed ant of the last frame (thorax and length, mm): the subject other ants fade away from (occluderFade.ts). */
+  private subject = { pos: new Vector3(), lengthMm: 1, valid: false };
   private frustum = new Frustum(); private pm = new Matrix4(); private sph = new Sphere();
   private carriedBrood = new Map<number, BroodSample>(); private carriedItems = new Map<number, ItemSample>();
   private broodPool = new SamplePool(newBroodSample); private itemPool = new SamplePool(newItemSample);
@@ -108,6 +111,12 @@ export class AntRenderer {
     this.shared.uHiWarm.value.copy(HI_WARM_BASE).multiplyScalar(k);
     this.shared.uHiCool.value.copy(HI_COOL_BASE).multiplyScalar(k);
     this.updateFill();
+  }
+
+  /** The key light for the moon rim: its direction (toward it, world) and the night weight; the world slot sets it every frame (ANT_MOON_RIM). */
+  setMoon(dir: { x: number; y: number; z: number }, weight: number): void {
+    this.shared.uMoonDir.value.set(dir.x, dir.y, dir.z);
+    this.shared.uMoonK.value = Number.isFinite(weight) ? Math.min(1, Math.max(0, weight)) : 0;
   }
 
   /** Underground blend of the form light (eased in update()) and the dim-scene blend that follows the exposure. */
@@ -188,7 +197,12 @@ export class AntRenderer {
     let n = 0, culled = 0;
     const smp = this.sample;
     const predicted = frame.possessedPose ?? null, possessedId = reader.possessedId;
-    this.shared.uCapR.value = 0; // set below when the possessed ant is drawn
+    // GDD 01 6.5 rule 2: the possessed ant of the previous frame is the subject the others fade away from (one frame of lag is
+    // invisible under the fade's own time constant); none while photo mode hides her rim or the rig is not third-person
+    const subject = this.subject;
+    const subjectOn = subject.valid && !this.hidePossessedRim;
+    subject.valid = false;
+    let fading = false, fadedN = 0, hiddenN = 0;
     for (const a of ants) {
       if (!reader.isLive(a)) continue;
       reader.readAnt(a, frame.alpha, smp, predicted && a.id === possessedId ? predicted : null);
@@ -207,13 +221,13 @@ export class AntRenderer {
       this.sph.center.set(smp.pos.x + smp.up.x * L * 0.1, smp.pos.y + smp.up.y * L * 0.1, smp.pos.z + smp.up.z * L * 0.1);
       this.sph.radius = L * (v.wings ? 1.3 : 0.9) + (smp.carryKind !== 'none' ? L : 0);
       if (!smp.possessed && !this.frustum.intersectsSphere(this.sph)) { trackOffscreen(st, smp); culled++; continue; }
-      // GDD 01 6.5 rule 2: the capsule from the camera to the possessed ant's thorax. Not while photo mode hides the
-      // possession rim: the shader tells the possessed ant apart by its rim, so without it she was dithered inside
-      // her own capsule (gate-close-app, e2e/photo/02-f1.4-focus-subject.png: a dotted queen)
-      if (smp.possessed && !this.hidePossessedRim) {
-        this.shared.uCapA.value.copy(camPos);
-        this.shared.uCapB.value.copy(this.sph.center);
-        this.shared.uCapR.value = CAMERA_CAPSULE.radiusL * L;
+      if (smp.possessed) {
+        subject.pos.copy(this.sph.center); subject.lengthMm = L; subject.valid = true;
+        st.hidden = 0; // she is never faded away
+      } else {
+        const w = subjectOn ? occluderWeight(camPos, subject.pos, subject.lengthMm, this.sph.center, L) : 0;
+        st.hidden = st.hidden > 0 || w > 0 ? stepHidden(st.hidden, w, dt) : 0;
+        if (st.hidden > 0) { fadedN++; if (fullyHidden(st.hidden)) hiddenN++; else fading = true; } // blend only while one is mid-fade (a hidden one is not drawn)
       }
       // carried thing and its carry pose
       let ck: string | null = null, cs = 0;
@@ -237,6 +251,7 @@ export class AntRenderer {
     }
     this.states.sweep(this.stamp);
     this.stagedCount = n;
+    this.store.setFadeBlend(fading);
 
     // ---- pass 2: LOD + caps, then write batches
     const t1 = performance.now();
@@ -246,6 +261,7 @@ export class AntRenderer {
     for (let i = 0; i < n; i++) {
       let lod = this.lod[i]!;
       if (lod < 0) continue;
+      if (fullyHidden(this.stage[i * STRIDE + 43]!)) { this.sel.counts[lod]!--; continue; } // faded out of the camera's cone: not drawn, no shadow (stats count what is drawn)
       if (this.forceLod !== null && !this.forced[i]) lod = this.forceLod;
       const e = this.store.entries[this.vIdx[i]!]!;
       const b = e.lods[lod]!;
@@ -275,6 +291,7 @@ export class AntRenderer {
     }
     const st = this.stats;
     st.ants = n + culled; for (let k = 0; k < 4; k++) st.visible[k] = this.sel.counts[k]!;
+    st.faded = fadedN; st.hiddenAnts = hiddenN;
     st.culled = culled; st.dropped = this.sel.dropped; st.wings = wings; st.carried = carried;
     st.looseItems = this.loose.drawn; st.drawCalls = calls + this.loose.drawCalls; st.triangles = tris + this.loose.triangles;
     st.cpuMs = performance.now() - t0; st.sampleMs = t1 - t0; st.uploadMs = t2 - t1;
@@ -341,7 +358,7 @@ export class AntRenderer {
     S[o + 32] = Math.max(p.spread, smp.airborne ? 0.8 : 0); S[o + 33] = this.highlightOf('ant', smp.id, smp.possessed); S[o + 34] = smp.callow; S[o + 35] = p.antenna;
     const pl = g.feet;
     S[o + 36] = pl[0]!; S[o + 37] = pl[1]!; S[o + 38] = pl[2]!; S[o + 39] = g.dir;
-    S[o + 40] = pl[3]!; S[o + 41] = pl[4]!; S[o + 42] = pl[5]!; S[o + 43] = 0;
+    S[o + 40] = pl[3]!; S[o + 41] = pl[4]!; S[o + 42] = pl[5]!; S[o + 43] = st.hidden;
   }
 
   /** Copies staged ant i into the next slot of batch b (plain loops: no typed-array views per ant). */

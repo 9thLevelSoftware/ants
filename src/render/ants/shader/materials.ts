@@ -12,19 +12,19 @@ import type { AntRig, V4 } from '../geometry/rig';
 import type { V3 } from '../geometry/meshBuilder';
 import { ANT_COLOR_VERTEX, ANT_VERT_PARS } from './vertexChunk';
 import { ANT_EMISSIVE, ANT_FILL, ANT_FRAG_PARS, ANT_NORMAL, ANT_ROUGHNESS, ANT_SHEEN, WING_COLOR, WING_EMISSIVE, WING_FRAG_PARS } from './fragmentChunk';
-import { CAMERA_CAPSULE, CUTICLE, HIGHLIGHT, WING_LOOK } from '../tuning';
+import { CUTICLE, HIGHLIGHT, WING_LOOK } from '../tuning';
 
 /** Uniforms shared by every ant material (one object each, so updating .value once updates all). */
 export interface SharedAntUniforms {
   uTime: Uniform<number>; uHiWarm: Uniform<Color>; uHiCool: Uniform<Color>;
   /** Opacity of the possessed ant (third-person camera fade, GDD 01 6.5), drawn as an ordered dither; 1 = solid. */
   uSubjectOpacity: Uniform<number>;
-  /** Camera-to-possessed-ant capsule (GDD 01 6.5 rule 2): ends (world mm), radius mm (0 = off), opacity of ants inside. */
-  uCapA: Uniform<Vector3>; uCapB: Uniform<Vector3>; uCapR: Uniform<number>; uCapOpacity: Uniform<number>;
   /** Form light (tuning.ts ANT_FILL): body and rim amplitudes already scaled by 2^-EV and the dim-scene blend; colour. */
   uFillBody: Uniform<number>; uFillRim: Uniform<number>; uFillCol: Uniform<Color>;
   /** Night weight of the form light, 0..1 (not scaled by the exposure): the wings' night body. */
   uFillK: Uniform<number>;
+  /** Moon rim (app-seams-4 item 6): the direction toward the key light (world, unit) and its weight 0..1 (the night weight while the moon is the key). */
+  uMoonDir: Uniform<Vector3>; uMoonK: Uniform<number>;
 }
 
 export function createSharedUniforms(): SharedAntUniforms {
@@ -33,8 +33,8 @@ export function createSharedUniforms(): SharedAntUniforms {
     uHiWarm: new Uniform(new Color(HIGHLIGHT.warm).multiplyScalar(HIGHLIGHT.warmGain)),
     uHiCool: new Uniform(new Color(HIGHLIGHT.cool).multiplyScalar(HIGHLIGHT.coolGain)),
     uSubjectOpacity: new Uniform(1),
-    uCapA: new Uniform(new Vector3()), uCapB: new Uniform(new Vector3()), uCapR: new Uniform(0), uCapOpacity: new Uniform(CAMERA_CAPSULE.opacity),
     uFillBody: new Uniform(0), uFillRim: new Uniform(0), uFillCol: new Uniform(new Color(1, 1, 1)), uFillK: new Uniform(0),
+    uMoonDir: new Uniform(new Vector3(0, 1, 0)), uMoonK: new Uniform(0),
   };
 }
 
@@ -87,8 +87,22 @@ export function makeAntMaterial(rig: AntRig, shared: SharedAntUniforms, o: AntMa
     patchVertex(shader, true);
     patchFragment(shader, !!o.physical);
   };
-  mat.customProgramCacheKey = () => `ant-body-${o.physical ? 'p' : 's'}${o.transparent ? 't' : ''}`;
+  mat.userData.baseTransparent = !!o.transparent;
+  // the key follows the live flag: setFadeBlend() switches the class while an ant fades (both programs stay cached)
+  mat.customProgramCacheKey = () => `ant-body-${o.physical ? 'p' : 's'}${mat.transparent ? 't' : ''}`;
   return mat;
+}
+
+/**
+ * Blends a body material while some ant is fading out of the camera cone (GDD 01 6.5 rule 2): the instances carry their own alpha
+ * (aFootB.w), which an opaque program ignores. Off again when nothing fades, so the crowd is drawn opaque (and early-z'd) the rest of the time.
+ */
+export function setFadeBlend(mat: Material, on: boolean): boolean {
+  const want = on || mat.userData.baseTransparent === true;
+  if (mat.transparent === want) return false;
+  mat.transparent = want;
+  mat.needsUpdate = true;
+  return true;
 }
 
 /** Wing material: hyaline membrane with procedural venation and pterostigma, thin-film iridescence. */

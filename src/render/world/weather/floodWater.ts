@@ -1,36 +1,77 @@
-// Water standing in flooded nest cavities (GDD 03 App. F12): one flat sheet at the nest's water level over every
-// flooded carve sample that is open but dry above (src/sim/nest/flood floodSurface). Rebuilt when the level or the
-// cell count changes, at most every FLOOD_REBUILD_S. Slightly emissive so it reads in the dim nest light; a faint
-// moving sheen when the clock runs.
-import { BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial } from 'three';
+// Water standing in flooded nest cavities (GDD 03 App. F12): the surface of the nest's water at its level over the
+// flooded carve samples that are open but dry above (src/sim/nest/flood floodSurface), meshed as a lattice with the
+// carve grid's openness at that height as the shore value (floodShore.ts), so it ends at the cavity's outline with a
+// soft shore. Rebuilt when the level or the cell count changes, at most every FLOOD_REBUILD_S. The shader (water
+// look of the outdoor puddle, decor/water: depth tint, Fresnel opacity, meniscus line, faint ripples) is below.
+import { BufferGeometry, Color, DoubleSide, Group, Mesh, MeshStandardMaterial, Uniform } from 'three';
 import type { Sim } from '@/sim/types';
 import { floodSurface } from '@/sim/nest/flood/surface';
-import {
-  FLOOD_LEVEL_EPS_MM, FLOOD_REBUILD_S, FLOOD_WATER_EDGE_ALPHA, FLOOD_WATER_EMISSIVE, FLOOD_WATER_ENV, FLOOD_WATER_OPACITY, FLOOD_WATER_RGB, FLOOD_WATER_ROUGHNESS,
-} from './tuning';
+import { GLSL_NOISE } from '../materials/glsl';
+import { opennessAt, shoreGeometry, SHORE_ISO, waterDepthMm } from './floodShore';
+import { FLOOD_LEVEL_EPS_MM, FLOOD_REBUILD_S, FLOOD_WATER } from './tuning';
 
 interface Sheet { mesh: Mesh; level: number; cells: number }
+
+const f3 = (a: readonly number[]) => `vec3(${a.map((x) => x.toFixed(4)).join(', ')})`;
+const W = FLOOD_WATER;
+
+/** The shader patch of the flood sheet (exported for the tests: it must compile in three's chunk layout). */
+export function floodWaterFragment(frag: string): string {
+  return frag
+    .replace('#include <common>', `#include <common>\n${GLSL_NOISE}\nuniform float uFloodTime;\nvarying float vShore; varying float vFlDepth; varying vec3 vFlW;`)
+    .replace('#include <map_fragment>', `
+// the sheet ends where the wall closes the cavity (shore value at its iso level) and where the floor comes up to the water (depth 0): both lines are
+// interpolated across the lattice, so the outline is smooth to well under a voxel
+float flS = min((vShore - ${SHORE_ISO.toFixed(3)}) / ${(1 - SHORE_ISO).toFixed(3)}, vFlDepth / ${W.depthSoftMm.toFixed(3)});   // 0 at the shore .. 1 well inside
+if (flS <= 0.0) discard;
+float flDeep = smoothstep(0.0, ${W.deepAt.toFixed(3)}, min(flS, vFlDepth / ${W.depthDeepMm.toFixed(3)}));
+float flEdge = 1.0 - smoothstep(0.0, ${W.meniscus.toFixed(3)}, flS);
+diffuseColor.rgb = mix(${f3(W.shallowTint)}, ${f3(W.deepTint)}, flDeep);`)
+    .replace('#include <normal_fragment_maps>', `
+{ vec2 p = vFlW.xz / ${W.rippleMm.toFixed(2)} + vec2(0.7, 0.4) * uFloodTime * ${(W.rippleSpeed / W.rippleMm).toFixed(3)};
+  vec2 rp = vec2(wrNoise(p), wrNoise(p + 7.3)) - 0.5;
+  vec3 nw = normalize(vec3(rp.x * ${W.rippleTilt.toFixed(3)}, 1.0, rp.y * ${W.rippleTilt.toFixed(3)}));
+  normal = normalize((viewMatrix * vec4(nw, 0.0)).xyz); }`)
+    .replace('#include <opaque_fragment>', `
+{ float nv = clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
+  float fres = 0.02 + 0.98 * pow(1.0 - nv, 5.0);
+  float soft = smoothstep(0.0, ${W.softEdge.toFixed(3)}, flS);
+  diffuseColor.a = clamp(mix(${W.alphaShallow.toFixed(3)}, ${W.alphaDeep.toFixed(3)}, flDeep) + fres * ${W.fresnelAlpha.toFixed(3)} + flEdge * 0.15, 0.0, 1.0) * soft;
+  outgoingLight += flEdge * (reflectedLight.directSpecular * 0.4 + totalEmissiveRadiance + vec3(${W.meniscusGain.toFixed(3)}) * 0.25); }
+#include <opaque_fragment>`);
+}
 
 export class FloodWater {
   readonly group = new Group();
   private readonly material: MeshStandardMaterial;
+  private readonly time = new Uniform(0);
   private readonly sheets = new Map<number, Sheet>();
   private sinceBuild = Infinity;
-  /** Cells drawn over all nests (stats). */
+  /** Cells drawn over all nests, and triangles of the sheets (stats; the cells x 2 of the cell-square sheet it replaced, for the cost comparison). */
   cells = 0;
+  triangles = 0;
 
   constructor() {
     this.group.name = 'weather.flood-water';
-    const c = new Color(FLOOD_WATER_RGB[0], FLOOD_WATER_RGB[1], FLOOD_WATER_RGB[2]);
     this.material = new MeshStandardMaterial({
-      color: c, roughness: FLOOD_WATER_ROUGHNESS, metalness: 0, transparent: true, opacity: FLOOD_WATER_OPACITY, side: DoubleSide, vertexColors: true,
-      emissive: new Color(0.5, 0.6, 0.55).multiplyScalar(FLOOD_WATER_EMISSIVE), envMapIntensity: FLOOD_WATER_ENV, depthWrite: false,
+      color: 0xffffff, roughness: W.roughness, metalness: 0, transparent: true, side: DoubleSide,
+      emissive: new Color(0.5, 0.6, 0.55).multiplyScalar(W.emissive), envMapIntensity: W.env, depthWrite: false,
       polygonOffset: true, polygonOffsetFactor: -1,
     });
+    this.material.name = 'flood-water';
+    this.material.onBeforeCompile = (s) => {
+      s.uniforms.uFloodTime = this.time;
+      s.vertexShader = s.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float aShore; attribute float aDepth; varying float vShore; varying float vFlDepth; varying vec3 vFlW;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvShore = aShore; vFlDepth = aDepth; vFlW = transformed;');
+      s.fragmentShader = floodWaterFragment(s.fragmentShader);
+    };
+    this.material.customProgramCacheKey = () => 'flood-water-shore';
   }
 
   /** Follows the nests' water (dt real seconds; 0 = settle now). */
   update(sim: Sim | null, dt: number): void {
+    if (dt > 0) this.time.value += dt;
     this.sinceBuild += dt > 0 ? dt : Infinity;
     if (this.sinceBuild < FLOOD_REBUILD_S) return;
     this.sinceBuild = 0;
@@ -45,10 +86,13 @@ export class FloodWater {
         total += s.cells.length / 2;
         const old = this.sheets.get(nest.id);
         if (old && Math.abs(old.level - s.level) < FLOOD_LEVEL_EPS_MM && old.cells === s.cells.length) continue;
-        if (old) { this.group.remove(old.mesh); old.mesh.geometry.dispose(); }
-        const mesh = new Mesh(sheetGeometry(s.cells, s.cell, s.level), this.material);
+        if (old) { this.group.remove(old.mesh); old.mesh.geometry.dispose(); this.sheets.delete(nest.id); }
+        const g = sheetOf(sim, s.cells, s.cell, s.level);
+        if (!g) continue;
+        const mesh = new Mesh(g, this.material);
         mesh.name = `flood-water:${nest.id}`;
         mesh.renderOrder = 5;
+        mesh.frustumCulled = false;
         this.group.add(mesh);
         this.sheets.set(nest.id, { mesh, level: s.level, cells: s.cells.length });
       }
@@ -60,12 +104,16 @@ export class FloodWater {
       this.sheets.delete(id);
     }
     this.cells = total;
+    let tris = 0;
+    for (const sh of this.sheets.values()) tris += (sh.mesh.geometry.getIndex()?.count ?? 0) / 3;
+    this.triangles = tris;
   }
 
   clear(): void {
     for (const sh of this.sheets.values()) { this.group.remove(sh.mesh); sh.mesh.geometry.dispose(); }
     this.sheets.clear();
     this.cells = 0;
+    this.triangles = 0;
     this.sinceBuild = Infinity;
   }
 
@@ -75,36 +123,11 @@ export class FloodWater {
   }
 }
 
-/**
- * One quad per surface cell (cell-sized, centred on the sample), all at height y. A corner shared by fewer than four
- * cells lies on the sheet's outline and fades (vertex alpha FLOOD_WATER_EDGE_ALPHA), so a few flooded cells read as
- * a puddle with a soft edge instead of a pale cut-out cross (gate-close-app, founding chamber at 4 %).
- */
-export function sheetGeometry(cells: number[], cell: number, y: number): BufferGeometry {
-  const n = cells.length / 2, h = cell / 2;
-  const pos = new Float32Array(n * 12), nor = new Float32Array(n * 12), col = new Float32Array(n * 16), idx: number[] = [];
-  const key = (x: number, z: number) => `${Math.round(x / h)},${Math.round(z / h)}`;
-  const corners = new Map<string, number>();
-  for (let c = 0; c < n; c++) {
-    const x = cells[c * 2], z = cells[c * 2 + 1];
-    for (const [dx, dz] of [[-h, -h], [h, -h], [h, h], [-h, h]]) { const k = key(x + dx, z + dz); corners.set(k, (corners.get(k) ?? 0) + 1); }
-  }
-  for (let c = 0; c < n; c++) {
-    const x = cells[c * 2], z = cells[c * 2 + 1], o = c * 12;
-    pos.set([x - h, y, z - h, x + h, y, z - h, x + h, y, z + h, x - h, y, z + h], o);
-    for (let k = 0; k < 4; k++) {
-      nor[o + k * 3 + 1] = 1;
-      const inner = (corners.get(key(pos[o + k * 3], pos[o + k * 3 + 2])) ?? 0) >= 4;
-      col.set([1, 1, 1, inner ? 1 : FLOOD_WATER_EDGE_ALPHA], c * 16 + k * 4);
-    }
-    const b = c * 4;
-    idx.push(b, b + 2, b + 1, b, b + 3, b + 2);
-  }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  g.setAttribute('normal', new Float32BufferAttribute(nor, 3));
-  g.setAttribute('color', new Float32BufferAttribute(col, 4));
-  g.setIndex(idx);
-  g.computeBoundingSphere();
-  return g;
+/** The sheet at `level` over the surface cells, with the carve's openness at that height (between sample rows j and j + 1) as the shore value. */
+function sheetOf(sim: Sim, cells: number[], cell: number, level: number): BufferGeometry | null {
+  const j = Math.floor(level / cell), t = level / cell - j;
+  return shoreGeometry(
+    cells, cell, level, (i, k) => opennessAt(sim.carve.sampleAt(i, j, k), sim.carve.sampleAt(i, j + 1, k), t),
+    (i, k) => waterDepthMm((row) => sim.carve.sampleAt(i, row, k), j, level, cell),
+  );
 }

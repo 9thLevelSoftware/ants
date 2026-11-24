@@ -4,7 +4,7 @@ import { collectRefusals } from '@/game/refusals';
 import { makeTestSim } from '@/sim/testing';
 import { heavyLoad, PERF_STRICT } from '@/sim/testing/perfLoad';
 import type { Command, Sim } from '@/sim/types';
-import { DigPlanner, playerNest } from './digPlanner';
+import { ANCHOR_PICK_REACH_BU, ANCHOR_PICK_SNAP_BU, DigPlanner, playerNest } from './digPlanner';
 import { MarkerTool, type ToolHost } from './markerTool';
 import { PLAN_REASON_TEXT } from './reasons';
 
@@ -54,6 +54,27 @@ describe('dig planner (views acceptance 4)', () => {
     expect(plan.id).toBe(r.planId);
     expect(plan.kind).toBe('chamber');
     expect(plan.source).toBe('player');
+  });
+
+  it('a click on the soil of the slice beside the cell snaps to the nest wall (app-seams-4 item 1: only clicks within 2 BU of the wall did)', () => {
+    const sim = makeTestSim({ nest: 'small', systems: [] });
+    const bu = sim.world.bu, wall = nurseryWall(sim);
+    const soilAt = (dBu: number) => ({ point: { x: wall.point.x - wall.normal.x * dBu * bu, y: wall.point.y - wall.normal.y * dBu * bu, z: wall.point.z - wall.normal.z * dBu * bu }, normal: { x: 0, y: 1, z: 0 }, kind: 'cap' as const });
+    for (const d of [1, ANCHOR_PICK_SNAP_BU + 1, 5, ANCHOR_PICK_REACH_BU - 1]) {
+      const planner = new DigPlanner();
+      planner.chamberType = 'nursery'; planner.size = 's';
+      const p = planner.hover(sim, soilAt(d))!;
+      expect(p.codes, `d ${d}`).not.toContain('anchor-not-in-nest');
+      // the ghost hangs on the wall: the anchor lies on the cavity surface, not where the cursor is
+      expect(Math.abs(sim.field.sampleXYZ(p.anchor.pos.x, p.anchor.pos.y, p.anchor.pos.z)), `d ${d}`).toBeLessThan(0.3 * bu);
+      expect(Math.hypot(p.anchor.pos.x - wall.point.x, p.anchor.pos.y - wall.point.y, p.anchor.pos.z - wall.point.z), `d ${d}`).toBeLessThan((d + 2.5) * bu);
+    }
+    // far beyond the reach there is no wall of this nest to speak of: the ghost says why
+    const planner = new DigPlanner();
+    const far = planner.hover(sim, soilAt(ANCHOR_PICK_REACH_BU + 12))!;
+    expect(far.validity).toBe('invalid');
+    expect(far.codes).toContain('anchor-not-in-nest');
+    expect(far.reason).toBe(PLAN_REASON_TEXT['anchor-not-in-nest']);
   });
 
   it('an anchor away from the nest shows the reason and creates nothing', () => {

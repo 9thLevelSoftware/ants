@@ -1,21 +1,22 @@
 // Fragment-side GLSL: per-part roughness, cuticle micro-variation, compound-eye facets, and the selection highlight
 // (a faint rim term; GDD 08 §11.8 forbids cartoon outlines). The look numbers live in ../tuning.ts.
-import { ANT_DAY_LOOK, ANT_NIGHT_LOOK, WING_LOOK } from '../tuning';
+import { ANT_DAY_LOOK, ANT_MOON_RIM, ANT_NIGHT_LOOK, WING_LOOK } from '../tuning';
 
 export const ANT_FRAG_PARS = /* glsl */ `
 varying vec3 vAntMat;
 varying vec3 vRest;
 varying float vAntHi;
-varying float vCapIn;
+varying float vAntA;
 varying vec2 vAntK;
 uniform float uFacet;
 uniform vec3 uHiWarm;
 uniform float uSubjectOpacity;
-uniform float uCapOpacity;
 uniform vec3 uHiCool;
 uniform float uFillBody;
 uniform float uFillRim;
 uniform float uFillK;
+uniform vec3 uMoonDir;
+uniform float uMoonK;
 uniform vec3 uFillCol;
 float antHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 vec3 antHash3(vec3 p) { return vec3(antHash(p), antHash(p + 19.19), antHash(p + 47.47)); }
@@ -47,10 +48,11 @@ export const ANT_NORMAL = /* glsl */ `#include <normal_fragment_maps>
   }`;
 
 export const ANT_EMISSIVE = /* glsl */ `#include <emissivemap_fragment>
-  // the possessed ant (the only positive highlight) fades with the third-person camera (GDD 01 6.5 rule 1), and
-  // other ants inside the camera-to-ant capsule are dithered to uCapOpacity (rule 2): ordered 4x4 dither
+  // the possessed ant (the only positive highlight) fades with the third-person camera (GDD 01 6.5 rule 1): ordered 4x4 dither.
+  // Other ants in the camera-to-subject cone fade with alpha (rule 2, vAntA; the batch is blended while any ant fades)
+  diffuseColor.a *= vAntA;
   {
-    float keep = vAntHi > 0.0 ? uSubjectOpacity : (vCapIn > 0.5 ? uCapOpacity : 1.0);
+    float keep = vAntHi > 0.0 ? uSubjectOpacity : 1.0;
     if (keep < 1.0) {
       vec2 dc = mod(floor(gl_FragCoord.xy), 4.0);
       if (mod(dc.x * 4.0 + dc.y * 9.0 + dc.x * dc.y * 3.0, 16.0) / 16.0 >= keep) discard;
@@ -77,6 +79,9 @@ export const ANT_FILL = /* glsl */ `
     float fKey = 0.5 + 0.5 * dot(fN, normalize(vec3(-0.4, 0.6, 0.7)));
     float fSky = 0.5 + 0.5 * dot(fN, fUp);
     float fRim = pow(1.0 - clamp(dot(fN, fV), 0.0, 1.0), 3.0);
+    // moon side (app-seams-4 item 6): at night the rim is a cool edge light that comes from the moon, strongest on the flank that faces it
+    vec3 fW = (vec4(fN, 0.0) * viewMatrix).xyz;
+    fRim *= mix(1.0, ${ANT_MOON_RIM.floor.toFixed(2)} + ${(1 - ANT_MOON_RIM.floor).toFixed(2)} * smoothstep(${ANT_MOON_RIM.from.toFixed(2)}, ${ANT_MOON_RIM.to.toFixed(2)}, dot(fW, uMoonDir)), uMoonK);
     vec3 fBase = diffuseColor.rgb;
     float fLum = dot(fBase, vec3(0.2126, 0.7152, 0.0722));
     vec3 fAlb = fBase * 0.6 + vec3(0.8 * fLum + 0.012);

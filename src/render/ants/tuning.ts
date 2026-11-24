@@ -85,8 +85,16 @@ export const ANT_NIGHT_LOOK = { clearcoatCut: 0.55 };
  */
 export const ANT_DAY_LOOK = { clearcoatMul: 0.3 };
 
-/** GDD 01 6.5 rule 2: other ants inside the camera-to-possessed-ant capsule (radius in body lengths) are dithered. */
-export const CAMERA_CAPSULE = { radiusL: 0.6, opacity: 0.4 };
+/**
+ * GDD 01 6.5 rule 2 as ruled by the integrator (app-seams-4): other ants inside the cone from the camera to the possessed ant and nearer
+ * the camera than `nearFraction` of the boom are not drawn; they fade with alpha over `fadeOutS` / `fadeInS` (exponential time constants).
+ * The cone is `coneStart` of its width at the camera and `radiusL` subject lengths at the subject; `softL` (subject lengths) and `softFraction`
+ * (of the boom) are the widths of its soft edges; no cone when the boom is under `minBoomL` lengths.
+ */
+export const OCCLUDER = {
+  radiusL: 0.6, coneStart: 0.35, nearFraction: 0.5, softL: 0.3, softFraction: 0.1, minBoomL: 0.6,
+  fadeOutS: 0.1, fadeInS: 0.16, epsilon: 0.01, hideFrom: 0.97,
+};
 
 /** Time constants (s) of render-side smoothing. Pose blend 80-150 ms per GDD 08 §11.9. */
 export const SMOOTH = { pose: 0.11, up: 0.06, turn: 0.15 };
@@ -124,10 +132,13 @@ export const TINT_VARIATION = 0.12;
  * stronger rim keeps her separable from the ground).
  * look-pass-3: night body 1.1 -> 0.7 and rim 0.3 -> 0.22, with the rim on legs and antennae cut to ANT_FILL_RIM_THIN: at 1.1 the
  * night ant was grey metal with white outlines (and wire-thin legs at quality test); at 0.7 it is a dark body with readable segments.
+ * app-seams-4 item 6: night rim 0.15 -> 0.28 together with the moon-side weighting (ANT_MOON_RIM: the far flank keeps a quarter): at 0.15 the ant at 22:00
+ * still had the ground's luminance (`test-output/app4/night/n-h22-clear-surface-low.png`); 0.30 and 0.55 read as a pearl ring round the gaster
+ * (`test-output/app4/sheets/item6-rim-variants-22h.jpg`).
  */
 export const ANT_FILL = {
   body: { underground: 0.9, night: 0.7 },
-  rim: { underground: 0.025, night: 0.15 },
+  rim: { underground: 0.025, night: 0.28 },
   fromEV: 1.6,
   toEV: 3.0,
   warm: [1.0, 0.62, 0.34] as [number, number, number],
@@ -135,6 +146,13 @@ export const ANT_FILL = {
   /** Time constant (s) of the underground blend. */
   easeS: 0.35,
 };
+
+/**
+ * Moon rim (app-seams-4 item 6; look-pass-6's unfinished 8: at 22:00 and 02:00 the ant had almost the luminance of the ground). At night the form
+ * light's rim follows the moon: full on the flank that faces the key light, `floor` of it on the far flank (dot of the world normal and the
+ * moon direction from `from` to `to`). The cool colour and the amplitude (ANT_FILL.rim.night) are the form light's.
+ */
+export const ANT_MOON_RIM = { floor: 0.25, from: -0.15, to: 0.65 };
 
 /** Share of the form-light rim kept on legs and antennae (thin parts are all silhouette: at full rim they drew as pale wire). */
 export const ANT_FILL_RIM_THIN = 0.3;

@@ -6,6 +6,7 @@ import { Button } from '../components/Button';
 import { KeyHint } from '../components/KeyHint';
 import { Meter } from '../components';
 import { Icon } from '../icons';
+import { STORES_FULL_NOTE } from '@/content/text';
 import { CASTE_ICON, cap, loads, pct, TASK_ICON } from './format';
 import { possessedSlice } from './slices';
 import { openPanel } from './state';
@@ -62,6 +63,7 @@ export function PossessedPanel() {
         {heat && <Icon name="thermometer" size={16} label="Heat stress" class="fd-heat" />}
       </div>
       <CropMeter p={p} />
+      {p.storesFull && <div class="fd-pp-note" role="status" data-testid="possessed-stores-full">{STORES_FULL_NOTE}</div>}
       {p.acid && <Meter class="fd-meter" label="Acid" value={p.acid.charges} max={Math.max(1, p.acid.max)} tone="neutral" text={`${p.acid.charges} / ${p.acid.max}`} />}
       <div class="fd-pp-foot">
         <span class="fd-pp-carry" data-testid="possessed-carry"><Icon name="carry" size={16} decorative /> {p.carrying === 'nothing' ? '—' : p.carrying}</span>

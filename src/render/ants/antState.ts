@@ -21,6 +21,8 @@ export interface AntRenderState {
   /** update() stamp when last seen; states not seen for a frame are recycled. */
   seen: number;
   fresh: boolean;
+  /** 0..1: how far this ant has faded out of the camera-to-subject cone (occluderFade.ts); 0 = drawn solid. */
+  hidden: number;
   /** Cached variant index and the (species, caste, size class, wing state) it was resolved for. */
   vi: number; vSpecies: string; vCaste: string; vSize: string | null; vWinged: boolean;
 }
@@ -36,10 +38,10 @@ export class AntStateTable {
     if (!s) {
       s = this.pool.pop() ?? {
         id, gait: newGaitState(), pose: { ...NEUTRAL_POSE }, up: { x: 0, y: 1, z: 0 }, fwd: { x: 0, y: 0, z: 1 }, lastPos: { x: 0, y: 0, z: 0 },
-        seed: 0, tint: [1, 1, 1], seen: 0, fresh: true, vi: -1, vSpecies: '', vCaste: '', vSize: null, vWinged: false,
+        seed: 0, tint: [1, 1, 1], seen: 0, fresh: true, hidden: 0, vi: -1, vSpecies: '', vCaste: '', vSize: null, vWinged: false,
       };
       // a recycled state must not carry the previous ant's pose or gait into this one
-      s.id = id; s.fresh = true; s.vi = -1;
+      s.id = id; s.fresh = true; s.vi = -1; s.hidden = 0;
       copyPose(NEUTRAL_POSE, s.pose);
       const h = hash01(id);
       s.seed = h;

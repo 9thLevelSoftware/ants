@@ -46,3 +46,23 @@ C8 fresh sweep + long; C9 report.
 
 ## Evidence paths
 test-output/winter-sugar/
+
+## Log
+- 13:50 unit tests founding + allocation + dig/unplugStand/digHaul + nest entrance tests: 42 files / 150
+  tests green (test-output/winter-sugar/tests-A.txt). Base rerun of pp #3 long: finalHash c84a5641 == sweep-long-final
+  (observer neutral). Arm W pp #3 winter 2: C 21.3 / R27 8.1 (2.61) vs base 0.7 / 8.6.
+- Opening (headless, 4 batches = 24 eggs): seed 2 open 1500 -> 500 with A3 (warm at hand-over); seed 4 1750 -> 1250
+  (cold all the way); seeds 1, 3 unchanged (500, 750). R14 restated: seed 2 before A3 misses (1500 > 0 + 1000).
+- life.ts: report.winter1 (state + viable verdict at the first tick of Winter 1 for runs that go on) added 13:5x for
+  later runs (not in base/armW queue runs, which started before).
+- 14:08 A1-A3 DONE. FOUNDRESS_LONG playerOpening.long 4/4 green live (test-output/winter-sugar/long-test.txt).
+  Opening table test-output/winter-sugar/opening/table.txt. Remaining: wait base/armW; item 4 table; arm T decision.
+- 14:19 Item-4 lead (pp #3, sg #2 y2 base): on brood-peak days (y2 doy 10-11, 15-16) tend DEMAND 6-12 but
+  tend TARGET 0-1: GDD 6.3 order serves forage + store before tend; tenders (0.47 C per tender-day) dropped while
+  needC 0.9-1. Arm T built in /home/user/ws-armT (hash e25875a5): demand.ts tendFloor/TEND_FLOOR_KEY (R39 keep per
+  workable herd while needC > 0 and workable), served with the scout floor before forage (targets.ts planTargets);
+  test src/sim/colony/allocation/tendFloor.test.ts there (2 cases green). Queued: jobs-2.txt via chain2.sh (starts
+  when jobs-1 prints QUEUE DONE in queue.log). If arm T is dropped: kill chain2.sh.
+- 14:31 /home/user/ws-armWT ready (arm T + arm W), for the pair only if each alone is not worse. Tables:
+  tools/sim/arm-table.py --base base-y1all base-long --arm armW-y1 armW-long (base-y1all = symlinks of draftfix15 for
+  the 5 long colonies + base-y1). frozen-openingfix2 deleted (ws-base = same sim).

@@ -64,21 +64,40 @@ export const IMPACT_AREA_BU = 30;
 export const RIPPLE_RADIUS_MM = 9;
 export const RIPPLE_LIFE_S = 0.9;
 
-/** Underground water: colour (linear), opacity, emissive lift so it reads in the dim nest light. */
-export const FLOOD_WATER_RGB: readonly [number, number, number] = [0.035, 0.12, 0.17];
-/*
- * Look pass 6 (the grey blurry square in the seed-2 shaft, look5 firstplay/seed2/07-inside-shaft.png): it is this sheet, the standing water of the rain
- * seeping into the shaft, seen edge-on over the lowest cells of a sloping tunnel. A dark grey-green film at 0.65 with a soft edge read as a smudge;
- * the colour is now a clear cool blue-green, the surface glossy (it mirrors the lit walls), the edge a little firmer.
+/**
+ * Underground water (app-seams-4 item 4). The old sheet was a union of cell squares, flat and pale, a translucent blue-white slab with
+ * square corners over the queen (look6 item1-s2-low-real-beats-07-10-after.png); edge-on a pale band. It is now a lattice mesh whose
+ * per-vertex shore value (the carve openness at the water level) is cut at the iso level in the shader: the outline of the cavity,
+ * a soft shore, a meniscus line, shallows tinted by the soil under them and darker where it deepens, a faint moving ripple. Colours
+ * linear; the outdoor puddle (decor/tuning WATER) is the reference for the tints.
  */
-/** gate-close-app: 0.9 -> 0.65 and roughness 0.3 -> 0.55, a thin film read as a pale opaque slab under the nest light. */
-export const FLOOD_WATER_OPACITY = 0.72;
-/** Vertex alpha on the sheet's outline (floodWater.ts sheetGeometry): soft puddle edges. */
-export const FLOOD_WATER_EDGE_ALPHA = 0.3;
-export const FLOOD_WATER_EMISSIVE = 0.07;
-/** Water roughness and environment-reflection strength (a tunnel has no sky to mirror). */
-export const FLOOD_WATER_ROUGHNESS = 0.2;
-export const FLOOD_WATER_ENV = 0.35;
+export const FLOOD_WATER = {
+  /** Tint over the shore and over the deep part (the underlying soil shows through shallow water). */
+  shallowTint: [0.1, 0.12, 0.11] as const,
+  deepTint: [0.012, 0.03, 0.04] as const,
+  /** Shore value (0 at the wall .. 1 well inside) at which the water reaches its full depth tint. */
+  deepAt: 0.7,
+  /** Alpha over the shallows and over the deep part; the Fresnel term adds up to `fresnelAlpha` at grazing view. */
+  alphaShallow: 0.3,
+  alphaDeep: 0.55,
+  fresnelAlpha: 0.25,
+  /** Depth (mm) over which the water fades in from the line where the floor comes up to it, and over which it reaches its deep tint. */
+  depthSoftMm: 0.5,
+  depthDeepMm: 3,
+  /** Width of the soft shore (shore value units past the wall) and of the bright meniscus line. */
+  softEdge: 0.1,
+  meniscus: 0.16,
+  /** Meniscus brightness (added to the lit colour, scaled by the sheet's own emissive base). */
+  meniscusGain: 0.22,
+  /** Ripples: normal tilt, wavelength mm, speed mm / s. */
+  rippleTilt: 0.07,
+  rippleMm: 3,
+  rippleSpeed: 1.2,
+  roughness: 0.08,
+  /** A tunnel has no sky to mirror: a faint environment reflection and a faint self-light so it reads in the dim nest. */
+  env: 0.12,
+  emissive: 0.05,
+};
 /** Rebuild the flood surface at most every this many real seconds (and when the level moves by LEVEL_EPS mm). */
 export const FLOOD_REBUILD_S = 0.5;
 export const FLOOD_LEVEL_EPS_MM = 0.05;

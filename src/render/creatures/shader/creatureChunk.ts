@@ -183,6 +183,8 @@ vec3 transformed = crP;
  */
 export const CREATURE_FRAG_PARS = /* glsl */ `
 varying vec3 vCrRest;
+uniform vec3 uMoonDir;
+uniform float uMoonRim;
 uniform vec4 uBody;
 uniform vec4 uSurface; // x albedo variation, y roughness lift, z roughness variation, w grain cells per body length
 float crHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -200,3 +202,12 @@ export const CREATURE_COLOR_FRAGMENT = /* glsl */ `#include <color_fragment>
 
 export const CREATURE_ROUGHNESS = /* glsl */ `#include <roughnessmap_fragment>
   roughnessFactor = clamp(roughnessFactor + uSurface.y + uSurface.z * (crSurface() - 0.5), 0.0, 1.0);`;
+
+/** Night rim light from the moon side (app-seams-4 item 6): a faint cool edge light on the flank facing the key light; uMoonRim is 0 by day. */
+export const CREATURE_MOON_RIM = /* glsl */ `#include <emissivemap_fragment>
+  if (uMoonRim > 0.0) {
+    vec3 mN = normalize(normal);
+    float mR = pow(1.0 - clamp(dot(mN, normalize(vViewPosition)), 0.0, 1.0), 3.0);
+    float mS = 0.25 + 0.75 * smoothstep(-0.15, 0.65, dot((vec4(mN, 0.0) * viewMatrix).xyz, uMoonDir));
+    totalEmissiveRadiance += vec3(0.66, 0.78, 1.0) * uMoonRim * mR * mS;
+  }`;

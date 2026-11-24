@@ -47,7 +47,11 @@ export class AntsSlot implements SubRenderer {
     a.viewportHeightPx = frame.viewportHeightPx; a.underground = frame.underground; a.possessedPose = frame.possessedPose;
     a.hover = frame.hover ?? null; a.inspect = frame.inspect ?? null; a.subjectOpacity = frame.subjectOpacity;
     a.hidePossessedHighlight = frame.hidePossessedHighlight === true;
-    if (this.world) this.ants.setHighlightExposure(this.world.world.lighting.exposureEV);
+    if (this.world) {
+      const l = this.world.world.lighting;
+      this.ants.setHighlightExposure(l.exposureEV);
+      this.ants.setMoon(l.keyDir, l.moonlit ? l.nightW : 0);
+    }
     this.ants.update(a);
   }
 
@@ -58,7 +62,7 @@ export class AntsSlot implements SubRenderer {
   stats(): Record<string, number> {
     const s = this.ants.stats;
     return {
-      ants: s.ants, lod0: s.visible[0], lod1: s.visible[1], lod2: s.visible[2], lod3: s.visible[3], culled: s.culled, dropped: s.dropped,
+      ants: s.ants, lod0: s.visible[0], lod1: s.visible[1], lod2: s.visible[2], lod3: s.visible[3], faded: s.faded ?? 0, hiddenAnts: s.hiddenAnts ?? 0, culled: s.culled, dropped: s.dropped,
       carried: s.carried, looseItems: s.looseItems, drawCalls: s.drawCalls, triangles: s.triangles, cpuMs: s.cpuMs, variants: s.variants,
     };
   }

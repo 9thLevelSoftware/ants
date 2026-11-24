@@ -1,7 +1,7 @@
 // Look pass 3 review: the wing, cuticle and gaster numbers are in tuning.ts and the shaders read them (no look numbers inline).
 // The wing budget is the one that went wrong twice: four folded layers of a membrane add up (0.07 x 4 read as milk by day, 0.17 x 4 as a white tuft at night).
 import { describe, expect, it } from 'vitest';
-import { ANT_FILL, ANT_FILL_RIM_THIN, ANT_NIGHT_LOOK, GASTER_MEMBRANE, WING_LOOK } from './tuning';
+import { ANT_FILL, ANT_FILL_RIM_THIN, ANT_MOON_RIM, ANT_NIGHT_LOOK, GASTER_MEMBRANE, WING_LOOK } from './tuning';
 import { ANT_SHEEN, WING_COLOR, WING_EMISSIVE } from './shader/fragmentChunk';
 import { ANT_COLOR_VERTEX } from './shader/vertexChunk';
 
@@ -35,7 +35,9 @@ describe('cuticle look', () => {
   it('the clearcoat loses a share at night (no chrome), and the night rim is weaker than the old 0.22', () => {
     expect(ANT_SHEEN).toContain(`${ANT_NIGHT_LOOK.clearcoatCut.toFixed(2)} * uFillK`);
     expect(ANT_NIGHT_LOOK.clearcoatCut).toBeGreaterThan(0.3);
-    expect(ANT_FILL.rim.night).toBeLessThan(0.22);
+    // app-seams-4 item 6: the rim now follows the moon (full on the flank that faces it, ANT_MOON_RIM.floor on the other): the share of it
+    // the whole silhouette carries on average is what stays under the old 0.22 (the peak on the moon side is 0.28)
+    expect(ANT_FILL.rim.night * (1 + ANT_MOON_RIM.floor) / 2).toBeLessThan(0.22);
     expect(ANT_FILL_RIM_THIN).toBeLessThan(1);
   });
   it('the stretched-gaster numbers come from tuning', () => {

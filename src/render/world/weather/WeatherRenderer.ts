@@ -192,7 +192,7 @@ export class WeatherRenderer implements SubRenderer {
   stats(): Record<string, number> {
     return {
       streaks: this.streaks, splashes: this.splashes?.active ?? 0, ripples: this.ripples?.active ?? 0,
-      flecks: this.flecks?.active ?? 0, floodCells: this.flood.cells, wet: this.view?.wet ?? 0,
+      flecks: this.flecks?.active ?? 0, floodCells: this.flood.cells, floodTris: this.flood.triangles, wet: this.view?.wet ?? 0,
     };
   }
 

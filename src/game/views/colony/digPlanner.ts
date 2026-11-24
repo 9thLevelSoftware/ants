@@ -6,6 +6,7 @@ import type { Vec3 } from '@/core';
 import { PLANNABLE_TYPES } from '@/sim/balance/nestTemplates';
 import { PLAN_DEFAULT_LEN_BU, SHAFT_LEN_BU } from '@/sim/balance/nest';
 import { validatePlanImpl } from '@/sim/nest/plans/validate';
+import { nearestNestOpen } from '@/sim/nest/plans/resolve';
 import type { PlanGeometry } from '@/sim/nest/plans/geometry';
 import type { ChamberSize, ChamberType, Nest, PlanPriority, PlanSpec, PlanValidationCode, Sim, SpeciesId } from '@/sim/types';
 import type { ToolHost } from './markerTool';
@@ -14,8 +15,15 @@ import { PLAN_REASON_TEXT, planReason } from './reasons';
 
 export type PlanTemplate = 'chamber' | 'tunnel' | 'shaft' | 'entrance';
 
-/** GDD 03 §14.2: the pick snaps to the nearest wall within this distance (BU). */
+/**
+ * GDD 03 §14.2: the pick snaps to the nearest wall within 2 BU. A click on the soil of the slice a little further off than that (a founding cell is
+ * 3 to 4 BU across, so beside it is 4 to 8 BU from its wall) was refused with "Start from a tunnel or chamber of this nest" (app-seams-4 item 1,
+ * tests/e2e/app4-planner.mjs: every click 3 BU or more from the wall of the cell failed, whichever way the ghost turned). The pick now snaps to
+ * the nest's own wall between the click and the nearest open cavity of the nest within ANCHOR_PICK_REACH_BU (DEVIATIONS row), the first
+ * measure staying as the cheap exact path. Beyond the reach the ghost says why.
+ */
 export const ANCHOR_PICK_SNAP_BU = 2;
+export const ANCHOR_PICK_REACH_BU = 8;
 /** Q / E rotate the ghost by this much (degrees). */
 export const GHOST_YAW_STEP_DEG = 15;
 /** Shaft length step for Shift+wheel (BU). */
@@ -137,7 +145,7 @@ export class DigPlanner {
   hover(sim: Sim, pick: AnchorPick | null): PlanPreview | null {
     const nest = playerNest(sim);
     if (!nest || !pick) { this.preview = null; return null; }
-    const anchor = this.anchorFor(sim, pick);
+    const anchor = this.anchorFor(sim, pick, nest);
     const spec = this.specFor(sim, nest, anchor, pick.point);
     const key = specKey(spec, sim.carve.voxel, sim.state.tick);
     if (key === this.cacheKey && this.preview) return this.preview;
@@ -190,13 +198,15 @@ export class DigPlanner {
     return res;
   }
 
-  private anchorFor(sim: Sim, pick: AnchorPick): { pos: Vec3; normal: Vec3 } {
+  private anchorFor(sim: Sim, pick: AnchorPick, nest: Nest): { pos: Vec3; normal: Vec3 } {
     if (this.template === 'entrance' || pick.kind === 'wall') return { pos: { ...pick.point }, normal: { ...pick.normal } };
     const out = { x: 0, y: 0, z: 0 }, n = { x: 0, y: 1, z: 0 };
     const ok = sim.field.project(pick.point, 0, out, n);
     if (ok && Math.hypot(out.x - pick.point.x, out.y - pick.point.y, out.z - pick.point.z) <= ANCHOR_PICK_SNAP_BU * sim.world.bu && sim.field.substrate(out) < 0) {
       return { pos: out, normal: n };
     }
+    const far = wallToward(sim, nest, pick.point, ANCHOR_PICK_REACH_BU * sim.world.bu);
+    if (far) return far;
     return { pos: { ...pick.point }, normal: { ...pick.normal } }; // no wall near: validation says why
   }
 
@@ -229,4 +239,32 @@ export function playerNest(sim: Sim): Nest | null {
 function specKey(s: PlanSpec, voxel: number, tick: number): string {
   const q = (p?: Vec3) => (p ? `${Math.round(p.x / voxel)},${Math.round(p.y / voxel)},${Math.round(p.z / voxel)}` : '-');
   return [s.kind, s.chamberType ?? '', s.size ?? '', s.yawDeg ?? '', s.length ?? '', q(s.anchor.pos), q(s.end), q(s.surfacePoint), s.priority, tick].join('|');
+}
+
+/**
+ * The wall of the nest's own cavity between the soil point `p` and the nearest open sample of the nest within `reachMm`: marches from the open sample
+ * toward `p` to the first point inside solid, bisects it onto the wall and returns it with the field's normal (into free space), or null when the
+ * nest has no open sample that near, or the segment never leaves free space (p is in the cavity, which a wall pick would have caught).
+ */
+export function wallToward(sim: Sim, nest: Nest, p: Vec3, reachMm: number): { pos: Vec3; normal: Vec3 } | null {
+  const open = nearestNestOpen(sim, nest, p, reachMm);
+  if (!open) return null;
+  const dx = p.x - open.x, dy = p.y - open.y, dz = p.z - open.z, len = Math.hypot(dx, dy, dz);
+  if (len < 1e-6) return null;
+  const f = (t: number): number => sim.field.sampleXYZ(open.x + dx * t, open.y + dy * t, open.z + dz * t);
+  const steps = Math.max(2, Math.ceil(len / (0.1 * sim.world.bu)));
+  let lo = 0, hi = -1;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    if (f(t) <= 0) { hi = t; break; }
+    lo = t;
+  }
+  if (hi < 0) return null;
+  for (let k = 0; k < 8; k++) { const m = (lo + hi) / 2; if (f(m) > 0) lo = m; else hi = m; }
+  const pos = { x: open.x + dx * lo, y: open.y + dy * lo, z: open.z + dz * lo };
+  const normal = { x: 0, y: 1, z: 0 };
+  sim.field.gradient(pos, normal);
+  const l = Math.hypot(normal.x, normal.y, normal.z) || 1;
+  normal.x /= l; normal.y /= l; normal.z /= l;
+  return { pos, normal };
 }

@@ -7,6 +7,7 @@
 import { foundingNest } from '@/sim/colony/founding';
 import { FSHOT_CUT_ABOVE_BU, type FoundingShotSubject } from '@/render/camera';
 import type { Sim } from '@/sim/types';
+import { cachedFootprint } from './cellFootprint';
 
 /**
  * First workers close to the cell's centre count as being in it (the others went out or stay deeper down): in full up to this many BU,
@@ -25,8 +26,14 @@ const ROOF_MARGIN_BU = 0.1;
 const SPREAD_PAD_BU = 1;
 /** With nothing but a chamber record to go on, the cell is taken to be this high (BU, half height) when it says nothing else. */
 const FALLBACK_HALF_HEIGHT_BU = 1.5;
+/** A cell the footprint found is framed at its own size, down to this radius (BU): a founding cell is 3 to 4 BU across. */
+const CELL_MIN_RADIUS_BU = 1.5;
 
-export function foundingShotSubject(sim: Sim, out: FoundingShotSubject): FoundingShotSubject | null {
+/**
+ * `wholeCell`: the subject also covers the cell's footprint at the slice plane (cellFootprint.ts), so a shot framed behind a card shows
+ * the cell whole, not only the sphere of the animals in it. Not used by the time-lapse, which frames the animals.
+ */
+export function foundingShotSubject(sim: Sim, out: FoundingShotSubject, wholeCell = false): FoundingShotSubject | null {
   const st = sim.state, col = st.player.colonyId, bu = sim.world.bu;
   const queenId = sim.stores.colonies.get(col)?.queenId;
   const q = queenId !== undefined && queenId >= 0 ? sim.stores.ants.get(queenId) : undefined;
@@ -71,6 +78,13 @@ export function foundingShotSubject(sim: Sim, out: FoundingShotSubject): Foundin
   out.x = cx; out.y = cy; out.z = cz;
   out.radius = spread + SPREAD_PAD_BU * bu;
   out.cutY = planeY;
+  const cell = wholeCell ? cachedFootprint(sim, anchor.pos.x, planeY, anchor.pos.z) : null;
+  out.minRadiusBu = cell ? CELL_MIN_RADIUS_BU : undefined;
+  if (cell) {
+    // centred on the cell's circle; the animals' own sphere is kept inside it (a worker at the mouth of the throat widens the frame)
+    out.x = cell.x; out.z = cell.z;
+    out.radius = Math.max(cell.radius + SPREAD_PAD_BU * bu * 0.5, Math.hypot(cx - cell.x, cz - cell.z) + spread + SPREAD_PAD_BU * bu);
+  }
   // the queen's frame: on a steep wall of the throat the view director shows the side view instead of the slice from above (look pass 6)
   out.ant = q ? { pos: q.pos, up: q.up, fwd: q.fwd, lengthMm: q.lengthBu * bu } : undefined;
   return out;

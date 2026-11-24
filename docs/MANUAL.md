@@ -148,9 +148,9 @@ The steps (hint and aim wording: `src/content/text/hints.ts`). First an intro ca
 1. **Search.** Walk with `W A S D`; look around by dragging with the right or middle mouse button (or the arrow keys). Antennate the ground with `T` (Inspect) to read the soil. Sheltered ground that is neither dry nor flooded is better than open lawn. The speed is limited to 2x in the search, dig, seal and lay phases.
 2. **Dig.** Hold `F` on diggable ground. The queen carries the soil out as pellets and drops them beside the shaft. A readiness bar shows when the shaft is deep enough and the chamber large enough.
 3. **Seal.** At the shaft, hold `E` to plug the entrance with soil. From then on the queen lives on her own reserves, and a gauge shows how much is left.
-4. **Lay.** In the chamber, press `E` to lay the first eggs.
+4. **Lay.** In the chamber, press `E` to lay the first eggs. A batch of eggs, once begun, runs to its end (about six seconds at normal speed in a cool cell): while it does the prompt is greyed and reads "Lay egg - busy" and a second press is refused, and when it ends the prompt offers the egg she has laid. Press `E` again for the next batch.
 5. **First brood.** A time-lapse shows the eggs become larvae, pupae and workers while her reserves fall. The camera leaves the queen's back and looks down into her cell through a cut in the ground, turning slowly (not at all with reduced motion). It can be skipped by holding the skip key (Space or A). The time-lapse does not stop for choices in this build (the interrupt beats of the design are not raised yet). With reduced motion the camera does not turn: it holds one still view and retakes it, with a short crossfade (the picture dips to about half brightness and back within a fifth of a second), every 3 seconds. The light behind the time-lapse is that of a warm late afternoon whatever the clock says; it fades in and out over about a second.
-6. **Hand-over.** The result card ("First workers: N" and the queen's reserves) stands over the same view of the cell, with the queen and her first workers in the upper part of the screen; Continue closes it and the camera comes back to the queen. The first workers open the plug. A hint offers `Tab` to possess a worker; you may stay with the queen. The workers are small first-brood workers; the queen's remaining reserve is passed to the colony as a provision (ruling R2).
+6. **Hand-over.** The result card ("First workers: N" and the queen's reserves) stands over the same view of the cell, which is framed whole in the band between the top of the screen and the card, with the queen and her first workers in it; Continue closes it and the camera comes back to the queen. The first workers open the plug. A hint offers `Tab` to possess a worker; you may stay with the queen. The workers are small first-brood workers; the queen's remaining reserve is passed to the colony as a provision (ruling R2).
 
 If the founding fails, a card ("The founding did not succeed" and the reason) stands over the same view of the cell and, depending on the difficulty, offers another site ("Try another site"; Gentle: 3 tries, Naturalist: 1, Harsh: 0) or "Let it end".
 
@@ -178,6 +178,7 @@ Moving between them:
 - `Tab` and `Shift+Tab` possess the next or previous nearby ant. `Backspace` returns to the previous ant.
 - `5` forager, `6` digger, `7` nurse, `8` the queen: possess an ant with that job (any play view).
 - In the observer view: `E`, holding the left mouse button, or a double click possesses the selected ant; `F` follows it; right click deselects.
+- Ants that come between the camera and the ant you control, nearer the camera than half the distance to her, fade out and are not drawn while they stand there (they fade back in when they have passed); every other ant is drawn solid. The ant you control is never faded away.
 - Possessing changes who you control, not the biology: the ant still ages and can die. If your ant dies, the camera stays on the body and the prompt offers `Tab` to take another ant; or the game takes over a nestmate if you set "Take over a nestmate when your ant dies" (section 12).
 
 The nest cutaway in colony view has a slice: `R` and `F` (or `Shift` with the mouse wheel) move it up and down; `G` changes the cutaway mode. In colony view `W A S D` pan, `Q` and `E` rotate the camera, the wheel zooms. While the Dig or Entrance tool is active, `Q` and `E` rotate the plan instead of the camera (section 6).
@@ -524,6 +525,7 @@ This section follows the rules as built; the numbers live in `src/sim/balance/` 
 - Sources run out and refill on their own schedule. Aphid herds decline late in the season. Foragers who know a source of what the colony lacks go out sooner, and scouts look for what is not known.
 - Solid food (prey, carrion) is carried in pieces. A nest with no food chamber piles it in the chamber the brood lives in, up to about a day's need; the first food chamber is planned when a delivery is refused for lack of space.
 - Stores are shown in Colony orders (Diet emphasis section) and Colony health. A colony short of one kind shows an alert (`food-c-low`, `food-p-low`).
+- **Stores full.** A nest with one room holds about a day's need of food. When it is full a forager cannot hand over her load and rests with a full crop, and the colony wants no more sugar, so no trail to a new source forms. If you control such a worker her panel says so at once ("Stores full - dig a food chamber") and after a while the alert "Stores are full" says the same. The way out is the food chamber: in colony view choose the Dig tool, the Chamber template and the type Food, and click the soil beside a room (section 17.3). Once it is open the stores have room again and the colony recruits to food.
 
 **Brood.** The queen lays eggs; eggs become larvae, then pupae, then workers. Development is faster in a warm chamber. Brood is lost to: being left untended too long, a chamber with too much waste, dry air, cold or heat, flooding, exposure outside a chamber, and starvation (larvae). Nurses feed larvae from the colony's stores and carry brood between chambers. A queen lays only while protein is available to her; late in the season a small colony stops laying protein-costly eggs unless it has carbohydrate to last until winter.
 
@@ -691,7 +693,7 @@ A chamber that holds more than it was made for is crowded, and the colony alerts
 In colony view, the Dig marker opens the planner.
 
 1. Choose a template: Chamber (with a type), Tunnel, Shaft to the surface, or Entrance.
-2. Hover a wall of the nest in cutaway. A ghost of the template appears anchored on the wall.
+2. Point at the nest in cutaway: a wall of a room or tunnel, or the soil of the slice beside one (within about 8 body units of the wall; the ghost then hangs on the nest's wall between your click and the room). A ghost of the template appears anchored on the wall. Further away than that the ghost is refused with "Start from a tunnel or chamber of this nest".
 3. Rotate the ghost with `Q` and `E` in steps of 15 degrees, and change its size with Shift and the wheel (Small, Medium or Large; for the black garden ant, 8, 12 or 16 body lengths on the long axis). For a tunnel, click the start and the end.
 4. Click to place it.
 
@@ -707,7 +709,7 @@ An entrance is a shaft to the surface with a mound of the dug soil beside it. A 
 
 - **Temperature.** Soil lags behind the air: a chamber deep in the ground barely feels the day. Brood is kept in the warmest chamber the nest has, and a stone over a nest warms the soil beneath it in the sun.
 - **Humidity.** Brood needs high humidity. A dry brood chamber slows its development. In wood nests the wood's moisture matters: carpenter ant eggs and young larvae need damp wood.
-- **Flooding.** Rain can flood a nest, lower chambers first. An alert says so, and workers carry brood uphill. A nest in free-draining gravel floods less than one in clay.
+- **Flooding.** Rain can flood a nest, lower chambers first. An alert says so, and workers carry brood uphill. The standing water is drawn dark and clear, with the outline of the room, a soft shore and a bright line at the waterline; the ants stay visible through it. A nest in free-draining gravel floods less than one in clay.
 - **Collapse.** A ceiling that is too wide for its soil can fall, and the game warns of this as "Ceiling may collapse". Dry sand with a wide room is the usual case. Rock, concrete and wood roofs never fall.
 
 ### 17.6 The nest overview

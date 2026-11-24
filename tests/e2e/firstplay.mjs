@@ -21,7 +21,7 @@
 import fs from 'node:fs';
 import {
   clearPose, digBite, findSite, FULL_RUN_BEATS, growthVerdict, helpers, lastSeq, nestOf, ROOM_MAX_ROUNDS, SHAFT_DEPTH_BU,
-  SHAFT_MAX_BITES, SHAFT_SLOPE_DEG, SITE_MAX_R_BU, steerTo, walkDir,
+  placeChamberPlan, SHAFT_MAX_BITES, SHAFT_SLOPE_DEG, SITE_MAX_R_BU, steerTo, walkDir,
 } from './lib/firstplay-steps.mjs';
 
 class Stop extends Error {}
@@ -463,6 +463,20 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   };
   await waitTrail(30);
   if (trail <= 0) {
+    // The colony wants no sugar while its larder is full (GDD 02 8.3: the trail's dab is scaled by the colony's need; the stores-full alert says "dig a food
+    // chamber"). A player who reads that alert does it: plans a food chamber beside the cell with the dig planner, then waits for the room to open the stores.
+    const alerts = ((await summary()).alerts ?? []).map((a) => a.kind);
+    result.checks.noTrailAlerts = alerts;
+    if (alerts.includes('stores-full')) {
+      (result.findings ??= []).push(`no trail after ${waited} ticks and the stores-full alert is up (the larder is full, the colony's sugar need is 0): the player plans a food chamber (the alert's remedy), as a player would`);
+      const fp = await placeChamberPlan(h, 'food');
+      result.checks.foodPlan = fp;
+      expect(fp.placed, 'the food chamber the stores-full alert asks for could not be planned', fp);
+      await g(() => window.__game.camera.set('observer'));
+      await waitTrail(20);
+    }
+  }
+  if (trail <= 0) {
     // The scouts have not found it: the player marks the food for the foragers (GDD 02 §12.2), with the colony view's
     // marker tool, as a player would. A player action, not a stand-in; the missed discovery is reported as a finding.
     (result.findings ??= []).push(`no scout discovered a sugar spill ${Math.round(Math.hypot(food.pos.x - ent.pos.x, food.pos.z - ent.pos.z))} mm from the open entrance in ${waited} ticks (foragers wait in the nest for a known source)`);
@@ -654,6 +668,7 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   const c0 = ch ? ch.center : ent.pos;
   // framed on the middle between the nest and the food, so the marker's click lands on the food
   await g((o) => window.__game.views.colonyCamera(o), { x: (c0.x + food.pos.x) / 2, z: (c0.z + food.pos.z) / 2, distBu: 80, pitchDeg: 60, yawDeg: 20, cutaway: 'slice', planeYBu: c0.y / bu + 0.5, radiusBu: 50 });
+  await render(1); // the clicks are projected with the camera that was drawn
   await g(() => window.__game.views.tool('forage'));
   await g(() => window.__game.views.radius('forage', 12));
   const fscr = await g((p) => window.__game.views.project(p), food.pos);
@@ -662,28 +677,9 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   await g(() => window.__game.views.tool(null));
   result.checks.markers = markers.map((m) => m.kind);
   expect(markers.some((m) => m.kind === 'forage'), 'the forage marker was not placed', { fscr, markers });
-  // a dig plan: a nursery off the founding cell (rotate until the ghost is valid)
-  await g(() => window.__game.views.tool('dig'));
-  await g(() => window.__game.views.planner({ template: 'chamber', chamberType: 'nursery', size: 's', yawDeg: 0 }));
-  const wall = ch ? { x: ch.center.x + ch.radii.x * 0.9, y: ch.center.y, z: ch.center.z } : null;
-  let placed = false, pv = null;
-  if (wall) {
-    const wscr = await g((p) => window.__game.views.project(p), wall);
-    if (wscr) {
-      pv = (await g(([x, y]) => window.__game.views.hoverPlan(x, y), [wscr.x, wscr.y])).planner;
-      for (let i = 0; i < 23 && pv?.preview && pv.preview.validity === 'invalid'; i++) {
-        pv = (await g(() => window.__game.views.rotate(1))).planner;
-        pv = (await g(([x, y]) => window.__game.views.hoverPlan(x, y), [wscr.x, wscr.y])).planner;
-      }
-      const before = (await nestOf(h)).digPlans.length;
-      if (pv?.preview && pv.preview.validity !== 'invalid') {
-        let st = await g(([x, y]) => window.__game.views.click(x, y), [wscr.x, wscr.y]);
-        if (st.message && /confirm/.test(st.message)) st = await g(([x, y]) => window.__game.views.click(x, y), [wscr.x, wscr.y]);
-        placed = (await nestOf(h)).digPlans.length > before;
-      }
-    }
-  }
-  await g(() => window.__game.views.tool(null));
+  // a dig plan: a nursery beside the queen's cell, placed the way a player does it (placeChamberPlan, firstplay-steps.mjs; app-seams-4 item 1)
+  const { placed, preview: pvw } = await placeChamberPlan(h, 'nursery');
+  const pv = pvw ? { preview: pvw } : null;
   result.checks.digPlan = { placed, preview: pv?.preview ? { validity: pv.preview.validity, codes: pv.preview.codes } : null };
   expect(placed, 'no dig plan placed off the founding cell', result.checks.digPlan);
   await step(30);

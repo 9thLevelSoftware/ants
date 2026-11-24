@@ -131,6 +131,11 @@ export interface UiPossessed {
   home?: { angleDeg: number; distBu: number } | null;
   /** The queen after hand-over: the Colony orders button shows. */
   colonyOrders?: boolean;
+  /**
+   * app-seams-4: she carries food and the colony's stores cannot take it (GDD 02 stores-full): the panel says why she cannot hand it over
+   * ("Stores full - dig a food chamber"). Absent = no such condition.
+   */
+  storesFull?: boolean;
 }
 
 export interface UiPrompt {

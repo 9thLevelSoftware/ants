@@ -1764,3 +1764,17 @@ Results: `docs/design/tasks/reviews/look-pass-6.json`, report `docs/design/tasks
 - wf-build launched 13:44 UTC Nov 24: task `w8x4jo6ej`, run `wf_7ca88a78-830` (app-seams-4 sonnet / opus verify, visual).
   Running beside it: `w8aer6s1c` / `wf_b0b0220d-62a` (winter-sugar). Journals under
   `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/<run>/journal.jsonl`.
+
+### Nov 24 ~14:56 UTC — check-in: winter-sugar leftovers done, tending lead found; app-seams-4 planner fixed
+
+- winter-sugar: A1-A3 done (R14 restated in the long test, 4 of 4 green incl. the 4-worker case; headless kit lays 24
+  eggs; unplug stand point fixed). Item 4's lead on the two colonies short of sugar in year two: on brood-peak days the
+  tend **demand is 6-12 workers and the tend target 0-1**, because the allocation order serves forage and store before
+  tend, so tenders (0.47 C per tender-day) are dropped while needC is 0.9-1. Arm T = a tend floor served with the
+  scout floor before forage (one keep per workable herd while needC > 0); arm W = R41 alone. Baseline and arm W
+  running, arm T queued, the pair only if each alone is not worse.
+- app-seams-4: dig planner fixed (a click 3 BU or more from the cell wall was refused; the anchor now marches from the
+  nearest open nest sample toward the click, reach 8 BU; GDD 03 says 2 BU: DEVIATIONS row); firstplay script places the
+  plan as a player would; occluder fade, flood sheet, outcome card, night rim (0.28) written, pictures queued; full
+  runs after the items are verified. It reports for the sim: the architect's food-chamber plan reads "Stalled: No
+  diggers free" with 14 workers on seed 1 day 5.
