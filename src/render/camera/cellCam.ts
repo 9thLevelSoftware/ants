@@ -8,7 +8,7 @@ import { clampN, DEG, wrapPi } from './frameMath';
 import {
   CAM_FAR_BU, CELLCAM_BLEND_S, CELLCAM_CUT_ABOVE_BU, CELLCAM_FILL, CELLCAM_FOLLOW_DELAY_S, CELLCAM_FOLLOW_MAX_DEG_S, CELLCAM_FOLLOW_TAU_S, CELLCAM_OFF_L,
   CELLCAM_OFF_S, CELLCAM_ON_L, CELLCAM_ON_S, CELLCAM_RADIUS_L, CELLCAM_SIDE_ENTER_UP_Y, CELLCAM_SIDE_EXIT_UP_Y, CELLCAM_SIDE_FREE_FRACTION,
-  CELLCAM_SIDE_OFFSET_L, CELLCAM_SIDE_PITCH_DEG, CELLCAM_TEXEL_BU, CELLCAM_TOP_HOLD_S, CELLCAM_SIDE_MIN_FREE_L, CELLCAM_PULL_DEG_S, FSHOT_FOV_DEG,
+  CELLCAM_SIDE_OFFSET_L, CELLCAM_SIDE_PITCH_DEG, CELLCAM_SIGHT_MARGIN_MM, CELLCAM_SIGHT_STEP_MM, FSHOT_PITCH_DEG, CELLCAM_TEXEL_BU, CELLCAM_TOP_HOLD_S, CELLCAM_SIDE_MIN_FREE_L, CELLCAM_PULL_DEG_S, FSHOT_FOV_DEG,
 } from './constants';
 import type { CutawayParams } from './colonyRig';
 import type { FoundingShotSubject } from './foundingShot';
@@ -228,6 +228,26 @@ export function makeCellSideShot(): CellSideShot {
   };
 }
 
+const SIGHT_PITCHES = 3;
+
+/**
+ * How far (mm, horizontally toward `azimuth`, at most `cap`) the line of sight from the subject to a camera at the side view's pitch, at the view from
+ * above's pitch and at one between (the views blend through them) stays in open air, less a margin: the free room probe of `freeToward` runs level
+ * at her thorax, and a camera above it looks down a line that meets a low roof sooner. The section stands no farther from her than this, so no soil
+ * is left between it and her on the line. The last 0.35 body lengths of the line (her own body, the floor under her head) are not looked at.
+ */
+function sightRoom(s: FoundingShotSubject, lengthMm: number, azimuth: number, bu: number, field: FieldFn, cap: number): number {
+  const sa = Math.sin(azimuth), ca = Math.cos(azimuth), step = Math.min(CELLCAM_SIGHT_STEP_MM, 0.2 * bu);
+  let room = cap;
+  for (let k = 0; k < SIGHT_PITCHES; k++) {
+    const q = (CELLCAM_SIDE_PITCH_DEG + (FSHOT_PITCH_DEG - CELLCAM_SIDE_PITCH_DEG) * k / (SIGHT_PITCHES - 1)) * DEG, cq = Math.cos(q), sq = Math.sin(q);
+    for (let u = 0.35 * lengthMm; u * cq < room; u += step) {
+      if (field(s.x + sa * cq * u, s.y + sq * u, s.z + ca * cq * u) <= 0) { room = Math.max(u * cq - CELLCAM_SIGHT_MARGIN_MM, 0); break; }
+    }
+  }
+  return room;
+}
+
 /**
  * The side view of the subject from `azimuth` (a vertical section stands between the camera and her): the camera at CELLCAM_SIDE_PITCH_DEG over
  * the horizontal looks at her thorax, the section plane stands toward the camera from her by what her body reaches that way (half her length
@@ -252,6 +272,7 @@ export function cellSideShotAt(out: CellSideShot, s: FoundingShotSubject, t: Cam
   if (field) {
     const free = freeToward(t, lengthMm, bu, field, azimuth, offset * 3);
     offset = Math.min(offset, Math.max(free * CELLCAM_SIDE_FREE_FRACTION, 0.2 * lengthMm));
+    offset = Math.min(offset, Math.max(sightRoom(s, lengthMm, azimuth, bu, field, offset), 0.2 * lengthMm));
   }
   const c = out.cutaway, vd = c.viewDir!;
   c.mode = 'slice'; c.section = 'vertical';
@@ -261,4 +282,33 @@ export function cellSideShotAt(out: CellSideShot, s: FoundingShotSubject, t: Cam
   c.radius = d * cp * 1.4 + 4 * lengthMm;
   c.texelMm = CELLCAM_TEXEL_BU * bu;
   return out;
+}
+
+/** The vertical section a cut was last given (see `finishCut`): the plane's normal and its position along it. */
+export interface HeldSection { valid: boolean; nx: number; nz: number; p: number }
+
+export function makeHeldSection(): HeldSection { return { valid: false, nx: 0, nz: 0, p: 0 }; }
+
+/**
+ * Puts a cut on the grid the cut faces are rasterised on, without moving the plane toward the camera (which would put soil in the line of
+ * sight). A horizontal slice: the centre of its disc is snapped. A vertical section: the centre is snapped along the plane only; the plane itself
+ * is held where it was (`held`) while the offset the side view wants has not moved out of `holdMm` toward her from it, and then jumps to the wanted
+ * one, so the plane is never nearer the camera than wanted (the wanted offset is fitted to the free room in `cellSideShotAt`).
+ */
+export function finishCut(cut: CutawayParams, held: HeldSection, gridMm: number, holdMm: number): CutawayParams {
+  const c = cut.center;
+  if (cut.section !== 'vertical' || !cut.viewDir) {
+    c.x = Math.round(c.x / gridMm) * gridMm; c.z = Math.round(c.z / gridMm) * gridMm;
+    return cut;
+  }
+  const vl = Math.hypot(cut.viewDir.x, cut.viewDir.z) || 1, nx = -cut.viewDir.x / vl, nz = -cut.viewDir.z / vl;
+  const wanted = nx * c.x + nz * c.z + (cut.offset ?? 0);
+  if (!held.valid || Math.abs(held.nx - nx) + Math.abs(held.nz - nz) > 1e-6 || held.p > wanted + 1e-9 || held.p < wanted - holdMm) {
+    held.valid = true; held.nx = nx; held.nz = nz; held.p = wanted;
+  }
+  // along the plane (direction (-nz, nx)) the centre is on the grid; across it the centre stays, and the offset is what puts the plane at held.p
+  const a = -nz * c.x + nx * c.z, snapped = Math.round(a / gridMm) * gridMm;
+  c.x += -nz * (snapped - a); c.z += nx * (snapped - a);
+  cut.offset = held.p - (nx * c.x + nz * c.z);
+  return cut;
 }

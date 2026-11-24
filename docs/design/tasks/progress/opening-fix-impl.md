@@ -206,3 +206,11 @@ the stamps above ran ~2 h ahead: "02:30" above = ~00:30 UTC).
   ANCHOR_SNAP of the hovered point; the script hovers ch.center + 0.9 radius.x and only rotates the yaw). Colony-view
   planner pick / script geometry (app side; also seen in look-pass-5's stand-in run), not a hand-over sim defect: not
   fixed. f15-final 5/5 viable. Waiting: full2 seed 2, sweep-long-final.
+- 12:05 UTC: FULL2 seed 2: 10 workers, beats 01-13 pass, fails 13->14 trail (38 deliveries, C 14.0 at the larder cap; headless trail-s2.txt: needC 0.00 at cap 14.8, trail cells 8-14 never linked). Design (need-scaled recruitment), not fixed. Report updated. Waiting: sweep-long-final (2/5 running).
+- 12:15 UTC: sweep-long-final 2/5 done (we#2, sg#2); report sections 5/6 finalized except LONGFINAL. Next after CLOSE2 DONE: folder tests on the final tree, archive probes, delete tools/sim/probe, final report fill.
+- 12:35 UTC: sweep-long-final 4/5 (kd#3 running).
+- 12:40 UTC: CLOSE2 DONE 12:40: long runs on the final tree 90 -> 113 workers, R22 5/5, R34 1.0x 4/5, 1.5x 1/5 (sweep-long-final/longrun-table.md). Report filled. Next: folder tests, tsc, archive probes.
+- 12:45 UTC CLOSED by the third engineer. Final tree = live src/sim = /home/user/frozen-openingfix2. Folder tests on it:
+  founding + allocation + nest/moundMaskLip + outdoor/determinism.perf + nest/dig: 36 files / 111 tests pass
+  (folder-tests-final.txt); tsc --noEmit exit 0. Probes archived to test-output/opening-fix/probes/ and tools/sim/probe
+  removed; scratch trees deleted; no background process of mine left. Report: docs/design/tasks/opening-fix-report.md.

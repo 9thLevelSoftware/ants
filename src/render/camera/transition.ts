@@ -1,5 +1,5 @@
 // Blends between camera rigs over a duration (GDD 01 section 2): a smooth flight for short hops, a dip-fade for long
-// ones, a short cross-fade in reduced motion. The destination pose is re-read every frame, so the blend lands on a
+// ones, a short cross-fade (a still of the old picture fading out over the new one) in reduced motion. The destination pose is re-read every frame, so the blend lands on a
 // moving rig without a pop.
 import { v3Distance, v3Lerp, v3Normalize, v3Sub, vec3, type Vec3 } from '@/core';
 import {
@@ -25,8 +25,13 @@ export function planTransition(from: CameraPose, to: CameraPose, bu: number, red
 
 export interface TransitionOutput {
   pose: CameraPose;
-  /** Screen darkening 0..1 for dip / cross-fade transitions (the app draws a full-screen fade). */
+  /** Screen darkening 0..1 for a dip transition (the app draws a full-screen fade). */
   dip: number;
+  /**
+   * Opacity 0..1 of the still of the frame before the transition, laid over the live picture of the new pose, for a cross-fade (the app keeps that frame and
+   * fades it out over the new one: a blend of two images, GDD 08 7.10). 0 for every other transition.
+   */
+  stillFade: number;
   done: boolean;
   /** Eased progress 0..1. */
   progress: number;
@@ -60,7 +65,7 @@ export class CameraTransition {
   private t = 0;
   private plan: TransitionPlan = { kind: 'fly', duration: 0 };
   private active = false;
-  readonly out: TransitionOutput = { pose: makePose(), dip: 0, done: true, progress: 1 };
+  readonly out: TransitionOutput = { pose: makePose(), dip: 0, stillFade: 0, done: true, progress: 1 };
 
   get running(): boolean {
     return this.active;
@@ -84,7 +89,7 @@ export class CameraTransition {
     const o = this.out;
     if (!this.active) {
       copyPose(o.pose, to);
-      o.dip = 0; o.done = true; o.progress = 1;
+      o.dip = 0; o.stillFade = 0; o.done = true; o.progress = 1;
       return o;
     }
     this.t = Math.min(this.plan.duration, this.t + Math.max(0, dt));
@@ -92,14 +97,19 @@ export class CameraTransition {
     if (this.plan.kind === 'fly') {
       o.progress = smooth(k);
       blendPoses(o.pose, this.from, to, o.progress);
-      o.dip = 0;
+      o.dip = 0; o.stillFade = 0;
+    } else if (this.plan.kind === 'crossfade') {
+      // the new pose is live from the first frame; the old frame fades out over it
+      o.progress = k;
+      copyPose(o.pose, to);
+      o.dip = 0; o.stillFade = 1 - smooth(k);
     } else {
       // first half: fade out on the old pose; second half: fade in on the new one
       o.progress = k;
       copyPose(o.pose, k < 0.5 ? this.from : to);
-      o.dip = this.plan.kind === 'dip' ? 1 - Math.abs(1 - 2 * k) : 0.5 * (1 - Math.abs(1 - 2 * k));
+      o.dip = 1 - Math.abs(1 - 2 * k); o.stillFade = 0;
     }
-    if (k >= 1) { this.active = false; o.done = true; o.dip = 0; }
+    if (k >= 1) { this.active = false; o.done = true; o.dip = 0; o.stillFade = 0; }
     else o.done = false;
     return o;
   }

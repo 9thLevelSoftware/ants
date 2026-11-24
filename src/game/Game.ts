@@ -46,6 +46,7 @@ import { edgeGlyphActive } from '@/render/world/boundary';
 import { createGameAudio, type AudioSystem } from '@/audio';
 import { clearOverlays, ComfortFeed, installOverlayHost } from './stage2Wiring';
 import { Accessibility } from './accessibility';
+import { CrossfadeVeil } from './crossfadeVeil';
 
 export interface GameOptions {
   canvas: HTMLCanvasElement;
@@ -160,6 +161,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   private readonly comfort = new ComfortFeed();
   /** Applies Settings > Accessibility to the camera, the render app and the palette (src/game/accessibility). */
   readonly a11y = new Accessibility(this);
+  /** The still of the last frame that a reduced-motion camera crossfade fades out over the new picture. */
+  private veil: CrossfadeVeil | null = null;
 
   constructor(readonly opts: GameOptions) {
     this.realtime = !opts.testMode;
@@ -217,6 +220,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.uninstallOverlayHost = installOverlayHost(this.registry, this.settings);
     this.a11y.attach();
     this.viewsLayer.attach(this.opts.canvas, this.scene, this.registry);
+    this.veil = new CrossfadeVeil(this.opts.canvas);
+    this.app.setAfterRender(() => { if (this.settings.get().camera.reducedMotion) this.veil?.capture(); });
     this.app.start(this.onFrame);
     this.app.renderFrame(0);
     await Promise.all([this.app.ready, assetsReady]);
@@ -366,6 +371,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.soundCues.detach();
     this.viewsLayer.reset();
     this.loading = null;
+    this.opts.canvas.style.opacity = ''; // a camera dip or crossfade in flight must not leave the title screen dimmed
+    this.veil?.reset();
     if (toTitle) { this.mode = 'title'; void this.title.enter(); }
     this.input.contexts.setBase('UI');
     this.requestRender();
@@ -446,10 +453,12 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     const vf = settleS > 0 ? s.views.settle(settleS, TEST_CAMERA_SETTLE_DT) : s.views.update(dt, live);
     const canvas = this.opts.canvas;
     applyPose(this.camera, vf.pose, canvas.clientWidth / Math.max(1, canvas.clientHeight));
-    // the dip of a long camera hop and the crossfade of reduced motion (GDD 08 2.4, 7.10): the picture fades toward the page's dark ground and back
-    // (look pass 6: the dip was computed by the view director and never drawn); the HUD is another element and stays
+    // the dip of a long camera hop: the picture fades toward the page's dark ground and back (look pass 6: the dip was computed by the view director and
+    // never drawn); the HUD is another element and stays. The crossfade of reduced motion (GDD 08 2.4, 7.10) lays the still of the last frame over the
+    // new picture and fades it out
     const veil = vf.dip > 0.001 ? String(Math.max(0, 1 - vf.dip)) : '';
     if (canvas.style.opacity !== veil) canvas.style.opacity = veil;
+    this.veil?.setOpacity(vf.stillFade);
     const underground = this.undergroundSw.update(s.sim.field.substrate(this.camera.position), s.sim.world.bu, settleS > 0);
     // reduced motion: focus changes are instant (GDD 08 §12)
     const instantFocus = settleS > 0 || dt === 0 || this.settings.get().camera.reducedMotion;

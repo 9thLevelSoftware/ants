@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CELLCAM_FILL, CELLCAM_ON_L, CELLCAM_ON_S, CELLCAM_SIDE_PITCH_DEG, CELLCAM_TOP_HOLD_S } from './constants';
-import { CellCam, azimuthBetween, cellShotSubject, cellSideShotAt, freeToward, makeCellSideShot, openAzimuth, probeOrigin } from './cellCam';
+import { CellCam, azimuthBetween, cellShotSubject, cellSideShotAt, finishCut, freeToward, makeCellSideShot, makeHeldSection, openAzimuth, probeOrigin } from './cellCam';
 import type { CameraTarget } from './types';
 import type { FoundingShotSubject } from './foundingShot';
 
@@ -150,5 +150,47 @@ describe('cell camera helpers', () => {
   it('azimuthBetween is null when two points are nearly above each other', () => {
     expect(azimuthBetween({ x: 0, z: 0 }, { x: 0.1, z: 0 }, 1)).toBeNull();
     expect(azimuthBetween({ x: 0, z: 0 }, { x: 5, z: 0 }, 1)).toBeCloseTo(Math.PI / 2, 9);
+  });
+});
+
+describe('cell camera cut: the vertical section is never moved toward the camera', () => {
+  const planeOf = (c: { center: { x: number; z: number }; viewDir?: { x: number; z: number }; offset?: number }) => -c.viewDir!.x * c.center.x - c.viewDir!.z * c.center.z + (c.offset ?? 0);
+
+  it('snaps the centre along the plane only: the plane stays where the side view fitted it', () => {
+    const t = queenOnFloor(1.3, 0.7), held = makeHeldSection();
+    const s = cellShotSubject(subjectOf(), t, L, BU, cell);
+    for (const az of [0, 0.4, Math.PI / 2, 2.2]) {
+      const c = cellSideShotAt(makeCellSideShot(), s, t, L, az, BU, cell).cutaway, before = planeOf(c);
+      held.valid = false;
+      finishCut(c, held, 3, 0.5);
+      expect(planeOf(c)).toBeCloseTo(before, 9);
+      // along the plane (-nz, nx) with n = -viewDir the centre is on the 3 mm grid
+      const a = c.viewDir!.z * c.center.x - c.viewDir!.x * c.center.z;
+      expect(Math.abs(a / 3 - Math.round(a / 3))).toBeLessThan(1e-9);
+    }
+  });
+
+  it('holds the plane while the wanted one stays within the band toward her, and never lets it stand nearer the camera than wanted', () => {
+    const t = queenOnFloor(), held = makeHeldSection();
+    const s = cellShotSubject(subjectOf(), t, L, BU, cell);
+    const at = (offset: number) => { const c = cellSideShotAt(makeCellSideShot(), s, t, L, Math.PI / 2, BU, cell).cutaway; c.offset = offset; finishCut(c, held, 3, 0.5); return planeOf(c); };
+    // the queen stands at x = 0 and the camera is toward +x: the plane's position is its offset
+    expect(at(3)).toBeCloseTo(3, 9);
+    expect(at(3.3)).toBeCloseTo(3, 9); // the wanted plane moved 0.3 mm away from her: held
+    expect(at(3.5)).toBeCloseTo(3, 9);
+    expect(at(3.6)).toBeCloseTo(3.6, 9); // beyond the band: the plane follows
+    expect(at(3.2)).toBeCloseTo(3.2, 9); // the wanted plane came back toward her past the held one: the held plane would stand nearer the camera than wanted
+  });
+
+  it('puts no soil between the section and the ant on the line of sight under a low roof', () => {
+    // a slot with a roof 6 mm over the floor starting 3 mm from her: the level probe sees 20 mm of room, the camera's line (14 degrees up) meets the roof first
+    const room = (x: number, y: number, z: number) => Math.min(y - 0, (x < 3 ? 99 : 6 - y), 9 - Math.abs(z), 40 - x, x + 40);
+    const t = queenOnFloor(), s = cellShotSubject(subjectOf(), t, L, BU, room);
+    const c = cellSideShotAt(makeCellSideShot(), s, t, L, Math.PI / 2, BU, room).cutaway;
+    // the line from her thorax at the steepest pitch crosses x = 3 at y = 0.2 L + 3 tan 52 = 5.6 mm: under the roof, so the plane may stand at 3 mm or more; with a roof at 4 mm it must stand nearer
+    const low = (x: number, y: number, z: number) => Math.min(y - 0, (x < 3 ? 99 : 4 - y), 9 - Math.abs(z), 40 - x, x + 40);
+    const c2 = cellSideShotAt(makeCellSideShot(), s, t, L, Math.PI / 2, BU, low).cutaway;
+    expect(c2.offset!).toBeLessThan(c.offset! + 1e-9);
+    expect(c2.offset!).toBeLessThanOrEqual(3 + 1e-9);
   });
 });

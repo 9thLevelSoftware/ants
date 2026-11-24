@@ -5,7 +5,7 @@
 import { vec3, type Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import {
-  CAM_HANDOVER_KEEP_MAX_L, CAM_REDUCED_CROSSFADE_S, CAM_SWITCH_DIP_HALF_S, FSHOT_FILL, FSHOT_ORBIT_REV_PER_S, FSHOT_STILL_S, FSHOT_YAW_DEG, CAM_AUTOFOLLOW_MIN_SPEED_BU, CELLCAM_CUT_GRID_MM, CELLCAM_MIN_RADIUS_BU, CELLCAM_RADIUS_L, CELLCAM_TEXEL_BU, CELLCAM_EDGE_W, CellCam, applyLift, azimuthBetween, blendPoses, freeToward, openAzimuth, CELLCAM_SIDE_ENTER_UP_Y, CELLCAM_SIDE_MIN_FREE_L, cellShotSubject, cellSideShotAt, makeCellSideShot, copyShotSubject, easeShotSubject, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
+  CAM_HANDOVER_KEEP_MAX_L, CAM_REDUCED_CROSSFADE_S, CAM_SWITCH_DIP_HALF_S, FSHOT_FILL, FSHOT_ORBIT_REV_PER_S, FSHOT_STILL_S, FSHOT_YAW_DEG, CAM_AUTOFOLLOW_MIN_SPEED_BU, CELLCAM_CUT_GRID_MM, CELLCAM_SECTION_HOLD_MM, CELLCAM_SIGHT_STEP_MM, CELLCAM_MIN_RADIUS_BU, CELLCAM_RADIUS_L, CELLCAM_TEXEL_BU, CELLCAM_EDGE_W, CellCam, applyLift, azimuthBetween, blendPoses, freeToward, openAzimuth, CELLCAM_SIDE_ENTER_UP_Y, CELLCAM_SIDE_MIN_FREE_L, cellShotSubject, cellSideShotAt, makeCellSideShot, finishCut, makeHeldSection, copyShotSubject, easeShotSubject, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
   copyPose, fitsAt, makePose, planTransition, type FoundingShotSubject, type ThirdPersonOutput, type TransitionPlan,
   type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type FieldFn, type PossessionCamState, type TraceFn,
 } from '@/render/camera';
@@ -38,6 +38,8 @@ export interface ViewFrame {
   pose: CameraPose;
   /** Full-screen dip 0..1 during a fade transition. */
   dip: number;
+  /** Opacity 0..1 of the still of the previous frame laid over this one during a reduced-motion cross-fade. */
+  stillFade: number;
   /** Depth-of-field focus distance, mm. */
   focus: number;
   /** Opacity of the possessed ant (third-person fade, 6.5). */
@@ -159,7 +161,7 @@ export class ViewDirector {
   private readonly cellShotPose: CameraPose = makePose();
   private readonly cellPose: CameraPose = makePose();
   private readonly frameOut: ViewFrame = {
-    pose: makePose(), dip: 0, focus: 100, subjectOpacity: 1, possessionState: null, fade: null, cutaway: null, observerMode: null,
+    pose: makePose(), dip: 0, stillFade: 0, focus: 100, subjectOpacity: 1, possessionState: null, fade: null, cutaway: null, observerMode: null,
   };
 
   constructor(readonly world: ViewWorld, cam: CameraOptions) {
@@ -464,17 +466,19 @@ export class ViewDirector {
     c.steer(dt, yawDeg, t, this.third.speedMmS > CAM_AUTOFOLLOW_MIN_SPEED_BU * bu, this.third.opts.autoFollow !== 'off', L, bu, this.world.field);
     const e = weight * weight * (3 - 2 * weight), es = c.sideWeight * c.sideWeight * (3 - 2 * c.sideWeight);
     // the view from above and the side view, blended by the side weight; then the rig's own pose to the cell camera's by the weight
-    let shotPose: CameraPose, shotDist: number, cut: CutawayParams;
-    if (c.sideWeight < 1) foundingShotAt(this.cellShot, subject, c.azimuth, bu, CELLCAM_MIN_RADIUS_BU);
-    if (c.sideWeight > 0) cellSideShotAt(this.cellSide, subject, t, L, c.azimuth, bu, this.world.field);
-    if (c.sideWeight <= 0) { shotPose = this.cellShot.pose; shotDist = this.cellShot.distance; cut = this.cellShot.cutaway; }
-    else if (c.sideWeight >= 1) { shotPose = this.cellSide.pose; shotDist = this.cellSide.distance; cut = this.cellSide.cutaway; }
+    const g = CELLCAM_CUT_GRID_MM, top = c.sideWeight < 1, side = c.sideWeight > 0;
+    if (top) { foundingShotAt(this.cellShot, subject, c.azimuth, bu, CELLCAM_MIN_RADIUS_BU); finishCut(this.cellShot.cutaway, this.cellHeld, g, CELLCAM_SECTION_HOLD_MM); }
+    if (side) { cellSideShotAt(this.cellSide, subject, t, L, c.azimuth, bu, this.world.field); finishCut(this.cellSide.cutaway, this.cellHeld, g, CELLCAM_SECTION_HOLD_MM); } else this.cellHeld.valid = false;
+    let shotPose: CameraPose, shotDist: number;
+    if (!side) { shotPose = this.cellShot.pose; shotDist = this.cellShot.distance; }
+    else if (!top) { shotPose = this.cellSide.pose; shotDist = this.cellSide.distance; }
     else {
       shotPose = blendPoses(this.cellShotPose, this.cellShot.pose, this.cellSide.pose, es);
       shotDist = this.cellShot.distance + (this.cellSide.distance - this.cellShot.distance) * es;
-      cut = es < 0.5 ? this.cellShot.cutaway : this.cellSide.cutaway;
     }
     blendPoses(this.cellPose, o, shotPose, this.cellSnapped ? 1 : e);
+    // between the two views the pose is a mixture, and neither cut alone is sure to clear the line of sight: the one that leaves less soil in it is used
+    const cut = !side ? this.cellShot.cutaway : !top ? this.cellSide.cutaway : this.soilInSight(this.cellShot.cutaway, t, L) <= this.soilInSight(this.cellSide.cutaway, t, L) ? this.cellShot.cutaway : this.cellSide.cutaway;
     // a blend from the rig's pose to the shot's can cross soil that the cut-away does not remove (the camera over the wall on its way up): where it would, the picture cuts to
     // the shot at once (the cut-away is in full from the first frame of the blend) and stays there until the cell camera is off again
     if (!this.cellSnapped && e < 1) {
@@ -485,13 +489,31 @@ export class ViewDirector {
     f.focus = o.focusDistance + (shotDist - o.focusDistance) * e;
     f.subjectOpacity = 1;
     f.fade = null;
-    // the cut faces are rasterised again whenever the plane or its centre changes: the centre is held on a grid
-    const g = CELLCAM_CUT_GRID_MM;
-    cut.center.x = Math.round(cut.center.x / g) * g; cut.center.z = Math.round(cut.center.z / g) * g;
     cut.texelMm = CELLCAM_TEXEL_BU * bu;
     cut.edgeW = CELLCAM_EDGE_W;
     f.cutaway = cut;
     this.cellCut = cut;
+  }
+
+  /** The vertical section of the side view, held between frames (finishCut). */
+  private readonly cellHeld = makeHeldSection();
+
+  /**
+   * Millimetres of the line from the cell camera (its pose of this frame) to the ant's thorax that stand in soil which `cut` does not remove: the length
+   * of the picture's "soil in front of her". Her own body and the floor under her head (the last 0.35 body lengths) are not counted.
+   */
+  private soilInSight(cut: CutawayParams, t: CameraTarget, lengthMm: number): number {
+    const field = this.world.field, c = this.cellPose.pos;
+    if (!field) return 0;
+    const tx = t.pos.x + t.up.x * 0.2 * lengthMm, ty = t.pos.y + t.up.y * 0.2 * lengthMm, tz = t.pos.z + t.up.z * 0.2 * lengthMm;
+    const len = Math.hypot(tx - c.x, ty - c.y, tz - c.z), stop = len - 0.35 * lengthMm, step = CELLCAM_SIGHT_STEP_MM, q = { x: 0, y: 0, z: 0 };
+    let soil = 0;
+    for (let u = 0; u < stop; u += step) {
+      const k = u / len;
+      q.x = c.x + (tx - c.x) * k; q.y = c.y + (ty - c.y) * k; q.z = c.z + (tz - c.z) * k;
+      if (field(q.x, q.y, q.z) < 0 && !inCutAway(cut, q)) soil += step;
+    }
+    return soil;
   }
 
   /** The cell camera's cut-away of the last frame, or null while the rig's own camera is the picture. */
@@ -532,6 +554,7 @@ export class ViewDirector {
     this.applyTremor(dt);
     f.pose = this.last;
     f.dip = t.dip;
+    f.stillFade = t.stillFade;
     this.emitCameraState(f.possessionState);
     return f;
   }

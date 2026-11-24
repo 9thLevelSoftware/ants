@@ -1710,3 +1710,31 @@ outputs are git-ignored and are lost if the container is reclaimed (then rerun `
   dead code (the sim already reports "Lay egg — busy" for the whole batch), night pictures readable, cell camera
   after-pictures fine at medium / high, outcome card shows the queen whole with her head at the card's edge and no
   workers in frame; it is testing the cut-away's line of sight.
+
+### Nov 24 ~13:07 UTC — opening-fix landed (review: pass with minor findings); winter-sugar launched
+
+Results: `docs/design/tasks/reviews/opening-fix.json`, report `docs/design/tasks/opening-fix-report.md`.
+- **Final tree (sim 741fec90):** founding queen leaves standing water in the lapse (`founding/dryQueen.ts`); unplug
+  floor of 2 diggers with a draft capped at the floor; wide, restore-exact mound-mask probe; headless opening driver.
+- From the close sweep's 15 hand-overs: **15 of 15 viable, 264 workers**. Long runs on the final tree: **90 -> 113**
+  workers, R22 5 of 5, R34 >= 1.0 x in 4 of 5, >= 1.5 x in 1 of 5 (cpv #1 33, kd #3 21, pp #3 28, sg #2 22, we #2 9).
+  Two colonies enter the second winter short of sugar (pp #3 0.7 C with 28 workers, sg #2 3.7 C).
+- Browser `firstplay.mjs` beats 01-13 without stand-ins pass on seeds 1-5. With the script's clutch fixed (24 eggs)
+  seed 1 hands over 14 workers and passes beats 01-19; it stops at 19 -> 20 (colony-view dig planner refuses the
+  script's plan: `anchor-not-in-nest`); seed 2 stops at 13 -> 14 on a full larder. Both app / script side.
+- Review (pass-with-minor): the headless kit still lays 12 eggs; the unplug stand point can lie inside the plug
+  (a digger barred for 600 ticks; left unfixed); the long test holds the 4-worker case only to 7500 ticks; R14 unmet
+  on cold-night hand-overs (5-7 game hours).
+- **Ruling: R14 restated** - 4 game hours counted from the first hour after the hand-over in which the air at the nest
+  mouth is at or above the forage gate's full band.
+- Pictures I looked at: night hours sheet (`look6/sheets/item2-night-hours-clear-rain-low.png`: night is now readable,
+  blue-grey, the ant visible); cell camera on seed 2 (`item1-s2-low-real-beats-07-10-after.png`: the queen whole from
+  above in a cut-away cell - good; **the flood water is drawn as a pale translucent rectangle with square edges**, a
+  visible defect for the next app task); `full2-seed1/14-worker-following-trail.png` (day, overcast: readable; far
+  buildings are flat pale slabs in the haze).
+- **Launched `winter-sugar`** (Opus / Opus; `docs/design/tasks/winter-sugar.md`): the three opening leftovers, then
+  measure what separates colonies that meet their winter sugar from those that do not, at most two rules each measured
+  alone (R41 alone; prompt tending), a third year for the two fragile colonies, a fresh close sweep.
+- look-pass-6: review failed (cut-away line of sight crosses uncut soil in 8 of 532 frames; one after-picture of a
+  crowded chamber broken; `markBusy` redundant); fix stage running (real crossfade drawn, hud.mjs fixed, night
+  pictures at medium / high).

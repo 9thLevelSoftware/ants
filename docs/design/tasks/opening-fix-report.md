@@ -21,7 +21,7 @@ prototype was also tried in the live tree and reverted (section 6).
 | seeds 3 / 4 / 5, headless | 3 pass, 4 `reopening:235` for good, 5 pass | all pass; open 750 / 1287 / 750 ticks after the hand-over |
 | seeds 3 / 4 / 5, browser | - | **all pass beats 01-13, no stand-ins**; open within 3 / 6 / 2 game h (R14 met / missed / met) |
 | item 5: 5 paired sweep-15 hand-overs to winter | sweep 15: 4 of 5 viable | **5 of 5** (close tree and final tree) |
-| long runs (5 colonies, year two) | gate-sim-2: 85 -> 94 / 105 workers | **83 -> 108**; R34 1.0 x 4 of 5, 1.5 x 2 of 5 |
+| long runs (5 colonies, year two) | gate-sim-2: 85 -> 94 / 105 workers | close tree 83 -> 108; **final tree 90 -> 113**; R34 1.0 x 4 of 5 (bar met), 1.5 x 1 of 5 |
 | sweep (15 fresh foundings) | gate-sim-2: 12 / 15 (sweep), 13 / 15 (sweep2) | close sweep (tree 9a8cdf07): 12 / 15, workers 249; **final tree (fix 5) on the same 15 hand-overs: 15 / 15, workers 264** |
 
 ## 1. Per seed: cause, breaking commit, fix, test
@@ -191,7 +191,14 @@ placed off the founding cell": the colony-view planner's preview stays invalid w
 validate.ts`: no nest-open sample within `ANCHOR_SNAP_BU` of the hovered point) through all 24 rotations; the script
 hovers the cell's centre + 0.9 x its x radius and only turns the yaw, so the anchor it offers lies in soil when the cell
 is not long along x. Owner: the colony-view pick / the script (seen before as a soft failure in look-pass-5's stand-in
-run), not the hand-over: not fixed. Seed 2: FULL2_S2
+run), not the hand-over: not fixed. Seed 2: 10 first workers, beats 01-13 pass;
+**first failure 13 -> 14**, no trail in 18000 ticks although the colony made 38 deliveries (`trail 0` at the midpoint,
+C store 14.0). Headless on the seed-2 hand-over (11 workers; `trailProbe.ts`, output `headless/trail-s2.txt`): the
+stores sit at the 1-day larder cap (14.8 C) from the second game hour, so the colony's C need is 0.00 and GDD 02 §8.3's
+dab is `q (0.5 + need) sizeFactor(N)`, about 0.15 q at N 10; the foragers lay on 28 return trips, 8-14 trail cells are
+active, but the trail never links source and entrance (`trail-established` never fires). Same family as seed 1 on the
+close tree: recruitment by design is weak in a colony that is small and already full. Not a hand-over defect: not fixed;
+for the script owner, a smaller spill (or one placed before the larder fills) would let need drive the trail.
 
 
 
@@ -263,7 +270,7 @@ On the final tree (`f15-final-table.md`, tree `frozen-openingfix2`):
 Again 5 of 5 viable (sweep 15: 4 of 5). **Met on the final tree.**
 
 **Long runs (year two, the same five colonies; close sweep's tree 9a8cdf07,** `sweep-long/longrun-table.md`; on the
-final tree: LONGFINAL):
+final tree: the second table):
 
 | | gate-sim-2 reverted | gate-sim-2 item 4 in (kept) | **this tree** |
 |---|---|---|---|
@@ -274,6 +281,17 @@ final tree: LONGFINAL):
 
 Per colony at winter 2: cpv #1 36, kd #3 10, pp #3 28, sg #2 19, we #2 15 (kd #3 is the R34 miss, as on both earlier
 trees).
+
+On the final tree (`sweep-long-final/longrun-table.md`, fresh foundings, tree `frozen-openingfix2`):
+
+| | close sweep's tree | **final tree** |
+|---|---|---|
+| workers winter 1 -> winter 2 | 83 -> 108 | **90 -> 113** |
+| R22 spring >= 0.7 x winter | 5 of 5 | 5 of 5 |
+| R34 >= 1.0 x (bar 4) | 4 of 5 | 4 of 5 |
+| R34 >= 1.5 x (bar 3) | 2 of 5 | 1 of 5 |
+
+Per colony at winter 2: cpv #1 33, kd #3 21, pp #3 28, sg #2 22, we #2 9 (we #2 is the R34 miss this time; kd #3 doubles).
 
 
 ## 4b. Rulings 2 and 3: the 249 workers explained, and fix 5
@@ -364,7 +382,8 @@ player's seal back its round-9 size, section 1).
 ## 5. Appendix E checks
 
 The opening's acceptance checks that concern this task's rules (GDD 06 §5 founding, E15-E19 founding checks) are covered
-by the existing `colony/founding/*.test.ts` (32 files of founding + allocation green on the final tree). New checks of
+by the existing `colony/founding/*.test.ts` (founding + allocation: 32 files, 105 tests green on the final tree,
+`test-output/opening-fix/folder-tests.txt` and the 09:30 run; `outdoor/determinism.perf` green). New checks of
 this task: R13 (a flood-safe site does not fill in the lapse; seed 2) and R14 (open within 4 game hours; seeds 1, 2) in
 `playerOpening.long.test.ts`. Checks needing other modules: beats 07-08's camera assertions (look-pass-6, `src/render`).
 
@@ -416,6 +435,12 @@ this task: R13 (a flood-safe site does not fill in the lapse; seed 2) and R14 (o
    input timing after that); every seed 1-5 was confirmed in the browser as well.
 3. Pre-existing red tests in the touched folders (also red on HEAD `07583fe`): `nest/escapeDig.test` (gate-sim-2 §6
    item 8), `nest/architect/layout.test` (50 ms timing under load), `nest/flood/readersCost.verify.test`.
+4. **firstplay past beat 13 on the final tree** (section 3, full runs): seed 1 stops at 19 -> 20 (colony-view dig
+   planner: `anchor-not-in-nest`, the pick / script, app side); seed 2 at 13 -> 14 (no linked trail from a full larder,
+   design). On the close tree the stops were 13 -> 14 (seed 1, 4 workers, design) and 15 -> 16 (seed 2, larder cap,
+   design). None is a hand-over defect; none fixed here.
+5. **Growth bars (R19) on the final tree's 15 runs: 4 of 7** (median P intake 0.485 against 0.7, trip success 48.1 %
+   against 50 %, first workers >= 9 in 11 of 15 against 13) - not this task's bars, reported for the record.
 
 ## 6b. Integrator ruling 3 (a) and (b): why a player's founding hands over 4 workers
 

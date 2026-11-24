@@ -118,7 +118,7 @@ describe('founding shot in the view director', () => {
     let fadedAt = -1, t = 0;
     for (; t < 4; t += 1 / 60) {
       const f = d.update(1 / 60, null);
-      if (f.dip > 0 && fadedAt < 0) fadedAt = t;
+      if (f.stillFade > 0 && fadedAt < 0) fadedAt = t;
       if (fadedAt < 0) expect(d.pose.pos).toEqual(still);
     }
     expect(fadedAt).toBeGreaterThan(1.5);

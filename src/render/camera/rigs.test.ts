@@ -181,3 +181,25 @@ describe('PhotoRig', () => {
     expect(o.dof.bokehScale).toBeCloseTo(9 / 6.3, 9);
   });
 });
+
+describe('reduced-motion crossfade (GDD 08 7.10: a blend of two images, not a dip to dark)', () => {
+  it('shows the new pose from the first frame, fades the old still out smoothly over CAM_REDUCED_CROSSFADE_S and never darkens', () => {
+    const a = pose(0, 0, 0, 0, 0, -1), b = pose(30 * DEMO_BU, 0, 0, 0, 0, -1);
+    const tr = new CameraTransition();
+    tr.start(a, planTransition(a, b, DEMO_BU, true));
+    const fades: number[] = [];
+    let t = 0;
+    do {
+      const o = tr.update(1 / 60, b);
+      t += 1 / 60;
+      expect(o.pose.pos.x).toBe(b.pos.x);
+      expect(o.dip).toBe(0);
+      fades.push(o.stillFade);
+    } while (!tr.out.done);
+    expect(t).toBeLessThanOrEqual(0.2 + 1 / 60 + 1e-9);
+    expect(fades[0]).toBeGreaterThan(0.9);
+    for (let i = 1; i < fades.length; i++) expect(fades[i]).toBeLessThanOrEqual(fades[i - 1]);
+    expect(fades[fades.length - 1]).toBe(0);
+    expect(tr.update(1 / 60, b).stillFade).toBe(0);
+  });
+});

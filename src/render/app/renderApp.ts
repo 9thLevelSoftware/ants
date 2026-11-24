@@ -54,6 +54,8 @@ export interface RenderApp {
   requestRender(): void;
   /** Force render-on-demand on or off (paused game, frozen screenshots); null = the preset decides. */
   setOnDemand(on: boolean | null): void;
+  /** Called right after every rendered frame, in the same task (the canvas can still be read then). null removes it. */
+  setAfterRender(cb: (() => void) | null): void;
   /** Render one frame now (synchronously). Returns false when the context is lost. */
   renderFrame(dtSeconds?: number): boolean;
   /** Start the animation loop: onFrame every display frame; renders when needed (always unless on demand). */
@@ -150,6 +152,7 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
     dirty = true;
   }
 
+  let afterRender: (() => void) | null = null;
   function renderFrame(dt = 1 / 60): boolean {
     if (lost) return false;
     resize();
@@ -160,6 +163,7 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
     stats.record(t0, performance.now() - t0, renderer.info.render);
     dirty = false;
     if (stats.frames === 1) firstFrame();
+    afterRender?.();
     return true;
   }
 
@@ -238,6 +242,7 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
     requestRender() { dirty = true; },
     setOnDemand(on) { onDemandOverride = on; dirty = true; },
     renderFrame,
+    setAfterRender(cb) { afterRender = cb; },
     start(onFrame) { loop = onFrame; lastNow = -1; renderer.setAnimationLoop(tick); },
     stop() { renderer.setAnimationLoop(null); loop = null; },
     resize,

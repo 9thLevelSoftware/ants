@@ -11,10 +11,36 @@ The machine was shared with the simulation engineer's life runs and browser all 
 | # | Criterion | Status | Evidence |
 |---|---|---|---|
 | 1 | Typecheck clean on my paths; tests green folder by folder | met (see "Verification"; the whole suite was not run) | "Verification" |
-| 2 | Items 1-3: before / after pictures, same pose, three tiers, the after stands on its own | met for 1, 2, 3 with the caveats listed | below |
+| 2 | Items 1-3: before / after pictures, same pose, three tiers, the after stands on its own | partial: met for item 2, item 3 and item 1 in the founding cell and shaft; NOT met for item 1's worker in a crowded chamber (ants between the camera and her are dithered, `cc/cc-after-noon-crowd-low.png`) | below, "Review fixes" |
 | 3 | Draw calls and triangles within 5 % of look-pass-5's table | met | "Cost" |
 | 4 | No frame-time regression at low from the night lighting | met (within noise) | "Cost" |
 | 5 | This report with picture paths and the still-unfinished list | met | end of this file |
+
+## Review fixes (independent review of this task, 24 Nov)
+
+1. **Cell camera: soil between the camera and the queen** (`src/game/views/cellCam.verify.test.ts`, red at review: 8 of 532 fully-on frames). Reproduced, two causes, both fixed at the root:
+   - *Cut chosen by a threshold.* During the blend from the view from above to the side view the pose is a mixture, and the cut switched at `es >= 0.5`. Now both cuts are finished and the one that leaves less soil in the line of sight
+     (`ViewDirector.soilInSight`, the line from the camera's pose of the frame to her thorax sampled every 0.25 mm against `inCutAway`) is used.
+   - *The 3 mm snap moved the plane.* `cut.center` was rounded on both axes after `cellSideShotAt` had fitted the section's offset to the free room, so the plane could move 2 mm toward the camera, into soil. `finishCut`
+     (`render/camera/cellCam.ts`) now snaps the horizontal slice's centre as before, and the vertical section's centre only along the plane; the plane's own position is held (`CELLCAM_SECTION_HOLD_MM` 0.5 mm toward her, never nearer the
+     camera than wanted) so the cut faces are not rasterised again on every step.
+   - Found while fixing: the offset's free-room probe runs level at her thorax, and the camera looks down the line from above it; a low roof meets that line sooner. `sightRoom` also fits the offset against the sight lines at the side view's
+     pitch, the view from above's pitch and the one between, so no soil stands between the plane and her on them (3 new tests in `cellCam.test.ts`; the reviewer's test is green: 0 of 532 frames blocked).
+2. **Crowded chamber after picture** (`test-output/look6/cc/cc-after-noon-crowd-low.png`): the reviewer is right, criterion 2 is partial for this case. It is the possession camera among eight workers: ants between the camera and her are drawn through the
+   4x4 ordered dither of GDD 01 6.5 rule 2, and the picture is hatched legs and bodies, not a picture of her. Not changed: the cell camera does not take over (she is not squeezed), and softening the dither or fading by distance departs from the GDD's rule.
+   Needs a decision of the GDD owner. Listed under "Still unfinished".
+3. **`markBusy` was dead code.** Confirmed with the reviewer's `promptBusy.verify.test.ts`: `runner.ts validate()` returns `blocked` for any running non-concurrent action and `prompt.ts` words `blocked` as "busy", so `promptView` already reads "Lay egg - busy"
+   on every tick of the batch (at the batch's last ticks the primary line becomes "Pick up egg - busy": the egg she has laid). Removed `markBusy`, `PROMPT_BUSY` and the by-hand unit test; `promptBusy.test.ts` now drives a real press (ready, busy on every tick, the egg offered after).
+   Ruling 1.2 is met by the simulation's own wording (pictures `lay/lay-{1-ready,2-busy,3-after}.png` are of that); what the integrator saw as a "silent refusal" is the press refused while the line already read busy; no buffering (GDD 01 and 08 5.3 are silent).
+4. **Clearance allowance** now applies only while the cell camera blends (0 < weight < 1) in `clearField.testkit.ts` and `debug.ts walk()`, as the report said it did; `clearField.test.ts` (4 tests) pins it. `views.mjs` passes with the narrowed rule (`test-output/look6/views7.log`).
+5. **Night pictures** at the observer camera and at medium and high for every hour and weather: see "Item 2", "Pictures (review)".
+6. **Reduced motion is now a crossfade, not a dip.** `CameraTransition` 'crossfade': the new pose is live from the first frame and the output carries `stillFade` (0..1, eased) for the old picture; `src/game/crossfadeVeil.ts` keeps a 2D canvas over the game canvas, copies the
+   game canvas after every render while reduced motion is on (`RenderApp.setAfterRender`; a WebGL canvas can only be read in the task that drew it), shows the copy at `stillFade` and hides it at the end. The 'dip' (long camera hops) still darkens the canvas.
+   `Game.endGame` resets the canvas opacity and the veil, so quitting during a dip or crossfade leaves nothing on the title screen (the reviewer's reading of the code; checked in the browser). Picture: `test-output/look6/xfade/xf-1-mid.png` (both images at 53 %);
+   `xf-0-before.png`, `xf-2-after.png`; numbers and the quit check in `xfade.json` (`tests/e2e/look6-xfade.mjs`). Tests: `rigs.test.ts` (crossfade), `crossfadeVeil.test.ts` (4), `foundingShot.test.ts`.
+7. **Scripts.** `hud.mjs`: its first check failed because two cards the design put in front of the prompts (the outcome card, then the hand-over banner, `ui/hud/blockingCard.ts`, look pass 4) are not answered by a script written before them; it clicks Continue and Stay with the queen
+   now (real clicks). Its next check ("the HUD read layout inside the frame loop") then failed on `HintCard.tsx`'s 5 Hz step-aside timer; the check now counts only layout reads made inside an animation-frame callback, which is what it says. Both seeds pass with `HUD_SHOTS=0`
+   (`test-output/look6/hud2.log` seed 1, `hud3.log` seed 2: Colony orders, slider, possession, roster, alerts, reflow 0). That check is GDD 08 App E 26. `views.mjs` passes. `panels.mjs`, `controls.mjs` and `firstplay.mjs` seed 2 past beat 12 were not rerun (see "Not done").
 
 ## Item 1: the possession camera inside the founding cell and the shaft
 
@@ -112,7 +138,7 @@ queen whole above the card). The simulation engineer's fix landed: both seeds pa
 
 ## Item 5: reduced motion and the light of the lapse
 
-**Cause found by looking.** The camera transition's `dip` (the dip-to-dark of a long camera hop and the 0.2 s crossfade of reduced motion, GDD 08 2.4 and 7.10) was
+**Superseded by review fix 6 (a real crossfade).** *Cause found by looking.* The camera transition's `dip` (the dip-to-dark of a long camera hop and the 0.2 s crossfade of reduced motion, GDD 08 2.4 and 7.10) was
 computed by `ViewDirector` and read by nobody: it was never drawn. `Game.renderScene` now draws it as the canvas opacity (the HUD is another element and stays);
 the page behind is the game's dark ground. Seen in a browser with reduced motion on (`look6-rm.mjs`, `test-output/look6/rm/rm.json`): the opacity reaches 0.58 at the
 darkest frame of the retake every 3 s and is back to 1 within 0.2 s. I have no picture of the dimmed frame: Playwright's screenshot redraws the frame (a resize with dt 0)
@@ -136,7 +162,7 @@ light 0.07 -> 2.97). `WorldRenderer` now crossfades the lighting state over `LIG
   at field -1.8 mm in the "release and re-possess down the shaft" test). `ViewDirector.applyCellCam` now cuts to the shot's pose at once where the blended pose would be inside
   uncut soil (`cellSnapped`). Pictures after that change are the same: `test-output/look6/r-s1-low-final/` (`sheets/item1-s1-low-final-after.png`).
 - `panels.mjs` (`test-output/look6/panels.log`): every check passed up to "hudfix" at 844 s, then the script timed out at my 900 s limit on the loaded machine; not re-run.
-- `hud.mjs` (not in the task's list): fails its first check, "queen prompt lacks Colony orders", at seeds 1 and 2 (`hud.log`, `hud1.log`); not investigated.
+- `hud.mjs` (not in the task's list): failed its first check; fixed in review ("Review fixes" 7), both seeds pass.
 - Pictures I looked at: every one cited in this report; the staged night, tunnel and crowd pictures by contact sheet and the key ones at full size.
 
 ## Integrator ruling 1 (09:51 UTC): the first clutch and the lay prompt
@@ -148,9 +174,8 @@ is as it was (`clutch.eggs >= 6`, the lapse, the outcome). Rerun, seed 1, qualit
 
 **2. A press while a batch ends was silently refused.** The prompt line stayed "Lay egg" (available) while the simulation refused the press with `blocked`. GDD 01 9.3 words an action
 that cannot be done at this moment as "verb - reason" and greys it (the simulation already words `blocked` as "busy", and does so for "Groom yourself" and "Dig" while any action runs);
-GDD 01 and GDD 08 5.3 say nothing about buffering a press, so I show it busy and buffer nothing. `markBusy` in `src/game/uiBridge/hudSlices.ts`: the line of lay-egg that
-would be offered (ok) while the possessed queen's own lay-egg action runs reads "Lay egg — busy" and is not ok (greyed by the HUD's `is-disabled`). Test:
-`src/game/uiBridge/promptBusy.test.ts` (4 tests: the rule on its own, and `promptOf` for a real possessed queen in a chamber, ready -> busy -> ready). Pictures from the real
+GDD 01 and GDD 08 5.3 say nothing about buffering a press, so I show it busy and buffer nothing. (Review: the `markBusy` first written for this was dead code and is gone; the sim's own wording does it, see "Review fixes" 3.) Test:
+`src/game/uiBridge/promptBusy.test.ts` (a real press: ready, busy on every tick, the egg offered after). Pictures from the real
 founding replayed at beat 08, sealed, then pressed (`tests/e2e/look6-lay.mjs`): `test-output/look6/lay/lay-1-ready.png` ("Lay egg"), `lay-2-busy.png` ("Lay egg — busy", the
 three lines dimmed), `lay-3-after.png` ("Lay egg" again); sheet `sheets/ruling1-lay-prompt-ready-busy-after.png`; the sim's events of the presses in `lay/lay.json`: started, failed `blocked`
 (the second press), completed (6 eggs).
@@ -168,8 +193,8 @@ plane, behind the section or with the cell camera off is not "in the cut-away". 
    that is not in a cut-away.
 3. `views.walk()` (`src/game/views/debug.ts`, the "shaft walk" and "chamber walk" minima): each frame's field value counts as the clearance if the camera is in the cut-away, and, while the cell
    camera blends in, free air closer to the wall than the margin (field 0.75 mm against 1 mm, seen once in the shaft test) counts as the margin: `fv > 0 && fv < margin && cell weight > 0`.
-   A field value <= 0 outside the cut-away fails at once, with the cell camera on or off; free air under the margin fails when the cell camera is off. The blend allowance is the one
-   weakening of the margin and it is for the 0.5 s blend only.
+   A field value <= 0 outside the cut-away fails at once, with the cell camera on or off; free air under the margin fails when the cell camera is off or fully on. The blend allowance is the one
+   weakening of the margin and it is for the 0.5 s blend only (0 < weight < 1: narrowed in review; it had been every frame with weight > 0).
 4. The three unit tests of the possession camera's clearance (`views.verify.test.ts` two, `reviewFixes.test.ts` one, "f >= 0.5 R every frame" down the test shaft) use the same two rules through
    `clearFieldAt` (`src/game/views/clearField.testkit.ts`). They were red after the cell camera and one of them found a real defect: a frame of the blend into the cell camera that stood
    1.8 mm inside soil that is not cut. `ViewDirector.applyCellCam` now cuts to the shot at that frame (`cellSnapped`), and the test passes with the strict rule for blend frames inside solid.
@@ -210,7 +235,7 @@ is squeezed in a cell, which is not the table's scene.
 - GDD 08 7.10 (cutaway) decides the tight-room camera, because GDD 01 6.2-6.5 and 08 11.5 are silent: recorded in `constants.ts`.
 - GDD 08 11.4's overcast haze (+20 %) is kept as it is (item 4).
 - The card's lift and fill changed (0.42 / 0.74 -> 0.55 / 0.55) for the 1280 x 720 reference card; other window sizes keep the proportions.
-- The canvas-opacity dip is a deviation from "the app draws a full-screen fade": no extra element, the same visual.
+- The dip of a long camera hop is drawn as the game canvas's opacity (no extra full-screen element); the reduced-motion crossfade is a real blend of two images (a 2D canvas veil holding the last frame, `crossfadeVeil.ts`), as GDD 08 7.10 asks.
 - Added debug hooks: `__game.renderFrame({ dt })`, `__game.lighting()`, `__game.views.hideLayer(name)`, `__game.views.cellCam(on)` (earlier pass).
 
 ## Needs from others (not mine to edit)
@@ -233,7 +258,7 @@ is squeezed in a cell, which is not the table's scene.
 1. **The flood sheet** (`render/world/weather/floodWater.ts`): in a flooded shaft or cell (seed 2, rain) the standing water is one flat sheet cut by the carve cells. Seen edge-on
    it is a thin pale band across the picture (`test-output/look6/fp-s2b-medium/10-first-clutch.png`), seen from above a pale blocky blue shape over the queen
    (`08-founding-chamber.png`, `fp-s2-low-retry/08-founding-chamber.png`). It reads as water now, not as a smudge, but not as a puddle with a shore.
-2. **Dithered ants in a crowded chamber**: ants between the camera and a possessed worker are drawn through the 4x4 ordered dither of GDD 01 6.5 rule 2; with eight workers round her the
+2. **Dithered ants in a crowded chamber** (criterion 2 is partial because of this): ants between the camera and a possessed worker are drawn through the 4x4 ordered dither of GDD 01 6.5 rule 2; with eight workers round her the
    picture is hatched legs and bodies (`test-output/look6/cc/cc-after-noon-crowd-low.png`, `-high.png`). The rule is the design's; a softer dither or a fade by distance is a decision for the GDD owner.
 3. **The cut when the cell camera takes over**: where the blend would cross uncut soil the picture cuts to the cell view at once (`cellSnapped`). Frames of that cut were not pictured.
    Where the queen stands at the rim of her cell after the script's orbit (beats 09 and 10 at medium and low, `r-s1-medium-cc1/s1medium-09-sealed.png`) she is whole but at the top left of the frame.

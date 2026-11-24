@@ -301,6 +301,16 @@ export const CELLCAM_FILL = 0.9;
 export const CELLCAM_CUT_ABOVE_BU = 0.12;
 /** The slice centre and height are held on this grid (mm): the cut faces are rasterised again whenever they change. */
 export const CELLCAM_CUT_GRID_MM = 3;
+/**
+ * A vertical section stands where it is until the offset the side view wants moves out of this band (mm toward her from the wanted plane): the
+ * section's own position is not snapped (a snap of 3 mm toward the camera put the plane in the soil beside her room, and a cut face over her),
+ * but it is held, so the cut face is not rasterised again on every step she takes across it.
+ */
+export const CELLCAM_SECTION_HOLD_MM = 0.5;
+/** Spacing (mm) of the samples of the line of sight that picks the cut while the view blends from above to the side. */
+export const CELLCAM_SIGHT_STEP_MM = 0.25;
+/** The vertical section stands this far (mm) on her side of the first soil on the line of sight from her (cellCam.ts `sightRoom`). */
+export const CELLCAM_SIGHT_MARGIN_MM = 0.15;
 /** Auto-follow of the cell camera's azimuth (as CAM_AUTOFOLLOW_*): idle seconds, time constant, speed cap (degrees per second). */
 export const CELLCAM_FOLLOW_DELAY_S = 1.5;
 export const CELLCAM_FOLLOW_TAU_S = 1.2;

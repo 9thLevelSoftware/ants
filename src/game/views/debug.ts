@@ -17,6 +17,8 @@ import type { ColonyTool } from './viewsState';
 const plain = (v: unknown): unknown => JSON.parse(JSON.stringify(v ?? null));
 const _v = new Vector3();
 
+const blending = (w: number): boolean => w > 0 && w < 1;
+
 export function buildViewsDebug(game: Game) {
   const L = game.viewsLayer;
   const session = () => {
@@ -182,9 +184,10 @@ export function buildViewsDebug(game: Game) {
         // a camera in soil that the cell camera's cut-away has removed sees clear air: counted as the clearance it has there (look pass 6)
         let fv = sim.field.sampleXYZ(f.pose.pos.x, f.pose.pos.y, f.pose.pos.z);
         if (fv < stats.clearance && s.views.cameraInCutAway(f.pose.pos)) fv = stats.clearance;
-        // while the cell camera blends in (0.5 s) the camera is in free air but may stand closer to the wall than the rig's clearance margin (field 0.75 mm against 1 mm
-        // in the queen-sized shaft): free air counts; inside solid never does (the e2e views.mjs, look pass 6)
-        else if (fv > 0 && fv < stats.clearance && s.views.cellState().weight > 0) fv = stats.clearance;
+        // while the cell camera blends in (0 < weight < 1, 0.5 s) the camera is in free air but may stand closer to the wall than the rig's clearance margin (field 0.75 mm
+        // against 1 mm in the queen-sized shaft): free air counts; inside solid never does, and neither does free air under the margin once the cell camera is fully on
+        // or off (the e2e views.mjs, look pass 6)
+        else if (fv > 0 && fv < stats.clearance && blending(s.views.cellState().weight)) fv = stats.clearance;
         stats.minF = Math.min(stats.minF, fv);
         stats.states[out.state] = (stats.states[out.state] ?? 0) + 1;
         const dist = Math.hypot(f.pose.pos.x - a.pos.x, f.pose.pos.y - a.pos.y, f.pose.pos.z - a.pos.z) / L;

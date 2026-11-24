@@ -74,6 +74,10 @@ export default async ({ page, shot, log, wait }) => {
   }
   await g(() => window.__game.step(1));
   await refresh();
+  // the outcome card and then the hand-over banner (look pass 4) hold the context prompts back until the player answers them (HUD blockingCard.ts): "Continue",
+  // then "Stay with the queen", are real clicks
+  if (await count('[data-testid="founding-continue"]') === 1) { await q('[data-testid="founding-continue"]').click(); await g(() => window.__game.step(1)); await refresh(); }
+  if (await count('[data-testid="founding-stay"]') === 1) { await q('[data-testid="founding-stay"]').click(); await refresh(); }
   const prompts = await g(() => window.__hud.prompts());
   expect(prompts.some((l) => l.input === 'directives' && /Colony orders/.test(l.text)), 'queen prompt lacks Colony orders', prompts);
   expect(await count('[data-testid="colony-orders-button"]') === 1, 'possessed panel lacks the Colony orders button');
@@ -284,18 +288,23 @@ export default async ({ page, shot, log, wait }) => {
   await refresh();
   const reflow = await g(async () => {
     const hits = [];
+    // only reads made inside an animation-frame callback count: the hint card's step-aside is a 5 Hz timer (HintCard.tsx), not the frame loop
+    let inFrame = false;
+    const raf = window.requestAnimationFrame;
+    window.requestAnimationFrame = (cb) => raf.call(window, (t) => { inFrame = true; try { cb(t); } finally { inFrame = false; } });
     const wrap = (proto, name) => {
       const d = Object.getOwnPropertyDescriptor(proto, name);
       if (!d) return () => {};
       const patched = { ...d };
-      if (d.get) patched.get = function () { const st = new Error().stack ?? ''; if (/\/src\/ui\/hud\/|\/src\/ui\/panels\//.test(st) && !/useAnchor|ResizeObserver/.test(st)) hits.push(`${name}@${st.split('\n')[2]?.trim()}`); return d.get.call(this); };
-      else if (typeof d.value === 'function') patched.value = function (...a) { const st = new Error().stack ?? ''; if (/\/src\/ui\/hud\/|\/src\/ui\/panels\//.test(st) && !/ResizeObserver/.test(st)) hits.push(`${name}@${st.split('\n')[2]?.trim()}`); return d.value.apply(this, a); };
+      if (d.get) patched.get = function () { const st = new Error().stack ?? ''; if (inFrame && /\/src\/ui\/hud\/|\/src\/ui\/panels\//.test(st) && !/useAnchor|ResizeObserver/.test(st)) hits.push(`${name}@${st.split('\n')[2]?.trim()}`); return d.get.call(this); };
+      else if (typeof d.value === 'function') patched.value = function (...a) { const st = new Error().stack ?? ''; if (inFrame && /\/src\/ui\/hud\/|\/src\/ui\/panels\//.test(st) && !/ResizeObserver/.test(st)) hits.push(`${name}@${st.split('\n')[2]?.trim()}`); return d.value.apply(this, a); };
       Object.defineProperty(proto, name, patched);
       return () => Object.defineProperty(proto, name, d);
     };
     const undo = [wrap(HTMLElement.prototype, 'offsetWidth'), wrap(HTMLElement.prototype, 'offsetHeight'), wrap(Element.prototype, 'clientWidth'), wrap(Element.prototype, 'clientHeight'), wrap(Element.prototype, 'getBoundingClientRect'), wrap(Element.prototype, 'scrollTop')];
     await new Promise((r) => { let n = 0; const f = () => (++n >= 90 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); });
     undo.forEach((u) => u());
+    window.requestAnimationFrame = raf;
     return hits;
   });
   expect(reflow.length === 0, 'the HUD read layout inside the frame loop', reflow.slice(0, 5));

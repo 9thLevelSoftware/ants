@@ -14,3 +14,9 @@ Started fresh (no prior progress file).
 - Wrote src/game/views/cellCam.verify.test.ts (line of sight camera->thorax vs uncut soil on test nest walk; suspect: 3 mm grid snap of cut.center in applyCellCam moves the vertical section up to 2.1 mm toward camera -> cap may cover queen). NOT yet run.
 - Looked at sheets: night hours (ok, readable), item1 medium/high (after ok), item3 high (queen whole, head at card edge, workers not in frame), lay prompt (busy lines all from sim).
 - hud.mjs App E 26 failure ("queen prompt lacks Colony orders []") predates markBusy (09:52 log); not triaged.
+- 12:02 harness at beat 07
+- 12:07 fp-s2-low (seed 2, low, UNTIL=12): beats 01-12 pass (test-output/look6-review/fp-s2-low)
+- 12:10 RAN verify tests: promptBusy.verify (2 pass; markBusy redundant confirmed). cellCam.verify RED (kept for fixer): 8/532 fully-on frames line of sight crosses uncut soil: (a) top->side blend uses horizontal slice while pose half-side (4.9 mm), (b) 3 mm grid snap of cut.center pushes vertical section into soil (0.7-1.8 mm; 0 unsnapped).
+- Picture finding: test-output/look6/cc/cc-after-noon-crowd-low.png (after) broken: huge dithered ant legs + wall slab; criterion 2 claimed met.
+- Remaining: rerun touched folders after adding tests (views, uiBridge), final report.
+- 12:13 typecheck clean incl. verify tests; views+uiBridge 235 pass + 1 intended RED (cellCam.verify). Review DONE; final StructuredOutput being sent.
