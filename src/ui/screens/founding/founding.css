@@ -67,7 +67,8 @@
 .fo-stage span { font-size: var(--t-caption); color: var(--c-text-2); text-transform: uppercase; letter-spacing: 0.06em; }
 .fo-lapse-foot { display: flex; align-items: center; gap: 1rem; }
 .fo-lapse-foot .ui-progress { flex: 1; }
-.fo-lapse-gauge { left: 1rem; top: 40%; width: 11rem; }
+/* below the left tool rail (it ends at about 19 rem; look pass 6: the gauge covered its last icon) */
+.fo-lapse-gauge { left: 1rem; top: max(40%, 20rem); width: 11rem; }
 .fo-lapse-losses { right: 1rem; top: 40%; width: 11rem; font-size: var(--t-small); }
 
 /* ---- cards ---- */

@@ -38,6 +38,12 @@ export function taskWord(task: string): string {
   return w.charAt(0).toUpperCase() + w.slice(1);
 }
 
+/** Where an ant in a chamber is (the roster's Where column): the chamber's kind in words, never its record number (look pass 6: "Royal 5740"). */
+export const CHAMBER_WORDS: Record<string, string> = {
+  founding: 'Founding cell', royal: 'Royal chamber', nursery: 'Nursery', food: 'Food store', granary: 'Granary', fungus: 'Fungus garden',
+  midden: 'Midden', rest: 'Rest chamber', general: 'Chamber',
+};
+
 export const ZONE_WORDS: Record<string, string> = {
   forest: 'Forest floor', lawn: 'Lawn', 'garden-bed': 'Garden bed', pavement: 'Pavement', asphalt: 'Asphalt', sand: 'Sand',
   rubber: 'Rubber surface', interior: 'Indoors',

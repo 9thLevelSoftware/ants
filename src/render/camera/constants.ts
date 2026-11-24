@@ -309,9 +309,9 @@ export const CELLCAM_MIN_RADIUS_BU = 0.5;
  */
 export const CELLCAM_SIDE_ENTER_UP_Y = 0.6;
 export const CELLCAM_SIDE_EXIT_UP_Y = 0.8;
-export const CELLCAM_SIDE_OFFSET_L = 1.2;
+export const CELLCAM_SIDE_OFFSET_L = 0.3;
 export const CELLCAM_SIDE_FREE_FRACTION = 0.85;
-export const CELLCAM_SIDE_PITCH_DEG = 28;
+export const CELLCAM_SIDE_PITCH_DEG = 14;
 export const CELLCAM_TEXEL_BU = 0.1;
 /** Width of the cut edge line in the cell camera's cut faces, solidness units (the colony view's is CUTAWAY.edgeBU 0.25: a 5 mm pale band round a 16 mm cell). */
 export const CELLCAM_EDGE_W = 0.04;

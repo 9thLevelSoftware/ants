@@ -208,7 +208,7 @@ export default async (ctx) => {
             await render(1);
             const cam = await g(() => ({ state: window.__game.camera.state(), clear: window.__game.camera.clearance(), under: window.__game.summary().camera?.underground }));
             result.checks.shaftCamera = cam;
-            expect(cam.clear && cam.clear.f > 0, 'the camera is inside solid in the shaft', cam);
+            expect(cam.clear && (cam.clear.f > 0 || cam.clear.cutAway), 'the camera is inside solid in the shaft', cam);
             await beat('07-inside-shaft');
             done('07');
           }
@@ -235,7 +235,7 @@ export default async (ctx) => {
         await render(1);
         const camCell = await g(() => ({ state: window.__game.camera.state(), clear: window.__game.camera.clearance() }));
         result.checks.chamberCamera = camCell;
-        expect(camCell.clear && camCell.clear.f > 0, 'the camera is inside solid in the chamber', camCell);
+        expect(camCell.clear && (camCell.clear.f > 0 || camCell.clear.cutAway), 'the camera is inside solid in the chamber', camCell);
         await beat('08-founding-chamber', ['founding-readiness']);
         done('08');
 

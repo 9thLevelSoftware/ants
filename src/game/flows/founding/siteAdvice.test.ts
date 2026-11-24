@@ -6,6 +6,10 @@ const row = (id: string, value: number, word: string) => ({ id, label: id, value
 describe('siteAdvice (the line under a Poor or Fair site read-out)', () => {
   it('names the weakest factor in words and what to look for (the opening of seed 3: shaded, otherwise fine)', () => {
     const rows = [row('diggability', 0.9, 'Loose'), row('moisture', 1, 'Damp'), row('warmth', 0, 'Shaded'), row('cover', 0.6, 'Leaf-covered'), row('exposure', 1, 'Sheltered')];
+    expect(siteAdvice({ rows, word: 'poor' })).toBe('Shaded: look for open, sun-warmed soil. It is the only weak reading.');
+  });
+  it('does not claim a single weak reading when another reading is weak too', () => {
+    const rows = [row('diggability', 0.9, 'Loose'), row('moisture', 0.2, 'Dry'), row('warmth', 0, 'Shaded'), row('cover', 0.6, 'Leaf-covered'), row('exposure', 1, 'Sheltered')];
     expect(siteAdvice({ rows, word: 'poor' })).toBe('Shaded: look for open, sun-warmed soil.');
   });
   it('says nothing for Good or Excellent ground, or before a reading', () => {

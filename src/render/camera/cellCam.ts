@@ -43,6 +43,8 @@ export class CellCam {
 
   /** True while the cell camera is (or is becoming) the picture. */
   get active(): boolean { return this.on || this.weight > 0; }
+  /** The azimuth the side view last found open (debug read-out). */
+  get aimedAzimuth(): number { return this.aimed; }
   /** True while the side view is the one chosen (hysteresis on the ant's up). */
   get sideView(): boolean { return this.side; }
 
@@ -120,10 +122,32 @@ export class CellCam {
 const SIDE_SCAN_S = 0.25;
 const SCAN_DIRECTIONS = 12;
 
-/** Free horizontal room from the ant's thorax toward `azimuth`, mm, up to `cap` (the carve field, in steps of FREE_STEP_BU). */
+/** Heights above her feet (body lengths, along her up) tried for the point the free-room probes start from. */
+const PROBE_LIFTS_L = [0.2, 0.15, 0.1, 0.05, 0];
+/** A probe point whose field is at least this (mm) is taken at once. */
+const PROBE_OK_MM = 0.3;
+
+/**
+ * Where the free-room probes start: over her thorax, as high as the room allows. In a tunnel barely wider than she is the point 0.2 body lengths
+ * above her feet is inside the wall (field below zero), and every probe from there reads "no room" in every direction; so the lifts are tried
+ * from the highest down and the one with the most room wins.
+ */
+export function probeOrigin(out: { x: number; y: number; z: number }, t: CameraTarget, lengthMm: number, field: FieldFn | undefined): { x: number; y: number; z: number } {
+  let best = -Infinity;
+  for (const k of PROBE_LIFTS_L) {
+    const x = t.pos.x + t.up.x * k * lengthMm, y = t.pos.y + t.up.y * k * lengthMm, z = t.pos.z + t.up.z * k * lengthMm;
+    const f = field ? field(x, y, z) : 1;
+    if (f > best) { best = f; out.x = x; out.y = y; out.z = z; }
+    if (f >= PROBE_OK_MM) break;
+  }
+  return out;
+}
+const PROBE = { x: 0, y: 0, z: 0 };
+
+/** Free horizontal room from over the ant's thorax toward `azimuth`, mm, up to `cap` (the carve field, in steps of FREE_STEP_BU). */
 export function freeToward(t: CameraTarget, lengthMm: number, bu: number, field: FieldFn | undefined, azimuth: number, cap: number): number {
   if (!field) return cap;
-  const L = lengthMm, cx = t.pos.x + t.up.x * 0.2 * L, cy = t.pos.y + t.up.y * 0.2 * L, cz = t.pos.z + t.up.z * 0.2 * L;
+  const o = probeOrigin(PROBE, t, lengthMm, field), cx = o.x, cy = o.y, cz = o.z;
   const sa = Math.sin(azimuth), ca = Math.cos(azimuth);
   let free = 0;
   for (let x = FREE_STEP_BU * bu; x < cap; x += FREE_STEP_BU * bu) { if (field(cx + sa * x, cy, cz + ca * x) <= 0) break; free = x; }
@@ -226,11 +250,7 @@ export function cellSideShotAt(out: CellSideShot, s: FoundingShotSubject, t: Cam
   const reach = lengthMm * (0.5 * along + 0.15 * (1 - along));
   let offset = Math.max(reach + 0.1 * lengthMm, 0.5 * CELLCAM_SIDE_OFFSET_L * lengthMm);
   if (field) {
-    let free = 0;
-    for (let x = FREE_STEP_BU * bu; x < offset * 3; x += FREE_STEP_BU * bu) {
-      if (field(s.x + sa * x, s.y, s.z + ca * x) <= 0) break;
-      free = x;
-    }
+    const free = freeToward(t, lengthMm, bu, field, azimuth, offset * 3);
     offset = Math.min(offset, Math.max(free * CELLCAM_SIDE_FREE_FRACTION, 0.2 * lengthMm));
   }
   const c = out.cutaway, vd = c.viewDir!;

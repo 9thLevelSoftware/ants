@@ -1,0 +1,146 @@
+# opening-fix report
+
+Task spec: `docs/design/tasks/opening-fix.md` (with integrator ruling 1). Progress log:
+`docs/design/tasks/progress/opening-fix-impl.md`. Two engineers worked on it: the first (Nov 23 ~22:40 - Nov 24 00:44
+UTC, cut off by container restart 8) found both causes and built fixes 1 and 2; the second (from 00:46 UTC) carried
+out ruling 1 (wide mound-mask probe, the floor at 4 workers), added the unplug draft, and ran the close.
+Final tree: frozen as `/home/user/frozen-openingfix` (sim tree hash `9a8cdf07`, 01:15 UTC Nov 24).
+
+## 0. Result in one screen
+
+| | before (live tree, Nov 23) | after (final tree) |
+|---|---|---|
+| seed 2, browser | lapse ends `failed`, "Water filled the burrow" | BROWSER_S2 |
+| seed 1, browser | entrance stays `reopening:130` (4 workers) | BROWSER_S1 |
+| seed 2, headless | seal 93 voxels, queen drowns at t 6671 | seal 223, 11 workers, open 1000 ticks after hand-over |
+| seed 1, headless | passes (12 workers; not the browser's game) | seal 165, 13 workers, open 500 |
+| seeds 3 / 4 / 5, headless | 3 pass, 4 `reopening:235` for good, 5 pass | all pass; open 750 / 1500 / 750 |
+| sweep (15 fresh foundings) | gate-sim-2: 12 / 15 (sweep), 13 / 15 (sweep2) | SWEEP |
+
+## 1. Per seed: cause, breaking commit, fix, test
+
+### Seed 2 (`00000002`): the flood in the lapse
+
+- **Cause.** It rains while the player digs (t 2576-5001); the open shaft takes ~6 BU^3 of water into the cell (the
+  designed inflow at a flood-safe site, c 0.17). Both the round-9 tree and the live tree have that water at the lapse
+  start. On the live tree the seal is small (plug 93 voxels against round 9's 229) and the script's walk-down leaves the
+  queen on the cell floor (y -4, 3 mm in the water) instead of up the shaft. In the lapse the queen is held at rest
+  (`founding/system.ts holdStill`) and the flee rule leaves founding queens to the founding module, so she drowned at
+  t 6671 ("Water filled the burrow"). The read-out's "flood-safe" is right: the burrow did not fill; the queen stood in
+  the water she had let in while digging.
+- **Breaking commit: `995244e`** (round 14, the mound-mask hole probe in `nest/moundRelax.ts buildMask` reads the
+  carve cavity alone). Bisect over `4ab0ebd..HEAD` with the headless opening: PASS on `4ab0ebd`, `0a54841`, `cbe7f4d`,
+  `c712e20`, `819c2c3`; FAIL on `995244e`. Isolated by patching `819c2c3` with only that hunk (`t-xmask`, FAIL, plug 93)
+  against only the commit's `nests.ts` hunk (`t-xnests`, PASS, plug 229). Outputs `test-output/opening-fix/bisect/`.
+  The cavity-only probe lets spoil lie on the steep lip of the entrance funnel; it changes the seal the player's
+  "hold E" makes there. The drowning itself is a latent defect the mask change only triggered.
+- **Fix 1 (consequence) - `dryQueen`** (`src/sim/colony/founding/dryQueen.ts keepQueenDry`, called in the
+  `timelapse` case of `founding/system.ts`): in the lapse a queen standing FLEE_WATER_DEPTH deep walks along the cavity
+  to the dry floor nearest the cell's centre (by intent when possessed). DEVIATIONS D40. Kept (ruling 1).
+- **Fix 3 (cause, ruling 1.1) - the wide mound-mask probe** (`buildMask`): the hole probe reads the field f at the
+  ground minus MOUND_HOLE_PROBE_DEPTH with the **pile overlays left out** (new additive `WorldField.withoutOverlays`;
+  terrain, ground deltas, primitives and carve stay), so it is as wide as round 12's (f with the piles) and depends only
+  on state the cache key follows; the key now also follows dynamic primitives near the grid. DEVIATIONS D42.
+  Adoption checks (ruling 1.1), all met:
+  - `nest/moundMaskHeights.test`, `nest/moundRestore14.test` (and the other 6 mound files), `locomotion/pointFieldRestore.test`,
+    `locomotion/pointFieldEvict.gate2.test`, `ants/behaviours/outdoor/determinism.perf.test`: green.
+  - Save / restore of one cached colony: sg #2 (`test-output/viab/cache/...suburban-garden-2-...-211d103b.bin`, saved at
+    tick 99748 as round 14 did) runs **equal for 36000 ticks** (`test-output/opening-fix/restore/sg2-wideprobe.txt`,
+    probe `probe-restore14b`).
+  - Seed 2's headless opening seals as round 9's did: **plug 223 voxels** (round 9: 229; live: 93); the queen at the
+    lapse start is at y -3.9 on the cell floor, 1.6 BU from the cell centre (dryQueen walks her out if water rises); 11
+    workers handed over (round 9: 6 headless / 7 browser).
+- **Tests.** `founding/dryQueen.test.ts` (2; red without the hook: the queen drowns), `nest/moundMaskLip.test.ts` (new:
+  lip cells where f is open but the cavity is not are kept clear, and stay so under a pile; red on the cavity-only
+  probe), `founding/playerOpening.long.test.ts` (FOUNDRESS_LONG; seed 2 within R14).
+
+### Seed 1 (`00000001`): the entrance not reopened
+
+- **Cause.** After the hand-over the auto allocation gave `dig` nobody: with 4-7 nanitics (one possessed by the player)
+  nurse, queen-care, the scout floor (R38), forage and store took every worker before `dig` in GDD 02 §6.3's order, so
+  the throat stayed `reopening` with plug soil in it. Browser seed1-b (fix-1 tree, `test-output/opening-fix/firstplay/seed1-b.log`):
+  seal 130, **4 workers**, `reopening:130` at the end of beat 13's 30 x 250 ticks. Round 9's browser seed 1 sealed
+  130 voxels too but handed over **5** workers and dug. Headless seed 4 shows the same defect (4 workers,
+  `reopening:235` for good). Second defect behind it (found on seed 4): even with diggers targeted, ants change task
+  only at the end of a task cycle or by the 120 s surplus check, whose slack (actual > 1.2 x target + 1) never fires in
+  a colony of four: the forager waiting in the cell and the store post kept their tasks for 8 game hours.
+- **Breaking commit: none single.** The headless script does not reproduce the browser's seed-1 game exactly (the
+  headless seed 1 hands over 12-13 workers and opens; the browser diverges by beat 06, tick 1591 vs 1569), and the
+  failure depends on how many first workers a game hands over (4 fails, 5 dug). It is a latent allocation defect:
+  the GDD order of the targets predates round 9; what changed between the two browser runs is the number of first
+  workers the lapse hands over (5 -> 4; not bisected further, since a 4-worker hand-over fails on any tree with that
+  order).
+- **Fix 2 - the unplug floor** (`colony/allocation/demand.ts unplugFloor`, `targets.ts planTargets` /
+  `serveUnplugFloor`, `balance/colony.ts UNPLUG_FLOOR_DIGGERS` = 2): while a nest has no `open` entrance and a
+  `reopening` throat with plug soil, 2 diggers are served right after the brood's care, before the scout floor and
+  forage. DEVIATIONS D41.
+  **Ruling 1.2 (fewer than 5 first workers):** at the floor's turn the nurses first get their full demand, then the
+  plug its diggers; the floor never lowers the nurse target and takes its diggers from queen-care's second half and the
+  work outside. Four first workers with one possessed, demand nurse 1 / queen-care 2: nurse 1, queen-care 1, **1
+  digger**; all four free: 2 diggers; 2 free with nurse 1 + queen-care 1: no digger (care first).
+- **Fix 4 - the unplug draft** (`colony/allocation/unplugDraft.ts draftUnplugDiggers`, every allocation pass): while
+  the floor is short of diggers, workers that are home, not nurses, and over their own task's target switch to `dig`.
+  Seed-4 hand-over: entrance open 3000 -> 1750 ticks (snapshot probe), 1500 in the full headless run. DEVIATIONS D43.
+- **Tests.** `colony/allocation/unplugFloor.test.ts` (3: the floor puts diggers on the plug, red without it; a 216-case
+  grid of 2-4 free workers where the floor never lowers the nurse target and digs whenever the nurses and queen-care's
+  first half leave a worker, red without the nurse top-up; the floor's conditions), `colony/allocation/unplugDraft.test.ts`
+  (2), `founding/playerOpening.long.test.ts` (seed 1 within R14, seed 4 within beat 13's window).
+
+## 2. Headless reproduction (item 2)
+
+`tools/sim/opening.ts` (CLI) around `src/sim/colony/founding/playerOpeningKit.ts` (`runOpening`): the same commands
+as beats 04-13 of `tests/e2e/firstplay.mjs` straight to the sim (site search, walk, bites, seal by holding E, lay
+batches, Tend the brood, skip, Take a worker, 30 x 250 ticks). Hashes per beat and at the lapse start compare with the
+browser's `FIRSTPLAY_DUMP=1` lines. Seed 2 matches the browser's failure (same site q 0.651, rBu 2, lapse `failed`).
+Seed 1 does not match: the browser diverges by beat 06 (tick 1591 vs 1569; the browser's input timing), so its
+hand-over differs (4 workers against 12); the reopen defect was reproduced headless on seed 4 instead, and on seed 2's
+hand-over snapshot (`--save-handover`, `tools/sim/probe/reopenProbe.ts`).
+
+| seed | live tree | fix-1 tree | final tree (`test-output/opening-fix/headless/fix3/`) |
+|---|---|---|---|
+| 1 | PASS, seal 225, 12 w, open 750 | PASS (same) | PASS, seal 165, 13 w, open 500 |
+| 2 | FAIL lapse `failed`, seal 93 | PASS, seal 93, 6 w, open 4000 | PASS, seal 223, 11 w, open 1000 |
+| 3 | - | PASS, seal 310, 8 w, open 750 | PASS, seal 361, 8 w, open 750 |
+| 4 | - | FAIL `reopening:235` (4 w) | PASS, seal 235, 4 w, open 1500 (over R14's 1000) |
+| 5 | - | - | PASS, seal 132, 4 w, open 750 |
+
+## 3. Browser (items 1 and 6)
+
+BROWSER_SECTION
+
+## 4. Sweep check (item 5)
+
+SWEEP_SECTION
+
+## 5. Appendix E checks
+
+The opening's acceptance checks that concern this task's rules (GDD 06 §5 founding, E15-E19 founding checks) are covered
+by the existing `colony/founding/*.test.ts` (32 files of founding + allocation green on the final tree). New checks of
+this task: R13 (a flood-safe site does not fill in the lapse; seed 2) and R14 (open within 4 game hours; seeds 1, 2) in
+`playerOpening.long.test.ts`. Checks needing other modules: beats 07-08's camera assertions (look-pass-6, `src/render`).
+
+## 6. Still wrong
+
+1. **R14 on small foundings.** Seed 4 (4 first workers, one possessed, one away scouting, a 235-voxel plug) opens 1500
+   ticks (6 game hours) after the hand-over: one digger until the player lets go of her worker. The floor gives the
+   brood's care first by ruling; R14's 4 hours needs either more diggers than care allows or a smaller player plug.
+2. **The headless script is not the browser's game on seed 1** (input timing diverges by beat 06); seed 1 is confirmed
+   in the browser only.
+3. Pre-existing red tests in the touched folders (also red on HEAD `07583fe`): `nest/escapeDig.test` (gate-sim-2 §6
+   item 8), `nest/architect/layout.test` (50 ms timing under load), `nest/flood/readersCost.verify.test`.
+
+## 7. Contract changes (additive)
+
+- `src/sim/world/field.ts` `WorldField.withoutOverlays(skip, fn)` (new method; the only implementation is FieldImpl).
+- `src/sim/colony/allocation/index.ts` `refreshActual` exported (was module-private).
+- `src/sim/colony/allocation/demand.ts` `unplugFloor` exported; `computeTargets(..., unplugFloor = 0)` new optional argument.
+
+## 8. Evidence paths
+
+- Headless: `test-output/opening-fix/headless/` (`live/`, `fix1/`, `fix2/`, `wide/`, `fix3/summary.txt`), probes'
+  outputs `reopen-s4-*.txt`, `reopen-s2*.txt`.
+- Bisect: `test-output/opening-fix/bisect/`.
+- Restore: `test-output/opening-fix/restore/sg2-wideprobe.txt`.
+- Browser: `test-output/opening-fix/firstplay/`.
+- Sweep: `test-output/opening-fix/sweep/`, `f15/`, `sweep-long/`, `close.log`.
+- Probes archived: `test-output/opening-fix/probes/`.

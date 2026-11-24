@@ -10,6 +10,7 @@ import { censusOf, cycleWaste, isWorkerCaste } from '../census';
 import { coreOf } from '../core';
 import { PROSPECTIVE_FORAGE_KEY, SCOUT_FLOOR_KEY, computeDemand, unplugFloor } from './demand';
 import { computeTargets } from './targets';
+import { draftUnplugDiggers } from './unplugDraft';
 import { eligible, groupOf, GROUP_TASKS, thresholdBand } from './groups';
 import { gainExperience, reassignable, reevaluate, surplusCheck, switchTask } from './assign';
 
@@ -18,7 +19,7 @@ export { knownCapacity, digDemand } from './demand';
 export { takeProbability, threshold, stimulus, inSurplus } from './assign';
 
 /** Rebuilds alloc.actual and groupCounts from the census (exact after deaths and spawns). */
-function refreshActual(sim: Sim, col: Colony): void {
+export function refreshActual(sim: Sim, col: Colony): void {
   const cen = censusOf(sim, col.id);
   col.alloc.actual.set(cen.byTask);
   for (const g of ALLOCATION_GROUPS) {
@@ -47,11 +48,13 @@ export function allocateColony(sim: Sim, col: Colony, def: SpeciesDef, surplusPa
   computeDemand(sim, col, cen, hygiene);
   const workforce = { all: cen.available, adult: cen.availableAdult, outside: cen.availableOutside };
   const acc = coreOf(col).acc;
+  const unplug = unplugFloor(sim, col);
   computeTargets(
     col, cen.available, (acc['threat'] ?? 0) > 0, workforce, hygiene, acc[PROSPECTIVE_FORAGE_KEY] ?? 0,
-    acc[SCOUT_FLOOR_KEY] ?? 0, unplugFloor(sim, col),
+    acc[SCOUT_FLOOR_KEY] ?? 0, unplug,
   );
   col.alloc.lastTick = sim.state.tick;
+  draftUnplugDiggers(sim, col, def, unplug);
   if (!surplusPass) return;
   for (const a of sim.stores.ants.list) if (a.colony === col.id && isWorkerCaste(a.caste)) surplusCheck(sim, col, a, def);
 }

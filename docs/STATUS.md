@@ -1570,3 +1570,40 @@ opening-fix engineer were lost. State from the progress files (their clock stamp
   "Integrator ruling 1": fix the mound-mask probe itself, unplug floor at 4 first workers, report before reverting;
   look-pass-6 sonnet / opus verify). Journal:
   `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_d8734412-6cd/journal.jsonl`.
+
+## PAUSED Nov 24 ~01:35 UTC at the user's request — how to resume
+
+**Stopped:** workflow `wwdx2cttc` (run `wf_d8734412-6cd`: opening-fix + look-pass-6, both in their implementation
+stage, neither reviewed), every browser / harness process, and the hourly check-in (`trig_01E563uCnVxtwKwCVZuMKppz`
+disabled, not deleted). **Left running on purpose (no model cost):** the opening-fix close sweep, a detached script
+`test-output/opening-fix/close.sh` running from the frozen copy `/home/user/frozen-openingfix` (tree 9a8cdf07):
+15 fresh foundings -> `test-output/opening-fix/sweep`, then the five long runs -> `sweep-long` (log `close.log`;
+4 of 15 done and viable at the pause). It finishes by itself in about two hours if the container stays up; its
+outputs are git-ignored and are lost if the container is reclaimed (then rerun `close.sh`).
+
+**Tree at the pause:** typecheck clean (`tsc --noEmit` exit 0), everything committed and pushed.
+- `src/sim` = the frozen sweep tree: gate-sim-2's closing tree + `founding/dryQueen.ts` (a founding queen leaves
+  standing water during the lapse) + the unplug floor (`allocation/demand.ts unplugFloor`, 2 diggers while a nest has
+  no open entrance) + the wide, restore-exact mound-mask probe (ruling 1; sg #2 save / restore equal for 36000 ticks)
+  + the headless opening driver (`tools/sim/opening.ts`, `founding/playerOpeningKit.ts`). DEVIATIONS D40-D43.
+- Evidence so far (engineer's own runs, not reviewed): headless opening passes beats 01-13 on seeds 1-5; **browser
+  `firstplay.mjs` seed 1 passes beats 01-13 without stand-ins** (`test-output/opening-fix/firstplay/seed1-final`);
+  seed 2 in the browser not yet run. R14 (entrance open within 4 game hours) is still missed on small foundings
+  (seed 1 browser about 7 game hours with 4 workers; headless seed 4: 1500 ticks).
+- `src/render`, `src/game`, `src/ui` = look-pass-6 mid-way: the cell camera (`render/camera/cellCam.ts`, cut-away in
+  tight cells; firstplay seed 1 beats 01-10 pass with it) is built and unit-tested; item 3 (real outcome framing, a
+  side view for a queen on a steep wall) is written but **not tested or pictured**; night (item 2) has only a variants
+  file; items 4-6 open. Nothing of look-pass-6 has been looked at by the integrator.
+
+**To resume** (read this entry, then the two progress files
+`docs/design/tasks/progress/opening-fix-impl.md` and `look-pass-6-impl.md`):
+1. `uptime`; `ls /home/user/frozen-openingfix test-output/opening-fix/sweep/summary.txt`; if the sweep did not finish,
+   rerun `bash test-output/opening-fix/close.sh` (restart-safe) or let the engineer do it.
+2. Relaunch `wf-build.js` (scratchpad; if the scratchpad is gone the script is described in the STATUS entries of
+   Nov 23 and the args are in the entry "wf-build relaunched") with the same two tasks and a RESTART note pointing at
+   the progress files: opening-fix (opus / opus) continues at "browser seed 2, three more seeds, sweep tables, report";
+   look-pass-6 (sonnet / opus verify, visual) continues at item 3's tests and pictures, then night.
+3. Re-enable the check-in (`update_trigger` enabled true with a new `run_once_at`) once something runs.
+4. After both land, in order: winter-sugar single-rule arm; species viability + honeydew; perf; Stage 2/3 gate; QA
+   playtests; GDD amendments; portable build and artifact republish (slug `dd97a4c3-a304-4801-aa70-0302442d71e6`,
+   last published Nov 17 - the published build is far behind the repo); final report.

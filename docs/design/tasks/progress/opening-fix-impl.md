@@ -21,3 +21,40 @@ items 1-8 of spec
 - 02:20 refactor: driver moved to src/sim/colony/founding/playerOpeningKit.ts (runOpening, Driver, openingSim); tools/sim/opening.ts = CLI; probes import the kit. Tests: src/sim/colony/allocation/unplugFloor.test.ts (2, red without floor), src/sim/colony/founding/playerOpening.long.test.ts (FOUNDRESS_LONG, seeds 1,2,4, R14). Typecheck clean in my paths.
 - 02:30 DEVIATIONS rows D40 (dryQueen) and D41 (unplug floor) written. Waiting: headless seeds 4/5 on fix2 tree (task bi0vxvks6), browser seed1-b (fix1 tree, CONTINUE + CHECKPOINT test-output/opening-fix/firstplay/seed1-b.save).
 - NEXT: founding + allocation folder tests; bisect seed 4 reopen (4ab0ebd vs live) for "breaking commit" of the reopen failure; then freeze tree -> /home/user/frozen-openingfix, run tools/sim/sweep-life.sh + longrun (5 runs); browser confirm seeds 1,2 (UNTIL=13) + full runs; report.
+
+## RESTART 8 (container restart ~00:44 UTC Nov 24). Second engineer resumes at 00:46 UTC (real `date -u` from here on;
+the stamps above ran ~2 h ahead: "02:30" above = ~00:30 UTC).
+- Tree check 00:50 UTC: git clean at 07583fe (= snapshot 0404e5a + ruling 1). Fix 1 (dryQueen) + fix 2 (unplug floor) in tree.
+- Found on disk (lost with the restart only in the notes): headless fix2/opening-4.json PASS (open after 3000 ticks, 4 workers),
+  fix2/opening-5.json PASS (open after 750, 4 workers) - BUT these started ~00:30 before targets.ts's last edit (00:33).
+  fix2b/opening-4.json (00:41, final tree, run with --save-handover) FAILS: reopening:235, no digger; while
+  reopenProbe from that same s4-handover.bin opens after 3000 ticks. => suspect snapshot() perturbs the live sim, or
+  restore != live. To check.
+- NEXT (ruling 1): (a) unplug floor with <5 workers + unit test; (b) mound-mask probe rebuilt (direction 30b item 5);
+  (c) snapshot side effect; then headless 1-5, browser 1,2, frozen-tree sweep + 5 long runs, report.
+- 01:02 UTC done since restart:
+  (a) RULING 1.1 wide mound-mask probe: src/sim/world/field.ts `withoutOverlays(skip, fn)` (additive WorldField method);
+      src/sim/nest/moundRelax.ts buildMask probes f (sampleXYZ) with the pile overlays left out (ground deltas kept),
+      maskSignature also keys dynamic prims near the grid. Guards green: nest/mound* (8 files), pointFieldRestore,
+      pointFieldEvict.gate2, outdoor/determinism.perf. Seed 2 headless (test-output/opening-fix/headless/wide/):
+      PASS, seal sealed:223 (round 9: 229, live: 93), 11 workers, queen at lapse y -3.9 (cell y 1.3), open after 1500.
+      sg #2 36000-tick restore check RUNNING (tools/sim/probe/probe-restore14b.ts -> test-output/opening-fix/restore/sg2-wideprobe.txt).
+  (b) RULING 1.2: targets.ts serveUnplugFloor: nurses' full demand first, then the floor's diggers (never lowers the
+      nurse target); unplugFloor.test.ts case "a founding of 4 or 3 free workers" (216-case grid, red without the top-up).
+  (c) NEW: allocation/unplugDraft.ts draftUnplugDiggers (each alloc pass, while dig actual < target and the floor
+      holds: home ants over their task's target, not nurses, switch to dig). s4 hand-over probe: open 3000 -> 1750 ticks
+      (reopen-s4-draft.txt). Needs a unit test.
+- NEXT: unit test for the draft; allocation + founding + nest folder tests; headless seeds 1-5; browser.
+- 01:13 UTC: unplugDraft.test.ts (2) + moundMaskLip.test.ts (red on cavity-only probe) written; long test reworked
+  (seeds 1,2 at R14; seed 4 at beat 13's 7500). DEVIATIONS D41 updated, D42 (wide probe), D43 (draft) added.
+  sg #2 restore (wide probe tree): EQUAL for 36000 ticks (test-output/opening-fix/restore/sg2-wideprobe.txt).
+  Headless fix3 tree (test-output/opening-fix/headless/fix3/summary.txt, opening-1.json): ALL PASS
+  s1 seal 165, 13 workers, open 500 | s2 seal 223, 11 w, open 1000 | s3 seal 361, 8 w, 750 | s4 seal 235, 4 w, 1500 (R14 miss) | s5 132, 4 w, 750.
+  (the fix2b failure was the tree changing under a running process, not snapshot(): fix3 s4 ran with --save-handover and passed.)
+  Folder tests: founding+allocation 32 files green; nest/world/balance 71 green, 3 red = also red on HEAD 07583fe
+  (nest/escapeDig, nest/architect/layout perf, nest/flood/readersCost.verify) -> pre-existing.
+- NEXT: freeze tree -> /home/user/frozen-openingfix; sweep-life.sh (fresh cache test-output/opening-fix/cache) + 5 long
+  runs -> test-output/opening-fix/sweep, sweep-long (script test-output/opening-fix/close.sh). Browser seeds 1,2 meanwhile.
+- 01:15 UTC: tree frozen -> /home/user/frozen-openingfix (tree 9a8cdf07); close.sh RUNNING (setsid; log test-output/opening-fix/close.log; sweep -> test-output/opening-fix/sweep, f15 -> .../f15, long -> .../sweep-long). Do NOT edit src/sim until it is done unless a fix is needed (frozen copy runs its own code anyway). Next: browser seeds 1,2 UNTIL=13.
+- 01:27 UTC: browser seed1-final (UNTIL=13, DUMP) running -> test-output/opening-fix/firstplay/seed1-final; report draft written (placeholders BROWSER_*, SWEEP_*).
+- 01:33 UTC: BROWSER seed1-final PASS beats 01-13, no stand-ins (4 workers, seal 108, open:0; hand-over tick ~26987 -> reopen-check 28740 = ~7 game h, R14 MISS; pictures 12/13 looked at: outcome card 'First workers: 4', open entrance on crater mound, a worker outside). Experiment floor-before-queen-care on s4 hand-over: no gain (1500 both; only 2 workers home) -> reverted, tree == frozen. Next: browser seed 2.

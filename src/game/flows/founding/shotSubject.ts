@@ -45,6 +45,7 @@ export function foundingShotSubject(sim: Sim, out: FoundingShotSubject): Foundin
     out.x = ch.center.x; out.y = ch.center.y; out.z = ch.center.z;
     out.radius = Math.max(ch.radii.x, ch.radii.z) + SPREAD_PAD_BU * bu;
     out.cutY = ch.center.y + FALLBACK_HALF_HEIGHT_BU * bu;
+    out.ant = undefined;
     return out;
   }
   const cx = sx / n, cy = sy / n, cz = sz / n;
@@ -70,6 +71,8 @@ export function foundingShotSubject(sim: Sim, out: FoundingShotSubject): Foundin
   out.x = cx; out.y = cy; out.z = cz;
   out.radius = spread + SPREAD_PAD_BU * bu;
   out.cutY = planeY;
+  // the queen's frame: on a steep wall of the throat the view director shows the side view instead of the slice from above (look pass 6)
+  out.ant = q ? { pos: q.pos, up: q.up, fwd: q.fwd, lengthMm: q.lengthBu * bu } : undefined;
   return out;
 }
 

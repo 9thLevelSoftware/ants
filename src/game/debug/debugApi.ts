@@ -173,7 +173,8 @@ export function createDebugApi(game: Game) {
         const s = game.session;
         if (!s) return null;
         const p = game.camera.position;
-        return { f: s.sim.field.sampleXYZ(p.x, p.y, p.z), radius: s.views.third.radiusMm };
+        // cutAway: the cell camera's cut-away has removed the soil the camera stands in (its view is clear although the field there is solid)
+        return { f: s.sim.field.sampleXYZ(p.x, p.y, p.z), radius: s.views.third.radiusMm, cutAway: s.views.cameraInCutAway(p) };
       },
     },
     cheat: buildCheats(game),

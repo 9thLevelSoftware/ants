@@ -160,7 +160,7 @@ button.fd-more { cursor: pointer; }
 .fd-filters .ui-text { grid-column: 1 / -1; }
 .fd-roster-meta { display: flex; align-items: center; justify-content: space-between; font-size: var(--t-small); color: var(--c-text-2); min-height: 1.5rem; }
 .fd-chip-btn { display: inline-flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-4); height: 1.5rem; border-radius: var(--r-pill); border: 1px solid var(--c-accent); background: transparent; color: var(--c-accent); font: inherit; font-size: var(--t-small); font-weight: 600; cursor: pointer; }
-.fd-table { flex: 1; min-height: 6rem; display: flex; flex-direction: column; border: 1px solid var(--c-border); border-radius: var(--r-s); overflow: hidden; --fd-cols: 6.8rem 2rem minmax(5.8rem, 1.5fr) minmax(4.2rem, 1fr) 2.9rem 2.9rem minmax(3.8rem, 0.9fr) 2.8rem; }
+.fd-table { flex: 1; min-height: 6rem; display: flex; flex-direction: column; border: 1px solid var(--c-border); border-radius: var(--r-s); overflow: hidden; --fd-cols: 6.8rem 2rem minmax(5.4rem, 1.3fr) minmax(6.2rem, 1.3fr) 2.9rem 2.9rem minmax(3.8rem, 0.9fr) 2.8rem; }
 .fd-head-row { display: grid; grid-template-columns: var(--fd-cols); align-items: center; min-height: 1.75rem; border-bottom: 1px solid var(--c-border); background: var(--c-panel-raised); padding: 0 var(--s-2); }
 .fd-colhead { display: inline-flex; align-items: center; gap: 1px; padding: 0; background: none; border: 0; color: var(--c-text-2); font: inherit; font-size: var(--t-caption); font-weight: 600; text-align: left; cursor: pointer; min-height: 1.75rem; overflow: hidden; }
 .fd-colhead.is-sorted { color: var(--c-accent); }

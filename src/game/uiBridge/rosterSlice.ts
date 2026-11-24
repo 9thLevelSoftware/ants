@@ -8,14 +8,14 @@ import type { UiRoster, UiRosterQuery, UiRosterRow } from '@/ui/api';
 import { comparator, health01, matchesQuery, orderIsStale, queryOrderKey, roleOfTask } from '@/ui/panels/roster/rosterModel';
 import { ROSTER_MAX_WINDOW, ROSTER_MIN_INTERVAL_MS } from './balance';
 import { groupOfTask } from './hudSlices';
-import { antName, taskWord, ZONE_WORDS } from './words';
+import { antName, CHAMBER_WORDS, taskWord, ZONE_WORDS } from './words';
 
 const cap = (s: string): string => (s.length ? s[0].toUpperCase() + s.slice(1) : s);
 
 function whereOf(sim: Sim, a: Ant): string {
   if (a.chamberId >= 0) {
     const e = chamberEntry(sim, a.chamberId);
-    if (e) return `${cap(e.ch.type)} ${a.chamberId}`;
+    if (e) return CHAMBER_WORDS[e.ch.type] ?? cap(e.ch.type);
   }
   if (a.nestId >= 0) return 'Tunnel';
   return ZONE_WORDS[zoneAt(sim.world, a.pos.x, a.pos.z)] ?? 'Outside';

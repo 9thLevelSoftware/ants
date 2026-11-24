@@ -292,6 +292,10 @@ export function runOpening(o: OpeningOptions, sim: Sim = openingSim(o.seed)): { 
     // "Tend the brood": FoundingFlow.beginLapse
     if (d.phase() === 'lay') d.command({ type: 'openingBeginTimelapse' } as Command);
     res.hashes['lapse-start'] = stateHash(sim.state); // the browser's FIRSTPLAY_DUMP 'lapse-start' (before the step)
+    const qa = d.possessed(), cellAt = d.nest().chambers.find((c) => c.type === 'founding')?.center;
+    res.checks.queenAtLapse = qa && cellAt
+      ? { y: Math.round(qa.pos.y * 10) / 10, cellY: Math.round(cellAt.y * 10) / 10, distToCellBu: Math.round((Math.hypot(qa.pos.x - cellAt.x, qa.pos.y - cellAt.y, qa.pos.z - cellAt.z) / bu) * 10) / 10 }
+      : null;
     d.step(1);
     expect(d.phase() === 'timelapse', 'Tend the brood did not start the time-lapse', d.phase());
     let relay = 0;

@@ -162,6 +162,12 @@ export interface WorldField {
   removeHeightOverlay(id: number): boolean;
   /** The registered overlay with this id, or undefined. */
   heightOverlay(id: number): HeightOverlay | undefined;
+  /**
+   * Runs fn with the overlays for which skip(o) is true left out of every query of this field (height, f and its
+   * parts), and puts them back afterwards. For probes that must read the ground without the piles (opening-fix:
+   * the mound mask's hole probe reads f without the pile overlays, whose heights no mask cache key follows).
+   */
+  withoutOverlays<T>(skip: (o: HeightOverlay) => boolean, fn: () => T): T;
 }
 
 /**
@@ -619,6 +625,16 @@ class FieldImpl implements WorldField {
   }
   heightOverlay(id: number): HeightOverlay | undefined {
     return this.overlays.find((e) => e.id === id);
+  }
+  withoutOverlays<T>(skip: (o: HeightOverlay) => boolean, fn: () => T): T {
+    const all = this.overlays;
+    if (!all.some(skip)) return fn();
+    this.overlays = all.filter((o) => !skip(o));
+    try {
+      return fn();
+    } finally {
+      this.overlays = all;
+    }
   }
   private updateMinHeight(): void {
     let low = 0;

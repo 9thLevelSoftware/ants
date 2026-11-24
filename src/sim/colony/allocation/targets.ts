@@ -81,12 +81,26 @@ function scoutFloorSlot(order: readonly Task[], hygiene: boolean): number {
 /*
  * The unplug floor (task opening-fix, a deviation from GDD 02 §6.3's fixed order like the two above): while the
  * colony has no `open` entrance and a `reopening` throat still holds plug soil (nest entranceToUnplug), that many
- * diggers (one per such nest, at most the dig demand) are served right after the brood's care, before the scout floor
- * and `forage`. GDD 06 §5.13 (b) and GDD 03 §4.2 / §13: the first workers reopen the plug. With the GDD order a
+ * diggers (UNPLUG_FLOOR_DIGGERS per such nest, at most the dig demand) are served right after the brood's care, before
+ * the scout floor and `forage` (serveUnplugFloor: the nurses' full demand first). GDD 06 §5.13 (b) and GDD 03 §4.2 / §13: the first workers reopen the plug. With the GDD order a
  * colony of 5-7 nanitics (one of them possessed by the player) gives `dig` nothing once a narrow way out exists: the
  * browser's first play on seed 2 (Nov 23) kept the throat `reopening` with 72 plug samples for 16 game hours, the
  * foragers walking out past the rim while no worker was left to dig it (R14: open within 4 game hours).
  */
+
+/**
+ * The unplug floor's turn, right after the brood's care (integrator ruling 1 of opening-fix: the floor must not starve
+ * the brood of a small founding). The nurses get their full demand first (the care's first pass gave them half,
+ * rounded up), then the plug its diggers, then queen-care's second half and the work outside share what is left. So
+ * the floor never lowers the nurse target; it takes its diggers from forage, store, scouting and queen-care's second
+ * half. Four first workers, one possessed (the browser's seed 1), nurse 1 and queen-care 2: nurse 1, queen-care 1,
+ * one digger; with all four free, two.
+ */
+function serveUnplugFloor(demand: Float32Array, target: Int16Array, free: Free, floorDiggers: number): void {
+  const ni = ti('nurse'), di = ti('dig');
+  target[ni] += free.take(poolOfTask('nurse'), Math.max(0, Math.round(demand[ni]) - target[ni]));
+  target[di] += free.take(poolOfTask('dig'), Math.max(0, floorDiggers - target[di]));
+}
 
 /** Splits `total` over weights with largest remainders (integers summing to total). */
 export function apportion(total: number, weights: number[]): number[] {
@@ -142,8 +156,8 @@ function planTargets(
   for (let k = 0; k < order.length; k++) {
     const i = ti(order[k]);
     target[i] += free.take(poolOfTask(order[k]), Math.max(0, Math.ceil(0.5 * demand[i]) - target[i]));
-    // the closed nest's plug before any work outside (unplugFloorSlot), then the scout floor
-    if (k === careEnd && floorDiggers > 0) target[di] += free.take(poolOfTask('dig'), Math.max(0, floorDiggers - target[di]));
+    // the closed nest's plug before any work outside, then the scout floor
+    if (k === careEnd && floorDiggers > 0) serveUnplugFloor(demand, target, free, floorDiggers);
     if (k === floorAfter) target[si] += free.take(poolOfTask('scout'), Math.max(0, floorScouts - target[si]));
   }
   for (const t of order) {

@@ -93,6 +93,13 @@ function maskSignature(sim: Sim, m: Mound): string {
     sig += `|b${b.pos.x}:${b.pos.z}:${b.r}`;
   }
   sig += `|d${groundDeltaStamp(sim, x0, z0, x0 + span, z0 + span)}`;
+  // dynamic primitives (objects human events put down or take away) enter the hole probe's f (opening-fix)
+  const reach = MOUND_HOLE_PROBE_BU * sim.world.bu;
+  for (const p of sim.state.worldDelta.dynPrims) {
+    const r = Math.max(p.size.x, p.size.y, p.size.z) + p.round + reach;
+    if (p.pos.x + r < x0 || p.pos.x - r > x0 + span || p.pos.z + r < z0 || p.pos.z - r > z0 + span) continue;
+    sig += `|p${p.id}:${p.pos.x}:${p.pos.y}:${p.pos.z}:${p.rot.x}:${p.rot.y}:${p.rot.z}:${p.rot.w}`;
+  }
   return sig;
 }
 
@@ -118,25 +125,41 @@ function buildMask(sim: Sim, m: Mound): MoundMask {
   // the cavity reaches the ground surface at the grid point (the pile's own height does not hide it: the cavity wins).
   // The ground is the base as pressed or heaped by human events now (a footprint is a dent, not a hole: probed from
   // the base alone, a 3 mm print read as an open column and its pile was pushed off; colony-life round 7).
-  // The carve cavity alone is read, not the whole field: f's soil term follows every pile overlay (its height and
-  // slope), so a cell at a pit's edge flipped as the pile relaxed, which no cache key follows, and a loaded game built
-  // another mask than the unsaved one had kept (colony-life round 14, sg #2's restore gap).
+  // The field f is read without the pile overlays (task opening-fix, integrator ruling 1; direction 30b item 5):
+  // with them, f's soil term followed every pile's height and slope, so a cell at a pit's edge flipped as the pile
+  // relaxed, which no cache key follows, and a loaded game built another mask than the unsaved one had kept
+  // (colony-life round 14, sg #2's restore gap). Round 14 then read the carve cavity alone, which is exact but
+  // narrower: f's smooth union of soil and cavity is positive on the steep sides of an entrance funnel too, so round
+  // 12's probe kept the piles off the whole lip, and the cavity-only probe let spoil lie there (the player's seal on
+  // seed 2: plug 93 voxels against 229; trip success -2 to -15 points, kd #3's brood flooding 5 -> 11). Without the
+  // piles the probe reads the terrain, the ground deltas, the primitives and the carve grid: all of it either saved
+  // and restored as it is or followed by the cache key (maskSignature) and the carve listener.
   const probe = (idx: number, x: number, z: number): void => {
     if (probed[idx] === 1 || clear[idx] !== 0) return;
     probed[idx] = 1;
     const g = (Number.isNaN(m.base[idx]) ? heightAt(sim.world.terrain, x, z) : m.base[idx]) + groundDeltaAt(sim, x, z);
-    if (sim.carve.cavity(x, g - depth, z) > 0) clear[idx] = CLEAR_HOLE;
+    if (sim.field.sampleXYZ(x, g - depth, z) > 0) clear[idx] = CLEAR_HOLE;
   };
   const entrances = entrancesOnGrid(sim, m);
   for (const e of entrances) around(e.pos.x, e.pos.z, clearRadius(sim, m, e), (idx) => { clear[idx] = CLEAR_DISC; });
-  // open holes: around entrances, and around the carve grid's breach records (a pit no entrance record knows yet)
-  for (const e of entrances) around(e.pos.x, e.pos.z, clearRadius(sim, m, e) + MOUND_HOLE_PROBE_BU * bu, probe);
-  const span = (n - 1) * m.cell, pad = MOUND_BREACH_PROBE_BU * bu;
-  for (const b of sim.carve.breaches) {
-    if (!breachNearGrid(b, x0, z0, span, pad)) continue;
-    around(b.pos.x, b.pos.z, b.r + pad, probe);
-  }
+  const piles = pileIds(sim);
+  sim.field.withoutOverlays((o) => piles.has(o.id), () => {
+    // open holes: around entrances, and around the carve grid's breach records (a pit no entrance record knows yet)
+    for (const e of entrances) around(e.pos.x, e.pos.z, clearRadius(sim, m, e) + MOUND_HOLE_PROBE_BU * bu, probe);
+    const span = (n - 1) * m.cell, pad = MOUND_BREACH_PROBE_BU * bu;
+    for (const b of sim.carve.breaches) {
+      if (!breachNearGrid(b, x0, z0, span, pad)) continue;
+      around(b.pos.x, b.pos.z, b.r + pad, probe);
+    }
+  });
   return { ok, clear, cap: pitCap(sim, m, clear) };
+}
+
+/** Ids of the pile overlays (one per mound; the ground-delta overlays of human events are not piles). */
+function pileIds(sim: Sim): Set<number> {
+  const ids = new Set<number>();
+  for (const m of sim.state.worldDelta.mounds) ids.add(m.id);
+  return ids;
 }
 
 /** clear[] values: kept clear as part of an entrance disc, or as an open hole column. */

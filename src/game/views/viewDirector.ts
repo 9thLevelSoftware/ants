@@ -5,7 +5,7 @@
 import { vec3, type Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import {
-  CAM_HANDOVER_KEEP_MAX_L, CAM_REDUCED_CROSSFADE_S, CAM_SWITCH_DIP_HALF_S, FSHOT_FILL, FSHOT_ORBIT_REV_PER_S, FSHOT_STILL_S, FSHOT_YAW_DEG, CAM_AUTOFOLLOW_MIN_SPEED_BU, CELLCAM_CUT_GRID_MM, CELLCAM_MIN_RADIUS_BU, CELLCAM_TEXEL_BU, CELLCAM_EDGE_W, CellCam, azimuthBetween, blendPoses, cellShotSubject, cellSideShotAt, makeCellSideShot, copyShotSubject, easeShotSubject, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
+  CAM_HANDOVER_KEEP_MAX_L, CAM_REDUCED_CROSSFADE_S, CAM_SWITCH_DIP_HALF_S, FSHOT_FILL, FSHOT_ORBIT_REV_PER_S, FSHOT_STILL_S, FSHOT_YAW_DEG, CAM_AUTOFOLLOW_MIN_SPEED_BU, CELLCAM_CUT_GRID_MM, CELLCAM_MIN_RADIUS_BU, CELLCAM_TEXEL_BU, CELLCAM_EDGE_W, CellCam, applyLift, azimuthBetween, blendPoses, freeToward, openAzimuth, CELLCAM_SIDE_ENTER_UP_Y, CELLCAM_SIDE_MIN_FREE_L, cellShotSubject, cellSideShotAt, makeCellSideShot, copyShotSubject, easeShotSubject, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
   copyPose, fitsAt, makePose, planTransition, type FoundingShotSubject, type ThirdPersonOutput, type TransitionPlan,
   type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type FieldFn, type PossessionCamState, type TraceFn,
 } from '@/render/camera';
@@ -330,6 +330,37 @@ export class ViewDirector {
     return use;
   }
 
+  /**
+   * The founding shot with the cell camera's choice (look pass 6): when the queen stands on a steep wall (the throat of the shaft) or under a
+   * roof that leaves no room for a slice over her back, the picture is the side view through a vertical section (cellSideShotAt), as it is
+   * while she is possessed; otherwise the slice from above, with the plane where the five-point roof probe puts it. True when it filled `f`.
+   */
+  private foundingShotSide(s: FoundingShotSubject, f: ViewFrame): boolean {
+    const a = s.ant, bu = this.world.bu;
+    if (!a || !this.cellCamEnabled) return false;
+    const t = this.shotTarget; t.pos = a.pos; t.up = a.up; t.fwd = a.fwd;
+    const probe = cellShotSubject(this.shotProbe, t, a.lengthMm, bu, this.world.field);
+    if (a.up.y >= CELLCAM_SIDE_ENTER_UP_Y && probe.open !== false) {
+      // from above: the slice no higher than the roof over her back
+      if (probe.cutY < s.cutY) s.cutY = probe.cutY;
+      return false;
+    }
+    if (freeToward(t, a.lengthMm, bu, this.world.field, this.shotSideAz, CELLCAM_SIDE_MIN_FREE_L * a.lengthMm) < CELLCAM_SIDE_MIN_FREE_L * a.lengthMm) {
+      this.shotSideAz = openAzimuth(t, a.lengthMm, bu, this.world.field, this.shotSideAz);
+    }
+    const side = cellSideShotAt(this.cellSide, s, t, a.lengthMm, this.shotSideAz, bu, this.world.field);
+    applyLift(side.pose, s.lift ?? 0);
+    const cut = side.cutaway;
+    cut.texelMm = CELLCAM_TEXEL_BU * bu; cut.edgeW = CELLCAM_EDGE_W;
+    f.pose = side.pose; f.focus = side.distance; f.cutaway = cut;
+    return true;
+  }
+
+  private readonly shotTarget: CameraTarget = { pos: { x: 0, y: 0, z: 0 }, up: { x: 0, y: 1, z: 0 }, fwd: { x: 0, y: 0, z: 1 } };
+  private readonly shotProbe: FoundingShotSubject = { x: 0, y: 0, z: 0, radius: 0, cutY: 0 };
+  /** Azimuth of the side view of the founding shot (kept while the room toward it stays open). */
+  private shotSideAz = 0;
+
   private peekPose(): CameraPose {
     return this.updateRig(0, null).pose;
   }
@@ -348,8 +379,11 @@ export class ViewDirector {
     const target = (this.view === 'possess' || this.view === 'observer') && this.shotSource ? this.shotSource() : null;
     if (!target) this.shotHeldOn = false;
     if (target) {
-      foundingShotAt(this.shot, this.nextShotSubject(target, dt), this.shotYaw, w.bu);
-      f.pose = this.shot.pose; f.focus = this.shot.distance; f.cutaway = this.shot.cutaway;
+      const subject = this.nextShotSubject(target, dt);
+      if (!this.foundingShotSide(subject, f)) {
+        foundingShotAt(this.shot, subject, this.shotYaw, w.bu);
+        f.pose = this.shot.pose; f.focus = this.shot.distance; f.cutaway = this.shot.cutaway;
+      }
     } else if (this.view === 'possess') {
       const l = look('orbit');
       const o = this.third.update(dt, this.followTarget, { yawDeg: l.x, pitchDeg: l.y, zoomLog: zoom('zoom'), recentre: !!input && input.pressed('recentre') },
@@ -409,7 +443,7 @@ export class ViewDirector {
     const subject = this.cellSubject;
     if (candidate || c.active) cellShotSubject(subject, t, L, bu, this.world.field); else subject.open = true;
     const weight = c.update(dt, o.focusDistance, L, candidate, azimuthBetween(t.pos, o.pos, 0.3 * L), t.up.y, subject.open !== false);
-    if (weight <= 0) return;
+    if (weight <= 0) { this.cellCut = null; return; }
     c.steer(dt, yawDeg, t, this.third.speedMmS > CAM_AUTOFOLLOW_MIN_SPEED_BU * bu, this.third.opts.autoFollow !== 'off', L, bu, this.world.field);
     const e = weight * weight * (3 - 2 * weight), es = c.sideWeight * c.sideWeight * (3 - 2 * c.sideWeight);
     // the view from above and the side view, blended by the side weight; then the rig's own pose to the cell camera's by the weight
@@ -434,12 +468,31 @@ export class ViewDirector {
     cut.texelMm = CELLCAM_TEXEL_BU * bu;
     cut.edgeW = CELLCAM_EDGE_W;
     f.cutaway = cut;
+    this.cellCut = cut;
+  }
+
+  /** The cell camera's cut-away of the last frame, or null while the rig's own camera is the picture. */
+  private cellCut: CutawayParams | null = null;
+
+  /**
+   * True when the cell camera is fully on and `p` (the camera) stands in soil that its cut-away removes: above the slice plane, or on the camera's
+   * side of the vertical section. The camera is then "inside solid" in the field and still sees clear air (debug read-out for the e2e clearance check).
+   */
+  cameraInCutAway(p: { x: number; y: number; z: number }): boolean {
+    const cut = this.cellCut;
+    if (!cut || this.cell.weight < 0.99) return false;
+    if (cut.section === 'vertical') {
+      const vd = cut.viewDir!;
+      return (p.x - cut.center.x) * -vd.x + (p.z - cut.center.z) * -vd.z >= (cut.offset ?? 0);
+    }
+    return p.y >= cut.planeY;
   }
 
   /** The cell camera's state, for the debug read-out. */
-  cellState(): { weight: number; sideWeight: number; side: boolean; azimuthDeg: number; subject: FoundingShotSubject; sideOffset: number | undefined } {
-    const c = this.cell;
-    return { weight: c.weight, sideWeight: c.sideWeight, side: c.sideView, azimuthDeg: c.azimuth * 180 / Math.PI, subject: this.cellSubject, sideOffset: this.cellSide.cutaway.offset };
+  cellState(): { weight: number; sideWeight: number; side: boolean; azimuthDeg: number; aimedDeg: number; freeMm: number; subject: FoundingShotSubject; sideOffset: number | undefined } {
+    const c = this.cell, bu = this.world.bu, L = this.subjectLengthBu * bu;
+    return { weight: c.weight, sideWeight: c.sideWeight, side: c.sideView, azimuthDeg: c.azimuth * 180 / Math.PI, aimedDeg: c.aimedAzimuth * 180 / Math.PI,
+      freeMm: freeToward(this.followTarget, L, bu, this.world.field, c.azimuth, 3 * L), subject: this.cellSubject, sideOffset: this.cellSide.cutaway.offset };
   }
 
   /** One frame of the active rig (real dt) blended through any running transition. */

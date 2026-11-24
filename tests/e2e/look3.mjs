@@ -61,7 +61,9 @@ export default async ({ page, log, out: outDir }) => {
   const vtag = variant.name ? `${tag}-${variant.name}` : tag;
   for (const spec of list) {
     const [lname, view, q = 'high'] = spec.split(':');
-    const L = LIGHTS[lname];
+    // look pass 6: 'h22-rain', 'h2.5-clear': any hour of the summer day, any weather
+    const hm = /^h(\d+(?:\.\d+)?)-(clear|overcast|rain)$/.exec(lname);
+    const L = LIGHTS[lname] ?? (hm ? { hour: Number(hm[1]), weather: hm[2] } : undefined);
     if (!L) throw new Error(`look3: unknown light ${lname}`);
     if (q !== curQ) {
       const qs = await g((id) => window.__game.quality(id), q);

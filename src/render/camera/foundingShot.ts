@@ -23,6 +23,12 @@ export interface FoundingShotSubject {
    */
   lift?: number;
   fill?: number;
+  /**
+   * The queen's own frame, when she is part of the subject (the cards' shot): where she stands, her surface normal and heading, her length.
+   * With it the view director takes the cell camera's choice between the view from above and the side view, so a queen on a steep wall of the
+   * throat is not cut by a horizontal slice. Not eased; absent = the slice from above always (tests, the chamber fallback).
+   */
+  ant?: { pos: { x: number; y: number; z: number }; up: { x: number; y: number; z: number }; fwd: { x: number; y: number; z: number }; lengthMm: number };
   /** Set by the cell camera's subject: false when no height of the slice plane over the ant is open air (a roof lower than her back). */
   open?: boolean;
 }
@@ -31,6 +37,7 @@ export interface FoundingShotSubject {
 export function copyShotSubject(out: FoundingShotSubject, s: FoundingShotSubject): FoundingShotSubject {
   out.x = s.x; out.y = s.y; out.z = s.z; out.radius = s.radius; out.cutY = s.cutY;
   out.lift = s.lift ?? 0; out.fill = s.fill ?? FSHOT_FILL;
+  out.ant = s.ant;
   return out;
 }
 
@@ -77,6 +84,22 @@ export function foundingShotDistance(radiusMm: number, fill = FSHOT_FILL): numbe
 }
 
 /**
+ * Looks lower than the pose's `look` point by the angle that puts it `lift` above the middle of the frame (0..1 of the half height): the view
+ * axis tilts down about the camera's right axis, the subject (the old look point) rises in the picture. No change for lift 0.
+ */
+export function applyLift(o: CameraPose, lift: number): void {
+  if (lift === 0) return;
+  const tilt = Math.atan(lift * Math.tan((FSHOT_FOV_DEG * DEG) / 2));
+  const dx = o.look.x - o.pos.x, dy = o.look.y - o.pos.y, dz = o.look.z - o.pos.z, dl = Math.hypot(dx, dy, dz) || 1;
+  // up in the view = world up made perpendicular to the view direction
+  const ux0 = 0 - (dy / dl) * (dx / dl), uy0 = 1 - (dy / dl) * (dy / dl), uz0 = 0 - (dy / dl) * (dz / dl), ul = Math.hypot(ux0, uy0, uz0) || 1;
+  const c = Math.cos(tilt), sn = Math.sin(tilt);
+  o.look.x = o.pos.x + (dx / dl * c - ux0 / ul * sn) * dl;
+  o.look.y = o.pos.y + (dy / dl * c - uy0 / ul * sn) * dl;
+  o.look.z = o.pos.z + (dz / dl * c - uz0 / ul * sn) * dl;
+}
+
+/**
  * Fills `out` for the subject seen from `yawRad` (0 = from +Z). Allocation-free. `minRadiusBu` replaces FSHOT_MIN_RADIUS_BU: the cell camera
  * (cellCam.ts) frames one ant, not a chamber.
  */
@@ -88,19 +111,7 @@ export function foundingShotAt(out: FoundingShot, s: FoundingShotSubject, yawRad
   o.pos.y = s.y + Math.sin(p) * d;
   o.pos.z = s.z + Math.cos(yawRad) * cp * d;
   o.look.x = s.x; o.look.y = s.y; o.look.z = s.z;
-  const lift = s.lift ?? 0;
-  if (lift !== 0) {
-    // look lower than the subject by the angle that puts it `lift` above the middle of the frame: the view axis tilts down
-    // about the camera's right axis, the subject (the old look point) rises in the picture
-    const tilt = Math.atan(lift * Math.tan((FSHOT_FOV_DEG * DEG) / 2));
-    const dx = s.x - o.pos.x, dy = s.y - o.pos.y, dz = s.z - o.pos.z, dl = Math.hypot(dx, dy, dz) || 1;
-    // up in the view = world up made perpendicular to the view direction
-    const ux0 = 0 - (dy / dl) * (dx / dl), uy0 = 1 - (dy / dl) * (dy / dl), uz0 = 0 - (dy / dl) * (dz / dl), ul = Math.hypot(ux0, uy0, uz0) || 1;
-    const c = Math.cos(tilt), sn = Math.sin(tilt);
-    o.look.x = o.pos.x + (dx / dl * c - ux0 / ul * sn) * dl;
-    o.look.y = o.pos.y + (dy / dl * c - uy0 / ul * sn) * dl;
-    o.look.z = o.pos.z + (dz / dl * c - uz0 / ul * sn) * dl;
-  }
+  applyLift(o, s.lift ?? 0);
   o.up.x = 0; o.up.y = 1; o.up.z = 0;
   o.fov = FSHOT_FOV_DEG;
   o.near = Math.max(0.02 * d, 0.05 * bu);

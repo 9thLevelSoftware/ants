@@ -26,7 +26,8 @@ export default async (ctx) => {
       const gm = window.__game, q = gm.summary().possessed, f = (x, y, z) => { const v = gm.query.field(x, y, z); return Math.round((typeof v === 'number' ? v : v.f) * 100) / 100; };
       const cs = gm.views.possession().cell, s = cs.subject;
       const above = []; for (let h = 0; h <= 6; h += 0.5) above.push(f(q.pos[0], q.pos[1] + h, q.pos[2]));
-      return { state: gm.camera.state(), cell: { ...cs, subject: undefined }, subject: s, queen: { pos: q.pos.map((v) => Math.round(v * 100) / 100), up: q.up }, fAbove: above, fAtPlane: f(s.x, s.cutY, s.z), pose: gm.camera.pose() };
+      const sim = window.__hud?.game?.session?.sim, br = (sim?.state.brood ?? []).filter((b) => b.alive).slice(0, 4).map((b) => [b.pos.x, b.pos.y, b.pos.z].map((v) => Math.round(v * 10) / 10));
+      return { brood: br, nBrood: (sim?.state.brood ?? []).filter((b) => b.alive).length, state: gm.camera.state(), cell: { ...cs, subject: undefined }, subject: s, queen: { pos: q.pos.map((v) => Math.round(v * 100) / 100), up: q.up }, fAbove: above, fAtPlane: f(s.x, s.cutY, s.z), pose: gm.camera.pose() };
     })));
   };
 
@@ -57,6 +58,10 @@ export default async (ctx) => {
   for (let t = 0; t < 3000 && (await phase()) === 'seal'; t += 50) await step(50);
   for (let i = 0; i < 5 && (await phase()) === 'seal'; i++) await step(20);
   log('phase after seal', await phase());
+  if (process.env.L6_SEAL_SAVE_OUT) {
+    const x = await g(() => window.__game.saves.export('current', 'text'));
+    if (x?.ok && typeof x.text === 'string') { fs.writeFileSync(process.env.L6_SEAL_SAVE_OUT, x.text); log('sealed save written'); }
+  }
   await pic('09-sealed');
 
   // beat 10: the first clutch

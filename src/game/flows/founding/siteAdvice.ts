@@ -17,6 +17,9 @@ const ADVICE: Record<string, { fine: string; byWord: Record<string, string> }> =
   exposure: { fine: 'look for a more sheltered corner', byWord: { Busy: 'people walk here: look for a quieter corner', Open: 'look for a more sheltered corner' } },
 };
 
+/** The other readings are "fine" at this value (three dots and more of five) for the line to call the weak one the only one. */
+const ONLY_WEAK_OTHERS_MIN = 0.5;
+
 /** The factor with the fewest dots (the first of equals, in the card's order). */
 export function weakestRow(rows: readonly { id: string; dots: number; value: number }[]): { id: string; dots: number; value: number } | null {
   let worst: { id: string; dots: number; value: number } | null = null;
@@ -33,5 +36,9 @@ export function siteAdvice(site: Pick<NonNullable<FoundingUi['site']>, 'rows' | 
   const a = ADVICE[w.id];
   if (!a) return null;
   const word = (full as { word?: string }).word ?? '';
-  return `${word}: ${a.byWord[word] ?? a.fine}.`.replace(/^: /, '');
+  const line = `${word}: ${a.byWord[word] ?? a.fine}.`.replace(/^: /, '');
+  // look pass 6: a card of five full rows and a red "Poor" read as a lie. One weak reading drags the quality down (it is a weighted sum, GDD 06 5.7 /
+  // directions K), and the line says so when every other reading is fine
+  const others = site.rows.filter((r) => r.id !== w.id);
+  return others.length >= 3 && others.every((r) => r.value >= ONLY_WEAK_OTHERS_MIN) ? `${line} It is the only weak reading.` : line;
 }
