@@ -61,3 +61,6 @@ export function casteWord(caste: string): string {
 export function antName(caste: string, id: number): string {
   return `${casteWord(caste)} ${String(id).padStart(4, '0')}`;
 }
+
+/** The reason a prompt line gives for an action that cannot be done at this moment (the sim's word for `blocked`, GDD 01 9.3): "Lay egg — busy". */
+export const PROMPT_BUSY = 'busy';

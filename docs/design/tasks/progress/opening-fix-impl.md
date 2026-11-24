@@ -187,3 +187,22 @@ the stamps above ran ~2 h ahead: "02:30" above = ~00:30 UTC).
 - 10:26 UTC: draftfix15 8/8 viable so far (we#3, sg#2 flip like floor-off).
 - 10:26 UTC: BROWSER seed2-final2 PASS 01-13 (seal 223, 7 workers, open <=1753; picture 13 night 02:46 12 C, open mound; 12 card 'First workers: 7' as before).
 - 10:41 UTC: BROWSER seed3-final2 PASS 01-13 (seal 312, 7 workers, open <=753, as before).
+- 10:56 UTC: BROWSER seed4-final2 PASS 01-13 (seal 235, 4 workers, open <=1503, as before). draftfix15 14/14 viable so far.
+- 11:08 UTC draftfix15 DONE (frozen2 = final tree, from the close sweep's 15 hand-overs; test-output/opening-fix/
+  draftfix15-table.md, draftfix15-sweep-table.md): viable 15/15 (sweep 12), workers at winter 264 (sweep 249,
+  floor-off 264, gate-sim-2 271/270), median P 0.485, trip success 48.1 %. The fix recovers all of the floor-off gain.
+  mask5 (ruling 2 arm a) running; then f15 + long runs on frozen2 (close2.sh) for item 5 on the final tree.
+- 11:07 UTC: report: section 4 rewired to 4b, DRAFTFIX15 filled; placeholders F15FINAL, LONGFINAL, MASK5, browser final2 seed 5. close2.sh queued (f15-final + sweep-long-final on frozen2 after mask5).
+- 11:16 UTC: BROWSER seed5-final2 PASS 01-13 (seal 104, 4 workers, open <=503). All five seeds pass on the final tree. Full runs seeds 1, 2 on the final tree started (run-full2.sh -> firstplay/full2-seedN). mask5 so far: we#2 yes, sg#2 NO, cpv#1 yes.
+- 11:21 UTC mask5 DONE (ruling 2 arm a, cavity-only mask, close sweep's tree, five long-set hand-overs; mask5-table.md):
+  viable 3 -> 3, workers at winter 82 -> 87 (more in 4 of 5), but the R27 C ratio lower in 4 of 5 (we#2 2.52 -> 1.90,
+  sg#2 0.59 -> 0.53, pp#3 0.77 -> 0.38, cpv#1 3.66 -> 2.81; kd#3 1.03 -> 1.06). Not better on the whole -> no change
+  (ruling 2). Scratch trees /home/user/scratch-of deleted.
+- 11:20 UTC: report 4b MASK5 + 6c process notes written. Running: close2 (f15-final then sweep-long-final on frozen2), browser full2 seeds 1, 2.
+- 11:43 UTC: f15-final (final tree): 5/5 viable (f15-final-table.md). Item 5 met on the final tree. sweep-long-final running; full2 seed 2 running.
+- 11:50 UTC FULL2 seed 1 (final tree + look-pass-6's new layBatch in the working tree = 24-egg clutch): beats 01-19 pass,
+  14 first workers, trail found by scouts in 900 ticks, delivery OK; first failure 19 -> 20 "no dig plan placed off the
+  founding cell" (planner preview invalid, code anchor-not-in-nest: validatePlan finds no nest-open sample within
+  ANCHOR_SNAP of the hovered point; the script hovers ch.center + 0.9 radius.x and only rotates the yaw). Colony-view
+  planner pick / script geometry (app side; also seen in look-pass-5's stand-in run), not a hand-over sim defect: not
+  fixed. f15-final 5/5 viable. Waiting: full2 seed 2, sweep-long-final.

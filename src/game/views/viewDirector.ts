@@ -95,11 +95,16 @@ function dragLook(input: InputState): { x: number; y: number } {
   return { x: d.x * k, y: -d.y * k };
 }
 
-/** True when `p` lies in the soil a cut-away removes: above a slice plane, or on the camera's side of a vertical section. */
+/**
+ * True when `p` lies in the soil a cut-away removes: within the cut's horizontal reach of its centre (`radius`, as the nest renderer applies it) and above a slice plane,
+ * or on the camera's side of a vertical section. A point outside the reach, below the plane or behind the section is soil the picture still shows.
+ */
 function inCutAway(cut: CutawayParams, p: { x: number; y: number; z: number }): boolean {
+  const dx = p.x - cut.center.x, dz = p.z - cut.center.z;
+  if (dx * dx + dz * dz > cut.radius * cut.radius) return false;
   if (cut.section === 'vertical') {
     const vd = cut.viewDir!;
-    return (p.x - cut.center.x) * -vd.x + (p.z - cut.center.z) * -vd.z >= (cut.offset ?? 0);
+    return dx * -vd.x + dz * -vd.z >= (cut.offset ?? 0);
   }
   return p.y >= cut.planeY;
 }

@@ -1695,3 +1695,18 @@ outputs are git-ignored and are lost if the container is reclaimed (then rerun `
 - look-pass-6: unit-test folders green and typecheck clean; `views.mjs` needed its shaft-walk check adapted to the
   cut-away camera (the engineer relaxed it; second note asks it to state each relaxed assertion and to do ruling 1:
   the script's egg count and the busy lay prompt, which its to-do list did not carry).
+
+### Nov 24 ~12:01 UTC — check-in: final opening-fix tree 15 of 15 viable; browser seeds 1-5 pass; look-pass-6 under review
+
+- opening-fix, final tree (sim 741fec90 = three fixes + the draft fix), from the close sweep's 15 hand-overs
+  (`test-output/opening-fix/draftfix15-table.md`): **viable 15 of 15, workers at winter 264** (close sweep with the
+  faulty draft: 12 / 249). The five sweep-15 hand-overs on it: 5 of 5 viable. Long runs on the final tree running.
+- Browser `firstplay.mjs` beats 01-13 without stand-ins: **seeds 1, 2, 3, 4, 5 all pass on the final tree.**
+- With look-pass-6's script fix (the clutch is 24 eggs as intended) the full run of seed 1 hands over **14 first
+  workers**, scouts find the food in 900 ticks, a trail forms, delivery works, and beats 01-19 pass; it stops at
+  19 -> 20: the colony-view dig planner refuses the plan the script places (`anchor-not-in-nest`: no open nest sample
+  within the snap distance of the hovered point). App side (planner pick or script geometry); not fixed yet.
+- look-pass-6 implementation returned; Opus review running. Reviewer so far: the new `markBusy` for the lay prompt is
+  dead code (the sim already reports "Lay egg — busy" for the whole batch), night pictures readable, cell camera
+  after-pictures fine at medium / high, outcome card shows the queen whole with her head at the card's edge and no
+  workers in frame; it is testing the cut-away's line of sight.

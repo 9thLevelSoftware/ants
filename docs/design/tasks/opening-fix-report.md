@@ -14,15 +14,15 @@ prototype was also tried in the live tree and reverted (section 6).
 
 | | before (live tree, Nov 23) | after (final tree) |
 |---|---|---|
-| seed 2, browser | lapse ends `failed`, "Water filled the burrow" | **beats 01-13 pass, no stand-ins**: seal 223, 7 workers, open 6-7 game h after the hand-over (R14 missed) |
-| seed 1, browser | entrance stays `reopening:130` (4 workers) | **beats 01-13 pass, no stand-ins**: seal 108, 4 workers, open 6-7 game h after the hand-over (R14 missed) |
+| seed 2, browser | lapse ends `failed`, "Water filled the burrow" | **beats 01-13 pass, no stand-ins**: seal 223, 7 workers, open 6-7 game h after a cold-night hand-over (R14 missed as written; met under ruling 2's full-work-rate restatement, section 6) |
+| seed 1, browser | entrance stays `reopening:130` (4 workers) | **beats 01-13 pass, no stand-ins**: seal 108, 4 workers, open 6-7 game h after a cold-night hand-over (R14 missed as written; met under ruling 2's full-work-rate restatement, section 6) |
 | seed 2, headless | seal 93 voxels, queen drowns at t 6671 | seal 223, 11 workers, open 1000 ticks after hand-over |
 | seed 1, headless | passes (12 workers; not the browser's game) | seal 165, 13 workers, open 500 |
 | seeds 3 / 4 / 5, headless | 3 pass, 4 `reopening:235` for good, 5 pass | all pass; open 750 / 1287 / 750 ticks after the hand-over |
 | seeds 3 / 4 / 5, browser | - | **all pass beats 01-13, no stand-ins**; open within 3 / 6 / 2 game h (R14 met / missed / met) |
-| item 5: 5 paired sweep-15 hand-overs to winter | sweep 15: 4 of 5 viable | **5 of 5** |
+| item 5: 5 paired sweep-15 hand-overs to winter | sweep 15: 4 of 5 viable | **5 of 5** (close tree and final tree) |
 | long runs (5 colonies, year two) | gate-sim-2: 85 -> 94 / 105 workers | **83 -> 108**; R34 1.0 x 4 of 5, 1.5 x 2 of 5 |
-| sweep (15 fresh foundings) | gate-sim-2: 12 / 15 (sweep), 13 / 15 (sweep2) | **12 / 15**, every archetype >= 2 of 3 (spec bar 13: missed by one); workers at winter 249 (271 / 270) |
+| sweep (15 fresh foundings) | gate-sim-2: 12 / 15 (sweep), 13 / 15 (sweep2) | close sweep (tree 9a8cdf07): 12 / 15, workers 249; **final tree (fix 5) on the same 15 hand-overs: 15 / 15, workers 264** |
 
 ## 1. Per seed: cause, breaking commit, fix, test
 
@@ -132,6 +132,12 @@ and reopen ticks are the `dump.jsonl` lines `12-outcome-card` and `reopen-check`
 | 4 | 0.767 fair, 2 BU | 235 | 12 | 4 | ~01:15, night | 1253-1503 ticks (5-6 h) | missed | seal 235, 4 w, open 1287 (tick-exact) |
 | 5 | 0.623 poor, 2 BU | 104 | 12 | 4 | ~22:40, 23 C (heat) | 253-503 ticks (1-2 h) | **met** | seal 132, 4 w, open 750 |
 
+**On the final tree (fix 5), all five seeds again** (`test-output/opening-fix/firstplay/seedN-final2`, 09:53-11:16 UTC):
+beats 01-13 pass on seeds 1-5, no stand-ins, with the same seals, first workers and hand-over / reopen ticks as the
+table above (seed 1: 108 / 4 / <= 1753; seed 2: 223 / 7 / <= 1753; seed 3: 312 / 7 / <= 753; seed 4: 235 / 4 / <= 1503;
+seed 5: 104 / 4 / <= 503); pictures 12 and 13 of seeds 1 and 2 looked at again (the same card and entrance). The table
+above was run on the close sweep's tree.
+
 Pictures 12 and 13 looked at for every seed: 12 = the outcome card ("First workers: N", queen's reserves) over the
 queen in her cell; 13 = the open entrance in its crater mound (seed 2 at night, dark but readable; seeds 1 and 4 at dawn, a worker visible beside the mound in seed 1;
 seed 3 by day). Seed 1's run is from 01:33 UTC (second engineer), on the same `src/sim`.
@@ -177,6 +183,16 @@ again (a second, independent confirmation of acceptance criterion 1) and stop la
 Neither failure is in the opening (beats 01-13), and neither is a sim defect of the hand-over kind this task fixed, so
 neither was fixed here (spec item 6: "fix it if it is a sim defect of the same kind").
 
+**Full runs again on the final tree** (`full2-seed1`, `full2-seed2`, 11:24- UTC). By then look-pass-6 had changed the
+script's `layBatch` (it waits for each batch to end: section 6b's finding, the integrator's ruling to that task), so these
+runs lay 24 eggs. Seed 1: **14 first workers**, the scouts find the spill and a trail is up in 900 ticks, beats 14-19 pass
+(follow the trail, harvest, deliver, the queen's orders, roster, observer); **first failure 19 -> 20**, "no dig plan
+placed off the founding cell": the colony-view planner's preview stays invalid with `anchor-not-in-nest` (`nest/plans/
+validate.ts`: no nest-open sample within `ANCHOR_SNAP_BU` of the hovered point) through all 24 rotations; the script
+hovers the cell's centre + 0.9 x its x radius and only turns the yaw, so the anchor it offers lies in soil when the cell
+is not long along x. Owner: the colony-view pick / the script (seen before as a soft failure in look-pass-5's stand-in
+run), not the hand-over: not fixed. Seed 2: FULL2_S2
+
 
 
 ## 4. Sweep check (item 5)
@@ -200,9 +216,9 @@ All three misses fail on one check only, R27 winter carbohydrate stores (0.59, 0
 (viable >= 13 of 15 and >= 2 of 3 per archetype) is **missed by one**; integrator ruling 1.3's threshold (find the
 cost by switch-off runs if viability drops below 12) is not crossed, so no switch-off runs were made. The first
 workers are identical in all 15 runs on both trees (the foundings are equal up to the hand-over); the difference is
-after it: 249 workers at winter against 270-271. **Not attributed**: the closing tree of gate-sim-2 (item 4 + the
-point-field eviction fix + the tier argument) was never swept itself, and the machine had no free core for switch-off
-runs while the close and the browser runs were going. **Switch-off runs anyway (informative, after the close finished):** the three non-viable colonies' own hand-over files
+after it: 249 workers at winter against 270-271. **Attributed in section 4b**: the unplug draft over-reached (fix 5);
+the final tree gives 15 / 15 and 264 workers from the same hand-overs. The steps on the way:
+**First switch-off runs (informative, three selected colonies, the close sweep's tree):** the three non-viable colonies' own hand-over files
 (`test-output/opening-fix/cache`), run to winter on scratch copies of the final tree with one change off
 (`test-output/opening-fix/switchoff.txt`; R27 C-store ratio, viable at >= 1):
 
@@ -217,12 +233,12 @@ floor-off column looks like a cost of the floor, but `tools/sim/probe/floorProbe
 floor on for **one spell of 229-321 ticks right after the hand-over and never again** in 10 game days
 (`test-output/opening-fix/floor-probe.txt`): its only direct effect is who digs for the first ~1.3 game hours. The flips
 are the chaotic divergence of a whole season from a small early difference, plus regression to the mean (the three
-runs were picked for failing; the mask switch flips one of them too). This is not evidence of a systematic cost, and
-the floor stays (R14 and seed 1 need it). A real attribution needs paired switch-off runs over all 15 foundings (or
-more seeds): about two hours of two cores.
+runs were picked for failing; the mask switch flips one of them too). On three selected runs that was not evidence of a
+systematic cost; the integrator then ran the floor-off arm on all 15 (section 4b), which showed one, and the trace found
+it in the draft, not in the floor.
 
-**Item 5, the paired check** (`f15-table.md`): the five sweep-15 hand-overs of the long-run set, run to winter on this
-tree from sweep 15's own hand-over files:
+**Item 5, the paired check** (`f15-table.md`, close sweep's tree 9a8cdf07; on the final tree: the table after this one): the five
+sweep-15 hand-overs of the long-run set, run to winter from sweep 15's own hand-over files:
 
 | run | sweep 15 viable / workers / C | this tree viable / workers / C |
 |---|---|---|
@@ -234,7 +250,20 @@ tree from sweep 15's own hand-over files:
 
 Viability drops in none of the five (bar: at most one); one gains. **Met.**
 
-**Long runs (year two, the same five colonies, fresh foundings on this tree;** `sweep-long/longrun-table.md`):
+On the final tree (`f15-final-table.md`, tree `frozen-openingfix2`):
+
+| run | sweep 15 viable / workers / C | this tree viable / workers / C |
+|---|---|---|
+| woodland-edge #2 | yes / 11 / 8.3 | yes / 10 / 10.61 |
+| suburban-garden #2 | NO / 17 / 0.01 | yes / 12 / 5.53 |
+| car-park-verge #1 | yes / 23 / 16.92 | yes / 22 / 24.14 |
+| playground-park #3 | yes / 19 / 12.59 | yes / 18 / 11.19 |
+| kitchen-door #3 | yes / 9 / 6.65 | yes / 16 / 8.04 |
+
+Again 5 of 5 viable (sweep 15: 4 of 5). **Met on the final tree.**
+
+**Long runs (year two, the same five colonies; close sweep's tree 9a8cdf07,** `sweep-long/longrun-table.md`; on the
+final tree: LONGFINAL):
 
 | | gate-sim-2 reverted | gate-sim-2 item 4 in (kept) | **this tree** |
 |---|---|---|---|
@@ -285,10 +314,52 @@ hand-over the forager stays, tending starts, C 9.96 at +12000. The opening keeps
 s2 891 -> 835, s4 and s5 unchanged) and in `playerOpening.long` (3 / 3).
 
 **The final tree from the same 15 hand-overs** (`test-output/opening-fix/draftfix15`; the draft acts only after the
-hand-over, so the close sweep's hand-over files are this tree's foundings too): DRAFTFIX15
+hand-over, so the close sweep's hand-over files are this tree's foundings too; table `draftfix15-table.md`, full
+sweep table `draftfix15-sweep-table.md`):
+
+| colony | sweep: viable / workers / R27 / eclosions / trips | arm: viable / workers / R27 / eclosions / trips |
+|---|---|---|
+| woodland-edge #1 | yes / 24 / 2.75 / 9 / 39 % | yes / 22 / 3.0 / 12 / 34 % |
+| woodland-edge #2 | yes / 10 / 2.52 / 3 / 40 % | yes / 11 / 1.54 / 4 / 29 % |
+| woodland-edge #3 | NO / 10 / 0.83 / 3 / 74 % | yes / 14 / 1.77 / 6 / 66 % |
+| suburban-garden #1 | yes / 16 / 3.96 / 11 / 57 % | yes / 17 / 2.49 / 10 / 57 % |
+| suburban-garden #2 | NO / 16 / 0.59 / 5 / 40 % | yes / 19 / 1.38 / 8 / 62 % |
+| suburban-garden #3 | yes / 11 / 1.47 / 2 / 44 % | yes / 14 / 1.33 / 6 / 57 % |
+| playground-park #1 | yes / 19 / 1.92 / 10 / 47 % | yes / 21 / 2.33 / 9 / 43 % |
+| playground-park #2 | yes / 19 / 2.44 / 8 / 52 % | yes / 19 / 2.43 / 11 / 58 % |
+| playground-park #3 | NO / 21 / 0.77 / 10 / 58 % | yes / 21 / 1.48 / 9 / 52 % |
+| car-park-verge #1 | yes / 24 / 3.66 / 11 / 52 % | yes / 22 / 3.76 / 8 / 44 % |
+| car-park-verge #2 | yes / 12 / 3.02 / 4 / 54 % | yes / 12 / 2.89 / 4 / 41 % |
+| car-park-verge #3 | yes / 19 / 1.56 / 8 / 36 % | yes / 19 / 2.2 / 8 / 42 % |
+| kitchen-door #1 | yes / 25 / 3.79 / 12 / 52 % | yes / 24 / 3.72 / 12 / 51 % |
+| kitchen-door #2 | yes / 12 / 2.9 / 4 / 22 % | yes / 12 / 3.32 / 4 / 42 % |
+| kitchen-door #3 | yes / 11 / 1.03 / 3 / 54 % | yes / 17 / 2.23 / 8 / 48 % |
+
+paired runs 15: viable 12 -> 15; workers at winter 249 -> 264; arm more workers minus fewer: 4
+
+**Viable 15 of 15** (every archetype 3 of 3; sweep bar >= 13 met), workers at winter **264** (close sweep 249, floor
+off 264, gate-sim-2 271 / 270), median intake / need P 0.485, trip success 48.1 %, R19 4 of 7 (P intake, trip success,
+first workers >= 9 fail; first workers are the foundings', unchanged). Against floor-off on the same hand-overs: viable
+15 = 15, workers 264 = 264. Fix 5 recovers the whole cost the floor seemed to have, and keeps the floor that R14 and
+seed 1 need.
 
 **Ruling 2 arm (a), the cavity-only mound-mask probe on the five long-set colonies** (`test-output/opening-fix/mask5`,
-tree = the close sweep's + 07583fe's `moundRelax.ts`): MASK5
+tree = the close sweep's + 07583fe's `moundRelax.ts`; `mask5-table.md`):
+
+| colony | sweep: viable / workers / R27 / eclosions / trips | arm: viable / workers / R27 / eclosions / trips |
+|---|---|---|
+| woodland-edge #2 | yes / 10 / 2.52 / 3 / 40 % | yes / 11 / 1.9 / 3 / 36 % |
+| suburban-garden #2 | NO / 16 / 0.59 / 5 / 40 % | NO / 15 / 0.53 / 5 / 49 % |
+| playground-park #3 | NO / 21 / 0.77 / 10 / 58 % | NO / 23 / 0.38 / 11 / 55 % |
+| car-park-verge #1 | yes / 24 / 3.66 / 11 / 52 % | yes / 26 / 2.81 / 12 / 50 % |
+| kitchen-door #3 | yes / 11 / 1.03 / 3 / 54 % | yes / 12 / 1.06 / 4 / 52 % |
+
+paired runs 5: viable 3 -> 3; workers at winter 82 -> 87; arm more workers minus fewer: 3
+
+Viability unchanged (3 = 3); workers at winter a little higher in 4 of 5 (82 -> 87), but the winter carbohydrate
+store lower in 4 of 5 (R27 ratio 2.52 -> 1.90, 0.59 -> 0.53, 0.77 -> 0.38, 3.66 -> 2.81; kd #3 1.03 -> 1.06). Not
+better on the whole: by ruling 2 nothing changes, and the wide restore-exact probe stays (it is also what gives the
+player's seal back its round-9 size, section 1).
 
 ## 5. Appendix E checks
 
@@ -372,6 +443,18 @@ wait for the batch to end (poll the queen's action, or step at least 60 ticks) -
 intends; (2) a press that lands while a batch is ending is refused silently - buffer it or show that the queen is busy,
 since a player pressing at a steady rhythm in a cool cell loses every other press the same way. Nothing changed in the
 sim (no design number touched without a ruling).
+
+## 6c. Process notes (third engineer)
+
+- Rulings 2 (06:36) and 3 (08:47) were read late (at 08:50): the switch-off arms of ruling 2 ran after ruling 3's
+  floor-off arm, on the same hand-overs, and the floor arm of ruling 2 is the integrator's 15-run arm.
+- The R14 stand-point prototype (06:00-06:05) was reverted with `git checkout -- <two of my own files>`, which the
+  working rules forbid; it touched only my own uncommitted edit (the tree was checked equal to the frozen copy after).
+- `src/sim` changed once after the close sweep: fix 5 at 09:30 UTC (two files of `colony/allocation`); frozen as
+  `/home/user/frozen-openingfix2`; everything after 09:31 (draftfix15, f15-final, sweep-long-final, browser `*-final2`,
+  `full2-*`, `headless/fix4`, `long-test2.txt`) is on it.
+- Frozen copies `/home/user/frozen-openingfix` and `/home/user/frozen-openingfix2` are left for the integrator (the
+  close's trees); scratch trees `/home/user/scratch-of` deleted; probes archived under `test-output/opening-fix/probes/`.
 
 ## 7. Contract changes (additive)
 

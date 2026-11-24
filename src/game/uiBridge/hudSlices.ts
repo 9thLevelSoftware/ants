@@ -4,7 +4,7 @@
 import { tsAt, tsToArray } from '@/core/timeSeries';
 import type { Ant, Colony, Sim, Task } from '@/sim/types';
 import { AntFlag, REASON_CODES } from '@/sim/types';
-import { promptView } from '@/sim/ants/player';
+import { promptView, type PromptLine } from '@/sim/ants/player';
 import { daysOfStock } from '@/sim/colony';
 import { activeAlerts, currentAims, queenHandedOver } from '@/sim/progression';
 import { alertText } from '@/content/text';
@@ -16,7 +16,7 @@ import {
   FOCUS_NEW_COLONY_GD, FOUNDING_RESERVE_BAD, FOUNDING_RESERVE_WARN, HEAT_STRESS_LOAD, OPENING_QUIET_ALERTS, OPENING_QUIET_DIAGNOSTICS, SPARK_SAMPLES,
   TREND_WINDOW_GAME_H,
 } from './balance';
-import { antName, stateWord, WEATHER_WORDS } from './words';
+import { antName, PROMPT_BUSY, stateWord, WEATHER_WORDS } from './words';
 
 const cap = (s: string): string => (s.length ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -182,16 +182,28 @@ export function possessedOf(sim: Sim, underground: boolean): UiPossessed | null 
   };
 }
 
+/**
+ * The lay-egg line while the queen's batch runs (look pass 6, integrator ruling 1). A laying batch cannot be stopped once it is wound up, and a press that lands
+ * before it ends is refused `blocked` by the simulation; the line still offered "Lay egg" as available, so a player pressing E again lost presses without a word.
+ * GDD 01 9.3 words an action that cannot be done now as "verb - reason" ("... - busy" for `blocked`, the sim's own word), greyed: the line says so while the batch
+ * runs. GDD 01 and 08 say nothing of buffering a press, so nothing is buffered. Other lines are shown as the simulation words them.
+ */
+export function markBusy(ant: Ant, line: { actionId: string | null; ok: boolean; text: string }): { text: string; ok: boolean } {
+  if (line.ok && line.actionId === 'lay-egg' && ant.action?.id === 'lay-egg') return { text: `${line.text} — ${PROMPT_BUSY}`, ok: false };
+  return { text: line.text, ok: line.ok };
+}
+
 export function promptOf(sim: Sim): UiPrompt | null {
   const a = sim.stores.ants.get(sim.state.player.possessedAntId);
   if (!a) return null;
   try {
     const v = promptView(sim, a);
     const lines: UiPromptLine[] = [];
-    if (v.primary) lines.push({ slot: 'primary', input: v.primary.input, text: v.primary.text, ok: v.primary.ok });
-    if (v.secondary) lines.push({ slot: 'secondary', input: v.secondary.input, text: v.secondary.text, ok: v.secondary.ok });
-    for (const l of v.extras) lines.push({ slot: 'extra', input: l.input, text: l.text, ok: l.ok });
-    return { primary: v.primary?.text ?? null, secondary: v.secondary?.text ?? null, extras: v.extras.map((l) => l.text), lines };
+    const shown = (l: PromptLine): { text: string; ok: boolean } => markBusy(a, l);
+    if (v.primary) lines.push({ slot: 'primary', input: v.primary.input, ...shown(v.primary) });
+    if (v.secondary) lines.push({ slot: 'secondary', input: v.secondary.input, ...shown(v.secondary) });
+    for (const l of v.extras) lines.push({ slot: 'extra', input: l.input, ...shown(l) });
+    return { primary: lines.find((l) => l.slot === 'primary')?.text ?? null, secondary: lines.find((l) => l.slot === 'secondary')?.text ?? null, extras: lines.filter((l) => l.slot === 'extra').map((l) => l.text), lines };
   } catch {
     return null; // a module in progress must not take the HUD down
   }

@@ -269,7 +269,21 @@ export default async (ctx) => {
 
         // ---- 9. the first clutch ----------------------------------------------------------------------------------------
         for (let i = 0; i < 40; i++) { if (depthBu((await summary()).possessed.pos) >= SHAFT_DEPTH_BU - 1) break; await walkDir(h, 3, H); }
-        const layBatch = async () => { await g(() => window.__game.act('lay-egg')); await step(50); await g(() => window.__game.act({ action: 'lay-egg', phase: 'stop' })); await step(5); };
+        // one batch of eggs: press, release at once (no repeat), then wait for the batch to END: it cannot be stopped once wound up (58 ticks at the cell's 17 C), and a press
+        // that lands before its end is refused 'blocked'. The old script pressed again after a fixed 55 ticks and laid 12 eggs where it meant 24 (integrator ruling 1, look pass 6).
+        // Polls the sim's own events, not a step count; every assertion below stays as it was.
+        const layBatch = async () => {
+          const seq0 = await lastSeq(h);
+          await g(() => window.__game.act('lay-egg'));
+          await step(10);
+          await g(() => window.__game.act({ action: 'lay-egg', phase: 'stop' }));
+          for (let t = 0; t < 600; t += 5) {
+            await step(5);
+            const ended = await g((since) => window.__game.events(undefined, 80, since).some((e) => (e.type === 'action-completed' || e.type === 'action-failed') && e.action === 'lay-egg'), seq0);
+            if (ended) break;
+          }
+          await step(5);
+        };
         for (let b = 0; b < 4; b++) await layBatch();
         v = await view();
         if (!v.clutch || v.clutch.eggs === 0) {

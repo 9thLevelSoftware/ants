@@ -127,10 +127,9 @@ light 0.07 -> 2.97). `WorldRenderer` now crossfades the lighting state over `LIG
 
 - `firstplay.mjs`, the real founding (no cheat), `FIRSTPLAY_UNTIL=12` (or 10): seed 1 low `test-output/look6/fp-s1` beats 01-12 pass; seed 1 high `fp-s1b-high` 01-12 pass; seed 2 medium
   `fp-s2b-medium` 01-12 pass (outcome 7 workers, reserves 72 %); seed 2 low `fp-s2-low-retry` 01-10 pass. The first seed 2 low run failed at beat 08 (see "Not done"). Past 12: beat 13
-  passes at seed 1 low (`o3-s1-low`: the real founding reaches the first workers at 10:47); beat 14 fails at seed 1 ("no forager laid a trail to the food within 18 000 ticks": sim).
-  Seed 2 past beat 12 was not run.
+  passes at seed 1 low (`o3-s1-low`: the real founding reaches the first workers at 10:47); beat 14 failed there ("no forager laid a trail to the food within 18 000 ticks") because the script laid 12 eggs and the colony handed over 4 workers: with the integrator's `layBatch` fix (below) seed 1 passes beats 01 to 15. Seed 2 past beat 12 was not run.
 - `controls.mjs` (`test-output/look6/controls.log`): ok. It records the finding "after a tapped drink the action 'harvest-liquid' keeps running with a full crop" (input / sim, not mine).
-- `views.mjs`: ok with the cell camera on (`views4`, `views5`) and off (`views0`). The first run with the cell camera on failed at the shaft walk ("camera inside solid", field -2 mm): two
+- `views.mjs`: ok with the cell camera on (`views4`, `views5`, `views6` after the last cut-away change) and off (`views0`). The first run with the cell camera on failed at the shaft walk ("camera inside solid", field -2 mm): two
   causes, one in the check and one real. The checks (`views.walk`, `clearOk`) did not know that the cell camera stands in soil its cut-away removes (they now count a camera inside
   the cut-away, and free air during the 0.5 s blend, as clear; `src/game/views/debug.ts`, `tests/e2e/views.mjs`, `clearField.testkit.ts` for the three unit tests in
   `views.verify.test.ts` and `reviewFixes.test.ts`). The real one: during the blend into the cell camera the camera could cross soil that the cut-away does not remove (a frame
@@ -139,6 +138,43 @@ light 0.07 -> 2.97). `WorldRenderer` now crossfades the lighting state over `LIG
 - `panels.mjs` (`test-output/look6/panels.log`): every check passed up to "hudfix" at 844 s, then the script timed out at my 900 s limit on the loaded machine; not re-run.
 - `hud.mjs` (not in the task's list): fails its first check, "queen prompt lacks Colony orders", at seeds 1 and 2 (`hud.log`, `hud1.log`); not investigated.
 - Pictures I looked at: every one cited in this report; the staged night, tunnel and crowd pictures by contact sheet and the key ones at full size.
+
+## Integrator ruling 1 (09:51 UTC): the first clutch and the lay prompt
+
+**1. `firstplay.mjs` laid half its eggs.** `layBatch` pressed lay-egg, stepped 50 ticks, released and stepped 5: 55 ticks, and a batch at the cell's 17 C takes 58 and cannot be
+stopped once wound up, so presses 2 and 4 landed three ticks early and were refused `blocked` (12 eggs where it meant 24). `layBatch` now presses, steps 10 ticks, releases (no
+repeat), and polls the simulation's own events for the batch's `action-completed` / `action-failed` of lay-egg (at most 600 ticks, in steps of 5): no fixed step count. Every assertion
+is as it was (`clutch.eggs >= 6`, the lapse, the outcome). Rerun, seed 1, quality low, the real founding, `FIRSTPLAY_UNTIL=15` (`test-output/look6/fp-s1-lay.log`): the clutch is 24 eggs in 4 batches (`checks.clutch`), the colony hands over 14 workers (it handed over 4), the trail check of beat 14 passes (`via: scouts`), and beats 01 to 15 pass; picture of beat 14: `test-output/look6/fp-s1-lay/14-worker-following-trail.png`.
+
+**2. A press while a batch ends was silently refused.** The prompt line stayed "Lay egg" (available) while the simulation refused the press with `blocked`. GDD 01 9.3 words an action
+that cannot be done at this moment as "verb - reason" and greys it (the simulation already words `blocked` as "busy", and does so for "Groom yourself" and "Dig" while any action runs);
+GDD 01 and GDD 08 5.3 say nothing about buffering a press, so I show it busy and buffer nothing. `markBusy` in `src/game/uiBridge/hudSlices.ts`: the line of lay-egg that
+would be offered (ok) while the possessed queen's own lay-egg action runs reads "Lay egg — busy" and is not ok (greyed by the HUD's `is-disabled`). Test:
+`src/game/uiBridge/promptBusy.test.ts` (4 tests: the rule on its own, and `promptOf` for a real possessed queen in a chamber, ready -> busy -> ready). Pictures from the real
+founding replayed at beat 08, sealed, then pressed (`tests/e2e/look6-lay.mjs`): `test-output/look6/lay/lay-1-ready.png` ("Lay egg"), `lay-2-busy.png` ("Lay egg — busy", the
+three lines dimmed), `lay-3-after.png` ("Lay egg" again); sheet `sheets/ruling1-lay-prompt-ready-busy-after.png`; the sim's events of the presses in `lay/lay.json`: started, failed `blocked`
+(the second press), completed (6 eggs).
+
+## Script assertions relaxed for the cell camera, and why each still catches a camera in uncut soil
+
+The cell camera (item 1) puts the camera above the slice plane or behind the vertical section: in soil that the nest renderer removes (`render/nest/cutaway/cutPlane.ts`: everything above
+the plane within `radius` horizontally of the centre; or the camera's side of the section). `ViewDirector.cameraInCutAway(p)` is true only then: the cell camera must be on (weight > 0),
+`p` must lie within the cut's horizontal reach of its centre, and above the plane (or on the camera's side of the section, past its offset). A camera in soil outside the reach, below the
+plane, behind the section or with the cell camera off is not "in the cut-away". Four checks were relaxed and nothing else:
+1. `firstplay.mjs` beats 07 and 08, "the camera is inside solid in the shaft / in the chamber": `cam.clear.f > 0 || cam.clear.cutAway` (it was `f > 0`). `clear.cutAway` is that predicate on
+   the camera's position of the shown frame. Inside solid outside the cut-away: f <= 0 and cutAway false: the check fails as before. (A frame is also taken before the check now, so a
+   failure leaves its picture.)
+2. `views.mjs` `clearOk` ("camera inside solid" in the open, wall, ceiling, tunnel and chamber cases): `c.f >= 0.5 R || c.cutAway`. The same predicate; the 0.5 R margin applies to every camera
+   that is not in a cut-away.
+3. `views.walk()` (`src/game/views/debug.ts`, the "shaft walk" and "chamber walk" minima): each frame's field value counts as the clearance if the camera is in the cut-away, and, while the cell
+   camera blends in, free air closer to the wall than the margin (field 0.75 mm against 1 mm, seen once in the shaft test) counts as the margin: `fv > 0 && fv < margin && cell weight > 0`.
+   A field value <= 0 outside the cut-away fails at once, with the cell camera on or off; free air under the margin fails when the cell camera is off. The blend allowance is the one
+   weakening of the margin and it is for the 0.5 s blend only.
+4. The three unit tests of the possession camera's clearance (`views.verify.test.ts` two, `reviewFixes.test.ts` one, "f >= 0.5 R every frame" down the test shaft) use the same two rules through
+   `clearFieldAt` (`src/game/views/clearField.testkit.ts`). They were red after the cell camera and one of them found a real defect: a frame of the blend into the cell camera that stood
+   1.8 mm inside soil that is not cut. `ViewDirector.applyCellCam` now cuts to the shot at that frame (`cellSnapped`), and the test passes with the strict rule for blend frames inside solid.
+How to check that they still catch: put the camera in the soil outside the cut (e.g. `views.cellCam(true)`, then `camera.setPose` below the plane) and the check reports f < 0 with
+cutAway false; or run `views.mjs` with `VIEWS_CELLCAM=0` (all checks strict, passes: `test-output/look6/views0`).
 
 ## Cost (acceptance 3 and 4)
 
@@ -163,9 +199,9 @@ is squeezed in a cell, which is not the table's scene.
 - `npm run typecheck` (whole project): no errors after my last edit (10:46 UTC).
 - `npx vitest run <folder>`, one folder at a time, while no harness was running: `src/render/camera` 94 passed; `src/render/nest` 60; `src/render/world/lighting` 59; `src/render/world/weather` 24;
   `src/render/world/boundary` 38 (1 skipped); `src/render/world/dressing` 36; `src/game/views` 155 (3 of them were red after the cell camera and are fixed, see item 6); `src/game/flows/founding` 25;
-  `src/game/uiBridge` 74; `src/game/debug` 4; `tests/docs` 8. The whole suite was not run.
+  `src/game/uiBridge` 78 (4 new: the busy lay prompt); `src/game/debug` 4; `tests/docs` 8. The whole suite was not run.
 - New or changed tests: `shotSubject.test.ts` (the queen's frame), `foundingShot.test.ts` x2 (copy of the frame; the side view holds a sphere of a body length), `lookPass2.test.ts` (night bands, EV pins, the crossfade),
-  `lighting.test.ts` (EV pins), and the three clearance tests above.
+  `lighting.test.ts` (EV pins), the three clearance tests above, and `promptBusy.test.ts` (the lay prompt).
 - Not covered by a unit test: `Game.renderScene` drawing the dip as canvas opacity (checked in the browser: `rm/rm.json`), `WorldRenderer`'s use of `blendLighting` (checked: `rm/rm-light.json`).
 
 ## Decisions and deviations
@@ -182,7 +218,7 @@ is squeezed in a cell, which is not the table's scene.
 1. `src/worldgen/catalog/interior/shell.ts`: the weep-vent bar is bright white; a buff or dark colour removes the "white ticks".
 2. `src/sim`: at seed 2 rain floods the founding chamber during the first brood (alert "Founding chamber flooding", seen in `fp-s2b-medium/08..11`); the card still reads
    "First workers: 7" because the colony survives. The site read-out calls the flood safety "Raised".
-3. `src/sim`: beat 14 of `firstplay.mjs` fails at seed 1 (no forager laid a trail to the food within 18 000 ticks, `o3-s1-low.log`).
+3. (closed) beat 14 of `firstplay.mjs` at seed 1 failed only because the script laid 12 eggs; see "Integrator ruling 1".
 
 ## Not done
 
@@ -202,7 +238,7 @@ is squeezed in a cell, which is not the table's scene.
 3. **The cut when the cell camera takes over**: where the blend would cross uncut soil the picture cuts to the cell view at once (`cellSnapped`). Frames of that cut were not pictured.
    Where the queen stands at the rim of her cell after the script's orbit (beats 09 and 10 at medium and low, `r-s1-medium-cc1/s1medium-09-sealed.png`) she is whole but at the top left of the frame.
 4. **The outcome card** leaves the queen whole above the card, but her head touches the card's top edge at seed 1 (`fp-s1b-high/12-outcome-card.png`); the cell is cut by the top of the frame.
-5. **Beat 14 of `firstplay.mjs` at seed 1** (sim): no forager lays a trail to the food (`o3-s1-low.log`); seed 2 past beat 12 was not run.
+5. **Seed 2 past beat 12** was not run with the fixed `layBatch`; beyond beat 15 of seed 1 was not run.
 6. **Weep vents on the kitchen-door wall are white ticks** (world catalogue, `src/worldgen/catalog/interior/shell.ts`, not mine).
 7. **Distant buildings at overcast** are pale grey shapes (GDD 08 11.4 haze, kept): `test-output/look6/o3-s1-low/05-site-readout.png`.
 8. **Night**: the ant at 22:00 has almost the luminance of the ground (ant contrast 0.00-0.02, `night/a/*.log`; her outline carries her); pale leaf litter is brighter than the soil it lies on
