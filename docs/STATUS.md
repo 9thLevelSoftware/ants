@@ -1840,3 +1840,58 @@ Results: `docs/design/tasks/reviews/look-pass-6.json`, report `docs/design/tasks
   cannot pass without two sim-side changes (test world's hand-over; `diag-nest-space` alert without a chamber focus).
   Outcome card: seeds 2 and 3 fine, seed 1's cell still cut by the top of the frame (being probed); night leaf litter
   floor traced to a specular sheen (roughness lifted at night; variants queued).
+
+## PAUSED Nov 24 ~20:07 UTC at the user's request (usage running out) — how to resume
+
+**Stopped:** both workflows (`w8aer6s1c` / `wf_b0b0220d-62a` winter-sugar; `w8x4jo6ej` / `wf_7ca88a78-830`
+app-seams-4), every browser / harness / vitest process, and the hourly check-in (`trig_01E563uCnVxtwKwCVZuMKppz`
+disabled, not deleted). **Left running (no model cost):** the last three long runs of winter-sugar's close
+(woodland-edge #2, car-park-verge #1, then kitchen-door #3, from `/home/user/frozen-wintersugar` ->
+`test-output/winter-sugar/close/sweep-long`); they end by themselves in about 40 minutes. My clean-up killed the
+wrapper script, so `close.log` says "CLOSE DONE 20:06" early and `summary.txt` will lack its last DONE line: judge
+by the five JSON files. All of that is git-ignored and is lost if the container is reclaimed (rerun
+`test-output/winter-sugar/close/close.sh`, restart-safe).
+
+**Tree at the pause:** typecheck clean (`tsc --noEmit` exit 0), everything committed and pushed.
+
+**winter-sugar** (implementation stage nearly complete; NOT reviewed; its report is not written):
+- In the tree: A1 R14 restated in `playerOpening.long` (4 of 4 green), A2 the headless kit lays 24 eggs, A3 the
+  unplug stand point, and **the tend floor** (arm T: `allocation/demand.ts tendFloor`, served before forage; test
+  `allocation/tendFloor.test.ts`; DEVIATIONS D45). R41 alone (arm W) was measured and **not** adopted (it costs
+  we #3 its year-one sugar, alone and in the pair).
+- Arms on the 15 cached hand-overs + 5 long runs (`test-output/winter-sugar/armW-table.md`, `armT-table.md`,
+  `armWT-table.md`): arm T 15 of 15 viable / 255 workers; long 113 workers, R34 5 of 5, R27 at the second winter 5
+  of 5 (baseline 15 / 264; 113, 4 of 5, 3 of 5). Pair on long runs 120 workers but year one 14 of 15.
+- **Fresh close sweep (A1-A3 + T, tree `/home/user/frozen-wintersugar`): 13 of 15 viable** (pp #3 and kd #3 at 0.89 of
+  R27; every archetype >= 2 of 3) - one under the task's bar of 14, not under 13. Switch-off on those two: without
+  A3 (the stand-point fix) both are viable (1.88, 1.93); the engineer reads it as early-hours chaos (herd discovery
+  shifts both ways) and reverted nothing. **Open for the integrator:** A3 alone was being measured
+  (`switchoff-T/`, tree `/home/user/ws-a3`); decide between A3 + T as is, T without A3, or a run of all 15 without
+  A3 (model-free, 55 minutes) before the review. Long runs of the close: sg #2 and pp #3 done to day 60, three running.
+- To finish: tables of the close (sweep + long + the third year of pp #3 / sg #2), the A3 question, the report
+  `winter-sugar-report.md`, then the Opus review.
+
+**app-seams-4** (implementation RETURNED 19:54; Opus review was running; no fix stage yet):
+- Implementer's report: `docs/design/tasks/app-seams-4-report.md`; result saved in `reviews/app-seams-4.json`
+  (implReport only). Done: dig planner anchor (reach 8 BU), "Stores full - dig a food chamber", occluder alpha fade,
+  flood water mesh with a shore, outcome card on the real cell, night rim on ants; **firstplay to beat 25 without
+  stand-ins on seeds 1, 2, 3** (seed 1 clean; seeds 2 and 3 fail only the growth check: no protein income).
+- Reviewer's notes so far (`progress/app-seams-4-review.md`): card framing of seeds 2 / 3 not verified on the final
+  code (seed 3's cell touches the top of the frame); the edge-on pale band of flood water is still there; the pale
+  night leaf litter is probably the FRESH leaf atlas tint, not the dry one. None of this is fixed.
+- I have not yet looked at app-seams-4's pictures myself (`test-output/app4/sheets/`).
+
+**To resume** (read this entry and the two progress files first):
+1. `uptime`; `ls /home/user/frozen-wintersugar test-output/winter-sugar/close/sweep-long/*.json | wc -l` (5 = done).
+2. Relaunch `wf-build.js` (scratchpad) with: winter-sugar (opus / opus) and a RESUME note - "finish from your progress
+   file: close tables, the A3 question as the integrator rules it, the report" - and app-seams-4 with
+   `skipImpl: true` and `implSummary` pointing at its report and progress files (sonnet / opus verify, visual), so
+   the review restarts and a fix stage follows.
+3. Re-enable the check-in (`update_trigger` enabled true, new `run_once_at`).
+4. Then, in order: **early-protein** (sim, Opus: the first days after the hand-over have sugar and no protein -
+   browser seeds 2 and 3 show "Protein stores low" and stalled brood; repro saves `test-output/app4/s2-trail.save`,
+   `s2-handover.save`; plus `diag-nest-space` focus null, the test world's hand-over for `panels.mjs`, the
+   architect's "No diggers free", harvest-liquid with a full crop); **rebuild and republish the artifact** once both
+   current tasks have landed (`npm run build:portable`, `verify:portable`; slug
+   `dd97a4c3-a304-4801-aa70-0302442d71e6`, last published Nov 17); species viability + honeydew; perf; Stage 2/3
+   gate; QA playtests; GDD amendments; final report.

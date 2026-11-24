@@ -34,7 +34,7 @@ ${GLSL_WET}
 ${HOLE_MASK_GLSL}
 ${GLSL_DAPPLE}
 uniform sampler2D tDcFresh; uniform sampler2D tDcFreshA; uniform sampler2D tDcDry; uniform sampler2D tDcDryA; uniform sampler2D tDcMoss;
-uniform vec4 uDcDry; uniform vec3 uDcFreshTint; uniform float uWet; uniform float uTransl; uniform float uDcNight;
+uniform vec4 uDcDry; uniform vec3 uDcFreshTint; uniform float uWet; uniform float uTransl;
 varying vec3 vWrW; varying vec3 vDcT;
 vec2 dcCell(float rnd, vec4 cr, vec2 uv) {
   float c = floor(rnd * 15.999); vec2 cell = vec2(mod(c, 4.0), floor(c / 4.0));
@@ -175,7 +175,7 @@ export function createDrapedMaterial(shared: DecorShared, tex: DrapedTextures): 
       tDrH: dr.tDrH, uDrHf: dr.uDrHf, uDrLv: dr.uDrLv, uDrCount: dr.uDrCount,
       tHoleIdx: h.tHoleIdx, tHoleAtlas: h.tHoleAtlas, uHoleP: h.uHoleP,
       uDcKeep: d.uDcKeep, uDcLod: d.uDcLod, uDcFresh: d.uDcFresh, uDcBu: d.uDcBu, uDcBias: d.uDcBias, uDcFix: d.uDcFix,
-      uDcDry: d.uDcDry, uDcFreshTint: d.uDcFreshTint, uDcNight: d.uDcNight, uTransl: d.uTransl,
+      uDcDry: d.uDcDry, uDcFreshTint: d.uDcFreshTint, uTransl: d.uTransl,
       tDcFresh: new Uniform(tex.freshAlbedo), tDcFreshA: new Uniform(tex.freshAlpha), tDcDry: new Uniform(tex.dryAlbedo),
       tDcDryA: new Uniform(tex.dryAlpha), tDcMoss: new Uniform(tex.moss),
       ...occlusionUniforms(w),
@@ -208,7 +208,7 @@ if (length(vDcW - uCamPos) <= uDcFix.x) {
   dcNw = normalize(ng - vec3(rim.x, 0.0, rim.y) * r2);
 }
 { vec3 t = normalize(vDcT - dcNw * dot(vDcT, dcNw)); vec3 b = cross(dcNw, t); dcNw = normalize(dcNw - t * dcBump.x * 0.35 - b * dcBump.y * 0.35); }`)
-      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = wrWetRough(mix(dcRough, 1.0, uDcNight), uWet, 0.25);')
+      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = wrWetRough(dcRough, uWet, 0.25);')
       .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(dcNw, 0.0)).xyz);')
       .replace('#include <lights_fragment_begin>', foliageLightsChunk('uTransl * dcTr * 0.9', 'vec3(1.15, 1.2, 0.75)'));
   });

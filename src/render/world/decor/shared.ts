@@ -20,8 +20,6 @@ export interface DecorUniforms {
   /** Season tints: dry rgb + saturation, fresh rgb. */
   uDcDry: Uniform<Vector4>;
   uDcFreshTint: Uniform<Vector3>;
-  /** 0 by day .. DECOR_LEAF.nightRoughLift at night: how far the draped items' roughness is lifted toward 1 (a smooth leaf at an ant's eye mirrors the night sky). */
-  uDcNight: Uniform<number>;
   /** Grass: wind radians, parting on/off, LOD (full mm, pow, density, max widen), parting params, eye fade. */
   uGrWind: Uniform<number>;
   uGrPart: Uniform<number>;
@@ -70,7 +68,6 @@ export function createDecorShared(world: WorldUniforms): DecorShared {
       uDcFix: new Uniform(new Vector4(600, 0, 0, 0)),
       uDcDry: new Uniform(new Vector4(0.86, 0.8, 0.7, 0.9)),
       uDcFreshTint: new Uniform(new Vector3(0.85, 0.95, 0.75)),
-      uDcNight: new Uniform(0),
       uGrWind: new Uniform(0.08),
       uGrPart: new Uniform(1),
       uGrLod: new Uniform(new Vector4(280, 1.6, 1, 2.4)),

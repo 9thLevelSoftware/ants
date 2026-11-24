@@ -110,3 +110,10 @@ test-output/winter-sugar/
 - 18:29 Live folder tests: colony 90 files / 374 green (tests-colony-live.txt), behaviours/nest 39 / 83 green,
   nest 65 / 334 + 2 known reds (escapeDig, flood/readersCost.verify; both red on ws-base too). DEVIATIONS D45 (tend
   floor) written. Waiting for close (sweep started 18:19).
+- 19:22 CLOSE SWEEP DONE: 13 of 15 viable (pp3 0.89, kd3 0.89 of R27; every archetype >= 2 of 3); bar >= 14
+  NOT met by one (not under 13, so no revert question). Fresh foundings == opening-fix cache hand-overs (same first
+  workers / gd), so the close sweep is A3 + T on the arms' hand-overs. Switch-off on the two failing colonies: A3 off
+  (= arm T alone): both viable (1.88, 1.93); T off (= A3 alone, /home/user/ws-a3): queued jobs-6.txt ->
+  switchoff-T/ (runq2 now counts only node processes). Paired A3+T vs T over 15: workers 256 vs 255, sum winter C
+  169.6 vs 196.6; herd discovery shifts both ways (kd3 2818 -> 12658, pp3 3911 -> 896): chaos via early hours.
+  NOTHING REVERTED. Long runs of the close running.

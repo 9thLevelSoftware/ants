@@ -184,10 +184,10 @@ export const DECOR_LEAF = {
    * 0.15 / 0.4. Since look pass 6 raised the night exposure (NIGHT_LOOK.targetE 4) the pale litter outshone the soil it lies on
    * (look6/night/b/b-v1-h22-clear-observerlow-high.png); measured on the same frame (`test-output/app4/leaf2`, 22:00 clear, ant height): brightest tenth of the
    * leaf region 0.475 (0.4), 0.412 (0.25), 0.353 (0.15) against the soil's 0.235; the leaf region's median 0.22 -> 0.169 against the soil's 0.196.
+   * Not finished: in the observer's low view a pale leaf still reads 0.42 to 0.46 of the display range against the soil's 0.18, and albedos of 0.04 to 0.10 read alike
+   * (`test-output/app4/leaf3`): a floor that is not this albedo; lifting the roughness to 1 at night moved it by 6 % only (`leaf4`); where it comes from is not found.
    */
   nightAlbedo: { dry: 0.15, fresh: 0.4 },
-  /** At night the draped items' roughness is lifted this far toward 1: at an ant's eye a smooth pale leaf mirrors the night sky (a floor of 0.42 of the display range however dark its albedo: leaf3 variants 0.04 to 0.10 all read alike). */
-  nightRoughLift: 0.9,
   /**
    * Look pass 4: detail made in the shader because the scan (256 texels a leaf) is a flat blur at an ant's eye. Distances in mm
    * (full detail up to [0], gone by [1]); the outline warp (card units, noise cells per mm); serration of the margin (alpha units);

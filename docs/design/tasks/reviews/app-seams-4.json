@@ -1,0 +1,152 @@
+{
+ "implReport": {
+  "summary": "Items 1 to 5 are done and seen in the browser. Item 6 is done for ants and creatures but not for leaf litter. Item 7 gives one clean full run (seed 1) and two runs (seeds 2, 3) that reach beat 25 and fail the growth check for a sim-side cause. Typecheck is clean on my paths and the vitest folders I touched are green. Details are in docs/design/tasks/app-seams-4-report.md.\n\n1. Dig plan, beat 19 to 20: the planner was the cause. A pick more than 2 BU from a wall was refused as anchor-not-in-nest. Picks within 8 BU now snap to the nest wall (`wallToward`). firstplay places the plan as a player and calls `render(1)` after every `colonyCamera`.\n2. Full larder: the possessed panel says \"Stores full - dig a food chamber\" (`UiPossessed.storesFull`). It shows in the seed 1 beat 16 picture. The script plans the food chamber when the stores-full alert is up. No assertion was weakened.\n3. Camera occluders: ants between the camera and the possessed ant fade with alpha (cone rule in `occluderFade.ts`) instead of the dither. At medium the same staged scene went from 70 to 67 draws and 306,631 to 284,565 triangles.\n4. Flood water: a lattice mesh with shore and depth attributes gives a smooth outline, darker and more transparent water, a meniscus and a ripple. The queen shows through it. It is 820 triangles against 598 before, with no extra draw call.\n5. Outcome card: the slice shows a cell that lies 15 to 20 mm under the queen's throat, so a circle on the plane framed the wrong thing. `cellFootprint` is now a 3D flood fill under the plane, fitted by screen reach with the queen in the middle third, grown by `perspectiveGrow` (about 11 %). Seed 1 is whole in the band on the final code. Seeds 2 and 3 were whole but not re-shot after the perspective term.\n6. Night: a moon-side rim on ants and creatures lifts the ant-to-soil contrast from 0.00 to 0.04 (22:00) and 0.10 (02:00). Leaf litter is NOT finished: at ant height in the observer's low view it still reads 0.42 to 0.46 against the soil's 0.18. Albedos of 0.04 to 0.10 read alike, so the floor is not the decor leaf's albedo. A roughness lift moved it only 6 % and was removed. I did not find where the floor comes from.\n7. Runs:\n   - Seed 1 passes (beat 25, no failed checks).\n   - Seeds 2 and 3 reach beat 25 but fail \"no growth over game days 2-3\" (workers 10,10,10 and 11,11,11). The HUD shows protein-low and brood-stalled alerts, so protein income stops. That is sim economy and foraging.\n   - Strict controls, views, hud, save, lifecycle and stage1a pass. stage1a first failed on a stale camera-in-solid check, which now accepts `cutAway`.\n   - panels strict cannot pass because of two sim-side stand-ins. Run non-strict in its two halves, it passes with exactly those stand-ins listed.\n8. MANUAL.md and DEVIATIONS rows D-APP4-1 to 6 are updated.",
+  "filesTouched": [
+   "src/render/ants/occluderFade.ts",
+   "src/render/ants/occluderFade.test.ts",
+   "src/render/ants/tuning.ts",
+   "src/render/ants/AntRenderer.ts",
+   "src/render/ants/antState.ts",
+   "src/render/ants/frame.ts",
+   "src/render/ants/variantStore.ts",
+   "src/render/ants/shader/materials.ts",
+   "src/render/ants/shader/vertexChunk.ts",
+   "src/render/ants/shader/fragmentChunk.ts",
+   "src/render/ants/lookFixes.test.ts",
+   "src/render/ants/lookReview3.test.ts",
+   "src/render/slots/antsSlot.ts",
+   "src/render/slots/creaturesSlot.ts",
+   "src/render/creatures/CreatureRenderer.ts",
+   "src/render/creatures/shader/materials.ts",
+   "src/render/creatures/shader/creatureChunk.ts",
+   "src/render/world/weather/floodShore.ts",
+   "src/render/world/weather/floodWater.ts",
+   "src/render/world/weather/tuning.ts",
+   "src/render/world/weather/WeatherRenderer.ts",
+   "src/render/world/weather/floodSheet.test.ts",
+   "src/render/world/decor/tuning.ts",
+   "src/render/world/decor/DecorRenderer.ts",
+   "src/render/slots/worldSlot.ts",
+   "src/render/camera/foundingShot.ts",
+   "src/game/flows/founding/cellFootprint.ts",
+   "src/game/flows/founding/cardFraming.ts",
+   "src/game/flows/founding/cardFraming.test.ts",
+   "src/game/flows/founding/shotSubject.ts",
+   "src/game/flows/founding/shotSubject.test.ts",
+   "src/game/flows/founding/flow.ts",
+   "src/game/views/colony/digPlanner.ts",
+   "src/game/views/colony/colonyTools.test.ts",
+   "src/game/uiBridge/hudSlices.ts",
+   "src/game/uiBridge/storesFull.test.ts",
+   "src/ui/api.ts",
+   "src/ui/hud/PossessedPanel.tsx",
+   "src/ui/hud/hud.css",
+   "src/content/text/words.ts",
+   "tests/e2e/firstplay.mjs",
+   "tests/e2e/lib/firstplay-steps.mjs",
+   "tests/e2e/lib/look2-stage.mjs",
+   "tests/e2e/look3.mjs",
+   "tests/e2e/stage1a.mjs",
+   "tests/e2e/panels.mjs",
+   "tests/e2e/app4-planner.mjs",
+   "tests/e2e/app4-card.mjs",
+   "tests/e2e/app4-card2.mjs",
+   "tests/e2e/app4-water.mjs",
+   "tests/e2e/app4-fade.mjs",
+   "tests/e2e/app4-probe.mjs",
+   "docs/MANUAL.md",
+   "docs/design/gdd/DEVIATIONS.md",
+   "docs/design/tasks/app-seams-4-report.md",
+   "docs/design/tasks/progress/app-seams-4-impl.md"
+  ],
+  "verification": [
+   "npx tsc --noEmit -p . prints nothing after the last edit.",
+   "vitest, folder by folder with no harness running: src/render/world/weather 29 passed, src/render/ants 134, src/render/creatures 130, src/render/slots 38, src/render/camera 98, src/render/world/decor 45 (rerun after the leaf revert), src/game/flows/founding 34 (rerun after perspectiveGrow), src/game/views 161, src/game/uiBridge 79, src/ui/hud 114, src/content plus src/input 215, tests/docs/docs-final.test.ts 8. The five folders other than decor and founding were last run before the final edits and not rerun, because those edits were confined to decor and founding (test-output/app4/vitest2.log, run-probe.log, run-leaf4.log).",
+   "Item 1 browser run: tests/e2e/app4-planner.mjs, before (planner-before/pl-table.json, pl-last.png) and after (planner-after/pl-valid.png, pl-invalid.png, pl-table.json).",
+   "Item 3: tests/e2e/app4-fade.mjs fade sequences at low, medium and high plus a rule-off control (sheets/item3-fade-*.jpg). The possessed worker stayed solid and the near ant faded out then back; draws and triangles did not rise.",
+   "Item 4: water pictures before and after (sheets/item4-water-before-after.jpg, item4-water2.jpg) plus the real seed 2 flooded founding in full-s2/09-sealed.png and 10-first-clutch.png.",
+   "Item 5: card4 (cut), card9 and probe-s1/12b-outcome-card-settled.png (whole). The projection overlay (card6/7, probe-s1/12c) located the cause. Settled cards for seeds 1 to 3 are in sheets/item5-cards-final.jpg, but seeds 2 and 3 predate perspectiveGrow.",
+   "Item 6: sheets/item6-night-final.jpg (22:00 and 02:00 clear, 22:00 rain, surface and observer low, medium), item6-rim-variants-22h.jpg, item6-leaf-variants.jpg, item6-leaf-final.jpg. Luminance measured with PIL: leaf 0.42 to 0.46 against soil 0.18 in the observer low view. Rim perf (rimperf.log): medium 89/668,876 to 89/670,572, high 102/947,607 to 102/958,807 (+1.2 %), low not comparable.",
+   "Item 7: full-s1 (passed, 25 beats, 16:36 to 16:55), full-s2 and full-s3 (25 beats, one failed check each, growth). I looked at all pictures through contact sheets (sheets/full-s1-1..4, full-s2-a..d, full-s3-a..c).",
+   "Other scripts, strict: controls, views, hud, save and lifecycle exit 0. stage1a failed once on camera-inside-solid with cutAway and passed after the script fix (exit 0). panels strict fails on the stand-ins. panels non-strict passed in two halves (others/panels5.log with health, alert, nest, journal, codex, and the markers, hudfix, keys, tools, sizes half).",
+   "One 8-test docs vitest file ran while a harness was running (about 2 s), noted in the progress file. No background processes of mine remain."
+  ],
+  "acceptance": [
+   {
+    "criterion": "Typecheck clean on my paths",
+    "status": "met",
+    "evidence": "npx tsc --noEmit -p . prints nothing."
+   },
+   {
+    "criterion": "Tests green folder by folder",
+    "status": "met",
+    "evidence": "All touched folders pass (weather, ants, creatures, slots, camera, decor, founding, views, uiBridge, hud, content, input, docs-final); counts are in the verification list and report section 9."
+   },
+   {
+    "criterion": "Before/after pictures under test-output/app4/ for items 1-6",
+    "status": "partial",
+    "evidence": "Items 1 to 5 have before and after pictures (planner-before/after, sheets/item3-*, item4-*, card4 to probe-s1 and sheets/item5-*). Item 6 has rim before/after, but the leaf-litter part is not fixed (sheets/item6-*)."
+   },
+   {
+    "criterion": "Unit tests: planner anchor, occluder fade rule, stores-full feedback",
+    "status": "met",
+    "evidence": "colonyTools.test.ts (snap to wall), occluderFade.test.ts plus lookFixes.test.ts, storesFull.test.ts; also cardFraming.test.ts and shotSubject.test.ts for item 5."
+   },
+   {
+    "criterion": "Item 7: three full firstplay runs to beat 25 on seeds 1-3 without stand-ins, or each failing beat with cause and owner",
+    "status": "partial",
+    "evidence": "Seed 1 passes. Seeds 2 and 3 reach beat 25 with no stand-ins but fail 'no growth over game days 2-3' (workers 10,10,10 and 11,11,11, brood falling, protein alerts); cause and owner (sim economy/foraging) and repro saves s2-trail.save and s3-trail.save are in report sections 7 and 8. The assertion is unchanged."
+   },
+   {
+    "criterion": "Draw calls/triangles at low/medium/high not up more than 5 % on the same staged scene",
+    "status": "met",
+    "evidence": "Medium fade rule 70 to 67 draws, 306,631 to 284,565 triangles. Rim medium +0.25 % triangles, high +1.2 %. Low is not comparable because the staged scene differs between runs (86 vs 57 draws before any rim code). Flood sheet has no extra draw call."
+   },
+   {
+    "criterion": "Report docs/design/tasks/app-seams-4-report.md with picture paths and the still-unfinished list",
+    "status": "met",
+    "evidence": "Sections 0 to 10; the unfinished list (section 8) is ordered most serious first."
+   },
+   {
+    "criterion": "Item 6: pale leaf litter must not outshine the soil",
+    "status": "not-met",
+    "evidence": "At ant height in the observer's low view the leaf still reads 0.42 to 0.46 against the soil's 0.18 (sheets/item6-leaf-final.jpg). The floor is independent of the decor albedo and I did not locate it. DECOR_LEAF.nightAlbedo stays 0.15/0.4 with the limitation documented in tuning.ts, DEVIATIONS D-APP4-5 and the report."
+   }
+  ],
+  "notDone": [
+   "Pale leaf litter at night in the observer's low view is not fixed (about 2.5 times the soil's luminance); the floor is not the decor leaf's albedo, translucency or specular.",
+   "Seeds 2 and 3 do not grow in days 4 to 6 of the first hour (sim economy/foraging), so those two runs fail their growth check; I did not change the sim.",
+   "panels.mjs cannot run strict: the test world leaves player.opening un-done and cheat.completeFounding does not finish it, and diag-nest-space publishes focus null. Both are sim-side. Non-strict passes with the two stand-ins listed.",
+   "Seeds 2 and 3 outcome-card pictures were not re-shot after the final perspective term; seed 1 was.",
+   "Outdoor puddle look (pale polygon in rain, black at night) is unchanged and listed as unfinished.",
+   "The firstplay full runs were taken at beat 12 with settle 0.5 s, so the beat 12 pictures show the camera still easing. Beat 12b (settled) exists only for seed 3 in the full runs; seeds 1 and 2 have it from the separate until-beat-12 runs.",
+   "The architect's food-chamber plan 'Stalled: No diggers free', the trail forming only via the player's forage marker on seed 1, and the controls finding about harvest-liquid with a full crop are sim-side and left for their owners."
+  ],
+  "contractChanges": [
+   "UiPossessed.storesFull?: boolean (src/ui/api.ts), additive.",
+   "FoundingShotSubject.minRadiusBu? (src/render/camera/foundingShot.ts); copied by copyShotSubject and carried by easeShotSubject; foundingShotAt uses it, additive.",
+   "foundingShotSubject(sim, out, wholeCell = false) takes a third argument; new cellFootprint(field, anchor, planeY, bu) and cachedFootprint, cardFraming(heightPx, remPx) and perspectiveGrow(fill) in src/game/flows/founding.",
+   "AntRenderStats additive fields: faded, hiddenAnts, fadeOn, fadeMaxWeight, fadeDbg. The ants instance attribute aFootB.w now means 'hidden' 0..1. The uCapA/uCapB/uCapR/uCapOpacity uniforms are removed and tuning CAMERA_CAPSULE is replaced by OCCLUDER; the subject's own fade is unchanged.",
+   "New tuning: ANT_MOON_RIM and OCCLUDER (ants), CREATURE_MOON_RIM (creatures), FLOOD_WATER constants (weather); ANT_FILL.rim.night 0.15 to 0.28; DECOR_LEAF.nightAlbedo 0.4/0.75 to 0.15/0.4.",
+   "DecorStats gains leafNight and leafDryK; the weather stats gain floodTris."
+  ],
+  "needsFromOthers": [
+   "Sim economy/foraging owner: seeds 2 and 3 colonies stop growing in days 4 to 6 (no protein income while the sugar larder is full; alerts 'Protein stores low' and 'Brood growth has stalled'). Repro: test-output/app4/s2-trail.save and s3-trail.save, step 6000 ticks twice at 8x and read window.__game.query.growth(). Logs: test-output/app4/full-s2.log and full-s3.log. The same class failed on an older build (test-output/app-seams-2-fix/fp-fast4.log).",
+   "Sim: diag-nest-space (src/sim/colony/nestSpaceDiag.ts) publishes focus: null, so no alert carries a chamber focus for the click-through (GDD 08 App. E check 11).",
+   "Sim testkit: makeTestSim leaves player.opening un-done and cheat.completeFounding does not finish it in that world, so panels.mjs keeps its hand-over stand-in.",
+   "Sim architect/allocation: the food-chamber plan sits 'Stalled: No diggers free' with 14 workers on seed 1 day 5.",
+   "Sim ants/actions: after a tapped drink, 'harvest-liquid' keeps running with a full crop (controls.mjs finding).",
+   "Forage/scouting: on seed 1 no scout found the sugar spill 88 mm from the entrance in 9000 ticks; the trail formed only through the player's forage marker after 13,200 ticks."
+  ],
+  "notesForIntegrator": [
+   "Leaf litter at night is the one open rendering item; the report (section 6) has the numbers and what was tried. The next suspects are the terrain surface patch and a second layer under the leaf; start with a variant run on leaf3/leaf4 (test-output/app4/leaf-variants3.json, leaf-variants4.json via look3.mjs).",
+   "The outcome card's picture frames the 3D cavity under the slice plane, not the footprint on the plane (cause: the cell lies 15 to 20 mm under the throat; overlay pictures in card6/card7/probe-s1/12c). The camera eases for a second or two after the card appears, and beat 12 of firstplay is taken at 0.5 s, so use beat 12b for the settled look.",
+   "stage1a.mjs now accepts cutAway for the chamber camera (the look-pass-6 cell camera sits in soil by design; views.mjs already accepted it). A camera in solid with no cutaway still fails.",
+   "Queue scripts and logs are under test-output/app4/ (run-*.sh, run-*.log). The handover saves s1-handover.save to s3-handover.save hold no outcome card (phase done), so tests/e2e/app4-card2.mjs is of no use; use FIRSTPLAY_UNTIL=12 with FIRSTPLAY_CARDPROBE=1 to get the settled card with the overlay.",
+   "Seed 1's beat 12 picture in full-s1 predates beat 12b and shows the camera mid-ease; probe-s1/12b-outcome-card-settled.png is the settled one.",
+   "Everything I started has finished. The processes visible now (tools/sim/longrun-life.sh, life.ts) belong to the winter-sugar sim engineer."
+  ]
+ },
+ "review": null,
+ "fixReport": null
+}
