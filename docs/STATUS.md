@@ -1566,3 +1566,7 @@ opening-fix engineer were lost. State from the progress files (their clock stamp
   Headless seeds: 2 pass, 3 pass, 4 failed before fix 2, 5 not run. Browser confirmation not yet done.
 - **look-pass-6:** item 1 (camera in the founding cell) in progress: `src/render/camera/cellCam.ts` - in a tight cell
   the soil above is cut away and the queen is framed from above; cut-away cap texture detail being raised.
+- wf-build relaunched 00:46 UTC Nov 24: task `wwdx2cttc`, run `wf_d8734412-6cd` (opening-fix opus / opus with
+  "Integrator ruling 1": fix the mound-mask probe itself, unplug floor at 4 first workers, report before reverting;
+  look-pass-6 sonnet / opus verify). Journal:
+  `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_d8734412-6cd/journal.jsonl`.
