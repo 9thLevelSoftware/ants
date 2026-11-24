@@ -1738,3 +1738,6 @@ Results: `docs/design/tasks/reviews/opening-fix.json`, report `docs/design/tasks
 - look-pass-6: review failed (cut-away line of sight crosses uncut soil in 8 of 532 frames; one after-picture of a
   crowded chamber broken; `markBusy` redundant); fix stage running (real crossfade drawn, hud.mjs fixed, night
   pictures at medium / high).
+- wf-build launched 13:07 UTC Nov 24: task `w8aer6s1c`, run `wf_b0b0220d-62a` (winter-sugar opus / opus). Journal:
+  `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_b0b0220d-62a/journal.jsonl`.
+  Still running beside it: `wifkhyri1` / `wf_8495311f-e29` (look-pass-6's fix stage; opening-fix's chain in it is done).
