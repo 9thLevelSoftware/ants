@@ -70,6 +70,13 @@ describe('founding shot subject easing', () => {
   const BU = 4;
   const sub = (radius: number, lift = 0): FoundingShotSubject => ({ x: 0, y: 0, z: 0, radius, cutY: 1, lift, fill: FSHOT_FILL });
 
+  it('copies the queen\'s frame with the subject (it is not eased: the view director reads it as it is)', () => {
+    const ant = { pos: { x: 1, y: 2, z: 3 }, up: { x: 0, y: 1, z: 0 }, fwd: { x: 0, y: 0, z: 1 }, lengthMm: 8.5 };
+    const held = copyShotSubject(sub(2 * BU), { ...sub(2 * BU), ant });
+    expect(held.ant).toBe(ant);
+    expect(copyShotSubject(held, sub(2 * BU)).ant).toBeUndefined();
+  });
+
   it('limits how fast the radius grows, and lets it arrive', () => {
     const held = copyShotSubject(sub(2 * BU), sub(2 * BU)), target = sub(40 * BU);
     easeShotSubject(held, target, 1 / 60, BU);

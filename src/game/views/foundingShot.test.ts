@@ -36,6 +36,18 @@ describe('founding shot in the view director', () => {
     }
   });
 
+  it('shows the queen on a steep wall from the side through a vertical section, backed off far enough to hold her whole (look pass 6)', () => {
+    const { d, subject, cell } = setup();
+    const lengthMm = 8.5;
+    const ant = { pos: { ...cell, y: cell.y }, up: { x: 1, y: 0, z: 0 }, fwd: { x: 0, y: -1, z: 0 }, lengthMm };
+    d.setView('possess', subject, true);
+    // the spread of what is in the cell is smaller than her half length (one egg pile at her feet)
+    d.setFoundingShot(() => ({ ...cell, radius: 1, ant }));
+    const f = d.settle(1.5, 1 / 30);
+    expect(f.cutaway?.section).toBe('vertical');
+    expect(f.focus).toBeGreaterThanOrEqual(lengthMm / (0.95 * Math.sin((FSHOT_FOV_DEG * Math.PI) / 360)) - 0.5);
+  });
+
   it('gives the ant rig back (no cutaway) when the source is cleared', () => {
     const { d, subject, cell } = setup();
     d.setView('possess', subject, true);

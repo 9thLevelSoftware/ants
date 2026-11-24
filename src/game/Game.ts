@@ -446,6 +446,10 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     const vf = settleS > 0 ? s.views.settle(settleS, TEST_CAMERA_SETTLE_DT) : s.views.update(dt, live);
     const canvas = this.opts.canvas;
     applyPose(this.camera, vf.pose, canvas.clientWidth / Math.max(1, canvas.clientHeight));
+    // the dip of a long camera hop and the crossfade of reduced motion (GDD 08 2.4, 7.10): the picture fades toward the page's dark ground and back
+    // (look pass 6: the dip was computed by the view director and never drawn); the HUD is another element and stays
+    const veil = vf.dip > 0.001 ? String(Math.max(0, 1 - vf.dip)) : '';
+    if (canvas.style.opacity !== veil) canvas.style.opacity = veil;
     const underground = this.undergroundSw.update(s.sim.field.substrate(this.camera.position), s.sim.world.bu, settleS > 0);
     // reduced motion: focus changes are instant (GDD 08 §12)
     const instantFocus = settleS > 0 || dt === 0 || this.settings.get().camera.reducedMotion;
@@ -526,11 +530,11 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   private readonly uiCost = { lastMs: 0, maxMs: 0 };
 
   /** Synchronous render of the current state (debug API, after loading). */
-  renderNow(settleS = 0): void {
+  renderNow(settleS = 0, dt = 0): void {
     const s = this.session;
-    if (s) this.renderScene(s, 0, this.realtime ? s.driver.clock.alpha : 1, settleS);
+    if (s) this.renderScene(s, dt, this.realtime ? s.driver.clock.alpha : 1, settleS);
     else if (this.mode === 'title') { if (this.titleArmed) this.title.ensure(); this.title.frame(0); }
-    this.app.renderFrame(0);
+    this.app.renderFrame(dt);
     this.dirty = false;
     if (this.opts.testMode) waitForGpu(this.app);
     this.refreshUi();

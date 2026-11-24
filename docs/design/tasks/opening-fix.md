@@ -108,3 +108,19 @@ no open entrance). In addition:
    find which change costs it by switching each off on the failing colonies' hand-overs, as gate-sim-2 did, and report
    to the integrator in the progress file before reverting anything (the last task reverted a real fix by the letter).
 4. Write real UTC times (`date -u`) in the progress file: the stamps before the restart ran two hours ahead of the clock.
+
+## Integrator ruling 2 (06:36 UTC Nov 24) - the close sweep (12 of 15, 249 workers)
+- **Viability:** 12 of 15 with every archetype at 2 of 3 or better meets the project's bar (>= 2 of 3 per archetype);
+  the three misses are the winter-sugar limit again (R27 at 0.59-0.83). Accepted. No revert.
+- **Workers at winter 249 against 271 / 270 on the same foundings** is the number to explain, not to accept unseen.
+  After the long runs end (not before: the machine is full), run two switch-off arms **on the five long-set colonies
+  only**, from this sweep's own hand-overs (`test-output/opening-fix/cache`), to winter: (a) the cavity-only mound-mask
+  probe in place of the wide one; (b) the unplug floor and draft off. Table per colony: workers at winter, eclosions,
+  trip success, R27 ratio, against the sweep's own run. Ten runs, about an hour. Report what the table says; change
+  nothing on it unless one arm is better in at least 4 of 5 colonies - then say so in the progress file and wait for a
+  ruling (the opening needs both fixes: a cheaper form would have to keep seeds 1-5 passing).
+- **R14 on a night hand-over** (seeds 1 and 2 hand over at about 19:46 and need 6-7 game hours; seed 3 hands over at
+  08:00 and is open within 753 ticks): if cold workers digging slowly is the whole cause, that is the game, not a defect
+  - state the temperatures and the dig rate in the report and restate R14 as "within 4 game hours of the first hour
+  above the activity threshold". If something else holds them (no digger allocated at night, a rest rule), fix that.
+- Seeds 4 and 5 in the browser and the two full runs go on as you planned.

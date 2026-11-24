@@ -5,7 +5,7 @@
 import { vec3, type Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import {
-  CAM_HANDOVER_KEEP_MAX_L, CAM_REDUCED_CROSSFADE_S, CAM_SWITCH_DIP_HALF_S, FSHOT_FILL, FSHOT_ORBIT_REV_PER_S, FSHOT_STILL_S, FSHOT_YAW_DEG, CAM_AUTOFOLLOW_MIN_SPEED_BU, CELLCAM_CUT_GRID_MM, CELLCAM_MIN_RADIUS_BU, CELLCAM_TEXEL_BU, CELLCAM_EDGE_W, CellCam, applyLift, azimuthBetween, blendPoses, freeToward, openAzimuth, CELLCAM_SIDE_ENTER_UP_Y, CELLCAM_SIDE_MIN_FREE_L, cellShotSubject, cellSideShotAt, makeCellSideShot, copyShotSubject, easeShotSubject, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
+  CAM_HANDOVER_KEEP_MAX_L, CAM_REDUCED_CROSSFADE_S, CAM_SWITCH_DIP_HALF_S, FSHOT_FILL, FSHOT_ORBIT_REV_PER_S, FSHOT_STILL_S, FSHOT_YAW_DEG, CAM_AUTOFOLLOW_MIN_SPEED_BU, CELLCAM_CUT_GRID_MM, CELLCAM_MIN_RADIUS_BU, CELLCAM_RADIUS_L, CELLCAM_TEXEL_BU, CELLCAM_EDGE_W, CellCam, applyLift, azimuthBetween, blendPoses, freeToward, openAzimuth, CELLCAM_SIDE_ENTER_UP_Y, CELLCAM_SIDE_MIN_FREE_L, cellShotSubject, cellSideShotAt, makeCellSideShot, copyShotSubject, easeShotSubject, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
   copyPose, fitsAt, makePose, planTransition, type FoundingShotSubject, type ThirdPersonOutput, type TransitionPlan,
   type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type FieldFn, type PossessionCamState, type TraceFn,
 } from '@/render/camera';
@@ -348,6 +348,9 @@ export class ViewDirector {
     if (freeToward(t, a.lengthMm, bu, this.world.field, this.shotSideAz, CELLCAM_SIDE_MIN_FREE_L * a.lengthMm) < CELLCAM_SIDE_MIN_FREE_L * a.lengthMm) {
       this.shotSideAz = openAzimuth(t, a.lengthMm, bu, this.world.field, this.shotSideAz);
     }
+    // the sphere holds the whole queen (the subject's own radius is the spread of her brood and workers about the centre, 4 mm in a cell
+    // with one egg pile: less than her half length, so she would fill the frame and be cut at its edge)
+    if (s.radius < CELLCAM_RADIUS_L * a.lengthMm) s.radius = CELLCAM_RADIUS_L * a.lengthMm;
     const side = cellSideShotAt(this.cellSide, s, t, a.lengthMm, this.shotSideAz, bu, this.world.field);
     applyLift(side.pose, s.lift ?? 0);
     const cut = side.cutaway;

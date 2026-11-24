@@ -97,8 +97,8 @@ describe('weather and places', () => {
   it('exposure: GDD 08 11.2 column plus the recorded metering (constants.ts AUTO_EXPOSURE_K)', () => {
     // pinned so any change of the departure is deliberate; see the RECORDED DEPARTURE note in constants.ts
     const ev = (e: number) => computeLighting(input(e)).exposureEV;
-    expect(ev(-30)).toBeCloseTo(3.05, 1); // night: metered, pinned at the value the screenshots were tuned at (lookPass2.test.ts)
-    expect(ev(0)).toBeCloseTo(2.16, 1); // dusk: half-way into the night metering (NIGHT_LOOK blend)
+    expect(ev(-30)).toBeCloseTo(4.08, 1); // night: metered, pinned at the value the screenshots were tuned at (lookPass2.test.ts)
+    expect(ev(0)).toBeCloseTo(2.33, 1); // dusk: half-way into the night metering (NIGHT_LOOK blend)
     expect(ev(8)).toBeCloseTo(1.28, 1);
     expect(ev(30)).toBeLessThan(0.5);
     expect(ev(60)).toBeCloseTo(0, 5);

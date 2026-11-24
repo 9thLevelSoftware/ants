@@ -210,6 +210,16 @@ export default async (ctx) => {
             result.checks.shaftCamera = cam;
             expect(cam.clear && (cam.clear.f > 0 || cam.clear.cutAway), 'the camera is inside solid in the shaft', cam);
             await beat('07-inside-shaft');
+            if (process.env.FIRSTPLAY_PROBE07) {
+              // look pass 6 (the grey blurry square in the shaft): the same frame with one layer off at a time, to name the layer that draws it
+              const shot = async (name) => { await render(1); await page.screenshot({ path: `${out}/07x-${name}.png`, timeout: 300000 }); };
+              await g(() => window.__game.fx.effects({ particles: false, motes: false }));
+              await shot('no-particles');
+              await g(() => window.__game.fx.effects({ particles: true, motes: true }));
+              for (const name of ['ghosts', 'caps']) {
+                if (await g((n) => window.__game.views.hideLayer(n, true), name)) { await shot(`no-${name}`); await g((n) => window.__game.views.hideLayer(n, false), name); }
+              }
+            }
             done('07');
           }
         }
@@ -328,6 +338,7 @@ export default async (ctx) => {
         result.checks.shotAtOutcome = await shotInfo();
         log('shot at outcome', JSON.stringify(result.checks.shotAtOutcome));
         await beat('12-outcome-card', ['founding-outcome']);
+        done('12');
         await click('founding-continue');
         await step(1);
       }

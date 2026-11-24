@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import { NIGHT_LOOK, SUN_INTENSITY } from './constants';
-import { computeLighting, groundDisplayLuma, groundIrradiance, nightExposureEV, nightWeight, type LightingInput } from './timeOfDay';
+import { blendLighting, computeLighting, copyLighting, createLightingState, groundDisplayLuma, groundIrradiance, nightExposureEV, nightWeight, type LightingInput } from './timeOfDay';
 
 function input(elev: number, over: Partial<LightingInput> = {}): LightingInput {
   const e = (elev * Math.PI) / 180;
@@ -25,8 +25,13 @@ const GROUND_ALBEDO = 0.06;
  * mid-blue sky, ground 0.164). Measured in the game (tests/e2e/look3.mjs, same pose, quality high, seed 1): clear night
  * ground 0.164 -> 0.111, night rain 0.160 -> 0.103, frame median 0.207 -> 0.149 (at targetE 1.7); the model gives 0.147 at GROUND_ALBEDO for targetE 1.9.
  * The exposure pins follow from targetE 2.45 -> 1.9 and minEV 2.6 -> 2.3 (1.7 / 2.2 first; lifted a little after the founding night picture showed a fresh mound at 02:49 under cloud almost black).
+ *
+ * Look pass 6 (the integrator found the night black: ground 0.11, an ant on a black field in rain): targetE 1.9 -> 4 and maxEV 5.5 -> 6.5. Measured in the game
+ * (tests/e2e/look3.mjs, same pose, quality low, seed 1, test-output/look6/night/a): clear night ground 0.144 -> 0.243, night rain 0.107 -> 0.191, frame median
+ * 0.147 -> 0.268 / 0.187 -> 0.238. targetE 6 (ground 0.31) read as a grey overcast day and was not taken. The moon key and the cool fill are unchanged:
+ * only the camera's exposure rises, so the contrast stays and the scene stays cool and low in saturation.
  */
-const EV_CLEAR = 3.051, EV_RAIN = 3.226;
+const EV_CLEAR = 4.125, EV_RAIN = 4.3;
 const noon0 = () => input(60);
 const night = (over: Partial<LightingInput> = {}) => computeLighting(input(-30, over));
 
@@ -72,21 +77,23 @@ describe('night exposure metering', () => {
 });
 
 describe('night looks like night, and is readable', () => {
-  it('the ground shows 9..17 % display luminance in clear, overcast and rain, full moon to new moon (look pass 3: dark, still readable)', () => {
+  it('the ground shows 16..30 % display luminance in clear, overcast and rain, full moon to new moon (look pass 6: dark and cool, but the ground, the ants and the food within 60 BU readable)', () => {
     const cases: Partial<LightingInput>[] = [
       { weather: 'clear', cloud: 0.1, moonIllum: 1 }, { weather: 'clear', cloud: 0.1, moonIllum: 0.5 },
       { weather: 'overcast', cloud: 0.9, moonIllum: 0.8 }, { weather: 'rain', cloud: 1, moonIllum: 0.8 }, { weather: 'rain', cloud: 1, moonIllum: 0.2 },
     ];
     for (const c of cases) {
       const luma = groundDisplayLuma(night(c), GROUND_ALBEDO);
-      expect(luma, JSON.stringify(c)).toBeGreaterThanOrEqual(0.09);
-      expect(luma, JSON.stringify(c)).toBeLessThanOrEqual(0.17);
+      expect(luma, JSON.stringify(c)).toBeGreaterThanOrEqual(0.16);
+      expect(luma, JSON.stringify(c)).toBeLessThanOrEqual(0.30);
     }
   });
   it('never reads as day: far darker than a clear noon and cool (blue over red in the key and in the fill)', () => {
     const noon = computeLighting(input(60));
     const l = night();
-    expect(groundDisplayLuma(l, GROUND_ALBEDO)).toBeLessThan(0.9 * groundDisplayLuma(noon, GROUND_ALBEDO)); // measured in game: night 0.18 vs noon 0.31
+    // the model leaves the sky environment light out, so by day it reads 0.22 where the game measures 0.31 (see GROUND_ALBEDO): the night is held
+    // against the measured noon. Measured in game (look pass 6, quality low): clear night 0.24, night rain 0.19, noon 0.31
+    expect(groundDisplayLuma(l, GROUND_ALBEDO)).toBeLessThan(0.31);
     // the scene-referred light (what the exposure then lifts) is more than 10x below noon's: the camera, not the light, makes it readable
     expect(groundIrradiance(l)).toBeLessThan(0.1 * groundIrradiance(noon));
     expect(l.keyColor.b).toBeGreaterThan(l.keyColor.r);
@@ -108,5 +115,25 @@ describe('night looks like night, and is readable', () => {
       expect(Math.abs(l.hemiIntensity - prev.hemiIntensity), `elev ${e}`).toBeLessThan(0.25);
       prev = l;
     }
+  });
+});
+
+describe('lighting crossfade at a cut of the light source (look pass 6: the founding shot starts and ends)', () => {
+  it('copyLighting copies every field, blendLighting moves toward the old state by the share asked and not further', () => {
+    const noonL = computeLighting(input(60)), nightL = night();
+    const from = copyLighting(createLightingState(), noonL);
+    const out = copyLighting(createLightingState(), nightL);
+    expect(out.exposureEV).toBe(nightL.exposureEV);
+    blendLighting(out, from, 0);
+    expect(out.exposureEV).toBe(nightL.exposureEV);
+    blendLighting(out, from, 0.5);
+    expect(out.exposureEV).toBeCloseTo((nightL.exposureEV + noonL.exposureEV) / 2, 9);
+    expect(out.keyIntensity).toBeCloseTo((nightL.keyIntensity + noonL.keyIntensity) / 2, 9);
+    expect(out.keyDir.length()).toBeCloseTo(1, 9);
+    const all = copyLighting(createLightingState(), nightL);
+    blendLighting(all, from, 1);
+    expect(all.exposureEV).toBeCloseTo(noonL.exposureEV, 9);
+    expect(all.hemiSky.getHex()).toBe(noonL.hemiSky.getHex());
+    expect(all.moonlit).toBe(nightL.moonlit); // the flags are the new state's
   });
 });

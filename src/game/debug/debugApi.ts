@@ -75,9 +75,10 @@ export function createDebugApi(game: Game) {
       return { ticks: ran, tick: s.sim.state.tick, ms: Math.round((now() - t0) * 100) / 100 };
     },
     /** Render the current state once; in test mode the camera rig is settled first. */
-    renderFrame(opts: { settle?: number } = {}) {
+    renderFrame(opts: { settle?: number; dt?: number } = {}) {
       const t0 = now();
-      game.renderNow(opts.settle ?? (game.opts.testMode ? TEST_CAMERA_SETTLE_S : 0));
+      // `dt` (s) draws one frame that lasts that long: the transitions, eases and fades advance by it (the default frame lasts 0 and shows the settled state)
+      game.renderNow(opts.dt ? 0 : opts.settle ?? (game.opts.testMode ? TEST_CAMERA_SETTLE_S : 0), opts.dt ?? 0);
       return { ms: Math.round((now() - t0) * 100) / 100 };
     },
     summary,

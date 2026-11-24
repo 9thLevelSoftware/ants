@@ -15,7 +15,7 @@
 //                                   live ones: the dev server hands out one instance per file). Each variant must set every value it
 //                                   touches (nothing is reset between variants).
 // light: night | night-overcast | night-rain | dusk | dawn | noon | overcast | rain
-// view:  mound (ant height 7 BU from the entrance mound, looking at its foot) | queenstart (the queen at the start point, looking out: the opening shot) |
+// view:  tunnel | crowd (look pass 6: the possessed worker in the shaft of the entrance / in the founding chamber with eight workers round her) | mound (ant height 7 BU from the entrance mound, looking at its foot) | queenstart (the queen at the start point, looking out: the opening shot) |
 //        slopeup | slopedown (the possessed worker on the steepest flank near the entrance, walking uphill / downhill) |
 //        close (surface; the plate is the 400 x 225 px around the ant) | surface | nest | observerlow | observer | gyne (a gyne and a male beside the possessed worker) | slice | edge
 // Every picture is a plate (UI hidden); luminance numbers (look2-measure) are logged per shot and written to <tag>-shots.json.
@@ -52,7 +52,7 @@ export default async ({ page, log, out: outDir }) => {
     return file;
   };
   const S = await stage(page, log, { arch: env.LOOK3_ARCH || null, seed: Number(env.LOOK3_SEED ?? 1) });
-  const { render, statsNow, surfaceWorker, nestWorker, observerAt, sliceAt, edgeAt, groundPoints, bu } = S;
+  const { render, statsNow, surfaceWorker, nestWorker, tunnelWorker, crowdWorker, observerAt, sliceAt, edgeAt, groundPoints, bu } = S;
   const shots = [];
   const variants = env.LOOK3_VARIANTS ? JSON.parse(readFileSync(env.LOOK3_VARIANTS, 'utf8')) : [{ name: '', eval: '' }];
   let curQ = null, curL = null;
@@ -125,6 +125,8 @@ export default async ({ page, log, out: outDir }) => {
       await g(() => window.__game.setIntent({}));
       await g(() => window.__game.step(3));
     } else if (view === 'nest') await nestWorker();
+    else if (view === 'tunnel') await tunnelWorker();
+    else if (view === 'crowd') await crowdWorker();
     else if (view === 'observer') await observerAt();
     else if (view === 'observerlow') await observerAt(22, 40);
     else if (view === 'slice') await sliceAt();

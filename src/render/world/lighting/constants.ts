@@ -81,6 +81,12 @@ export const HAZE_VIS_SCALE = 1;
 export const HAZE_HEIGHT_K = 4;
 /** Easing time constant of haze changes when the camera crosses habitats, s. */
 export const HAZE_EASE_S = 1.5;
+/**
+ * The light source changes by a cut when the founding shot starts or ends (the world is lit as at a fixed hour behind it, FrameInfo.lightHour): the
+ * lighting before the cut fades into the new one over this many seconds (look pass 6; GDD 01 6.3 "no frame-to-frame jumps"). Not scaled by reduced
+ * motion: a change of light is not motion; instant on a settled frame.
+ */
+export const LIGHT_SWITCH_S = 1.2;
 
 /** GDD 08 11.3: habitats whose haze visibility changes in a weather state (asphalt 450 BU, 250 BU in heat). */
 export const HAZE_VIS_WEATHER_BU: Partial<Record<WeatherState, Partial<Record<ZoneType, number>>>> = {
@@ -178,8 +184,9 @@ export const AUTO_EXPOSURE_MAX_EV = 2.0;
  *    storm's extra -0.7 EV, GDD 08 11.4, is kept through WeatherLook.nightEV, so a night storm is darker than a
  *    night rain: recorded departure from "metering replaces the weather EV").
  * `nightFromDeg`..`nightToDeg`: the sun elevations over which the dusk blends into this night look (smoothstep).
- * Target (acceptance): median luminance of the ground within 20 body lengths 9..17 % of the display range (look pass 3:
- * the first target, 12..25 %, left the night looking like an overcast day; now a dark, cool, low-saturation scene).
+ * Target (acceptance): median luminance of the ground within 20 body lengths 16..30 % of the display range (look pass 6: the look-pass-3
+ * target, 9..17 %, left the ground, the first workers and the entrance mound black in the rain; targetE 4 gives 0.19..0.25 in the game, a cool,
+ * low-saturation scene whose key light is still the moon; targetE 6 (0.31) read as a grey overcast day).
  * Tuned by tests/e2e/lib/look2.mjs measurements; pinned by lighting.test.ts (night numbers) and lookPass2.test.ts.
  */
 export interface NightLook {
@@ -214,9 +221,9 @@ export const NIGHT_LOOK: NightLook = {
   groundRgb: [0.05, 0.06, 0.09],
   overcastSkyRgb: [0.003, 0.0037, 0.0075],
   penumbra: 2.5,
-  targetE: 1.9,
+  targetE: 4,
   minEV: 2.3,
-  maxEV: 5.5,
+  maxEV: 6.5,
   nightFromDeg: 2,
   nightToDeg: -6,
   hazeMult: 1,

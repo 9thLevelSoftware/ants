@@ -17,6 +17,12 @@ function fakeSim(o: { queen?: P; workers?: P[]; brood?: P[]; chamber?: boolean }
     stores: { colonies: new Map([[1, colony]]), nests: new Map([[7, nest]]), ants: new Map(ants.map((a) => [a.id, a])) },
   } as unknown as Sim;
 }
+/** The queen of fakeSim with a frame (ants[0]): what the cards' shot hands to the view director for the cell camera's choice. */
+function withQueenFrame(sim: Sim, up: P, lengthBu: number): Sim {
+  const q = (sim.state.ants as unknown as { up?: P; fwd?: P; lengthBu?: number }[])[0];
+  q.up = up; q.fwd = { x: 0, y: 0, z: 1 }; q.lengthBu = lengthBu;
+  return sim;
+}
 const blank = () => ({ x: 0, y: 0, z: 0, radius: 0, cutY: 0 });
 
 describe('founding shot subject', () => {
@@ -25,6 +31,15 @@ describe('founding shot subject', () => {
     expect(r.x).toBeCloseTo(81, 6); expect(r.z).toBeCloseTo(189.5, 6);
     expect(Math.abs(r.x - 100)).toBeGreaterThan(10); // not at the chamber
     expect(r.radius).toBeGreaterThan(0);
+  });
+
+  it('carries the queen\'s own frame (position, up, heading, length in mm) so the view director can choose the side view on a steep wall; none without a queen', () => {
+    const sim = withQueenFrame(fakeSim({ queen: { x: 80, y: 4.5, z: 190 }, brood: [{ x: 82, y: 4.4, z: 189 }] }), { x: 0.9, y: 0.1, z: 0 }, 2.1);
+    const r = foundingShotSubject(sim, blank())!;
+    expect(r.ant).toBeDefined();
+    expect(r.ant!.up.x).toBeCloseTo(0.9, 6);
+    expect(r.ant!.lengthMm).toBeCloseTo(2.1 * BU, 6);
+    expect(foundingShotSubject(fakeSim({ brood: [{ x: 82, y: 4.4, z: 189 }] }), blank())!.ant).toBeUndefined();
   });
 
   it('puts the cut plane just above the queen and the brood, whatever workers do: a worker higher up is cut away, one in the chamber below does not move it', () => {

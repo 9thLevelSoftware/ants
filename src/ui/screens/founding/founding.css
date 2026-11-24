@@ -68,7 +68,7 @@
 .fo-lapse-foot { display: flex; align-items: center; gap: 1rem; }
 .fo-lapse-foot .ui-progress { flex: 1; }
 /* below the left tool rail (it ends at about 19 rem; look pass 6: the gauge covered its last icon) */
-.fo-lapse-gauge { left: 1rem; top: max(40%, 20rem); width: 11rem; }
+.fo-lapse-gauge { left: 1rem; top: max(40%, 23rem); width: 11rem; } /* under the tool rail (5 icons end near 21rem at 1280 x 720; look pass 6) */
 .fo-lapse-losses { right: 1rem; top: 40%; width: 11rem; font-size: var(--t-small); }
 
 /* ---- cards ---- */

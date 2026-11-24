@@ -63,3 +63,40 @@ the stamps above ran ~2 h ahead: "02:30" above = ~00:30 UTC).
 - Tree check 05:29 UTC: git clean at 04a155c; src/sim and tools/sim == /home/user/frozen-openingfix (diff -rq empty).
   close-resume.sh running (integrator, 05:27): sweep 5/15 done, rest running. Not touched by me.
 - 05:30 UTC: browser seed 2 UNTIL=13 DUMP starting -> test-output/opening-fix/firstplay/seed2-final (+ .log).
+- 06:00 UTC: BROWSER seed2-final PASS beats 01-13, no stand-ins (site q 0.651 rBu 2 as before; seal sealed:223 = headless;
+  7 workers (headless 11); hand-over tick 31442 -> reopen-check 33195: opened+outside at the 7th poll = 1503-1753 ticks
+  = 6-7 game h, R14 MISS like seed 1). Pictures 12/13 looked at (card 'First workers: 7'; 13 = night 02:46, open
+  entrance on the mound). Headless != browser on seed 2 too (hashes differ from beat 03; 11 vs 7 workers) -> seeds 3-5
+  need the browser (item 2). Look-pass-6 started a browser (look6/o3-s1-low) while mine ran.
+- 06:00 UTC: NOW R14 trace (item 3): probe tools/sim/probe/unplugTrace.ts on fix3/s4-handover.bin and s2-handover.bin.
+- 06:05 UTC R14 TRACE DONE (probes tools/sim/probe/unplugTrace.ts, unplugStand.ts; outputs test-output/opening-fix/headless/
+  trace-s4.txt, trace-s4-stand.txt). Seed-4 hand-over (4 workers, plug 235): open at +1287 ticks (tick-exact; 1500 was the
+  250-tick poll). The entrance opens the tick the plug count reaches 0: NO surface-sample / aim stall in the player's
+  opening (gate-sim-2's lead is the plain-fill escape dig, nest/escapeDig, a different path). Time = bite rate: unplug
+  digger 8438 ran unseal-entrance 1092 ticks for 56-61 bites (~19 ticks per bite = 0.625 s / workRate ~0.33 at night
+  12 C) x ~2 plug voxels per bite x UNPLUG_DIGGERS_MAX 2. Minor defect found: the unplug stand point (radius + 1.5 BU
+  down the axis) lies INSIDE the plug when the mouth is wide (r 7.65 mm): f -2, no nav component -> a digger coming from
+  the cell fails the walk at once and is locked out UNPLUG_RETRY_S (600 ticks); 8451 then dug the founding plan
+  through the same plug instead. Prototype fix (stand = nearest open point of her nav component in the throat) in the
+  live tree: open 1287 -> 1224 (both diggers unplug from +77/+103). 5 % gain -> NOT worth changing every hand-over +
+  a sweep restart: REVERTED at 06:05 (tree == frozen again, diff -rq clean). Sweep keeps running on 9a8cdf07.
+  (Revert done with `git checkout -- <my two files>`: only my own uncommitted edit; noted for the report.)
+- NEXT: browser seeds 3, 4, 5 UNTIL=13 (one at a time, after look-pass-6's browser), then full runs seeds 1, 2.
+- 06:21 UTC: SWEEP DONE (9a8cdf07): viable 12/15 (NO: sg #2, we #3, pp #3, all on R27 winter C stores 0.59-0.83);
+  per archetype we 2, sg 2, pp 2, cpv 3, kd 3. Ruling 1.3 threshold (<12) not hit -> no switch-off runs; spec bar
+  (>=13) missed by one (gate-sim-2 sweep 12, sweep2 13 on the tree before). f15 running (close-resume, F15 START 06:16).
+- 06:21 UTC: BROWSER seed3-final PASS 01-13 no stand-ins: site q 0.711 rBu 2, seal 312, 12 eggs, 7 workers, open+outside
+  by the 3rd poll (hand-over 28470 -> 29223 = <=753 ticks, R14 MET; hand-over ~08:00 game time, 25 C). Picture 13:
+  day, open entrance in crater mound. Seeds 1/2 handed over ~19:46 -> cold night -> 6-7 h. Seeds 4, 5 running.
+- 06:25 UTC: sweep tables written: test-output/opening-fix/sweep-table.md (vs gate-sim-2 sweep2), sweep-table-vs-sweep.md
+  (vs gate-sim-2 sweep = item-4 tree). Workers at winter 249 (gate-sim-2 sweep 271, sweep2 270); median P 0.425
+  (0.515 / 0.434); first workers identical in all 15 (foundings equal to hand-over). Not attributed (closing tree of
+  gate-sim-2 was never swept; no switch-off run: threshold <12 not hit, and the machine is full: close-resume 2 life
+  runs + browser). Scratch trees /home/user/scratch-of deleted 06:23 (bisect helper scripts went with them).
+- Browser queue: test-output/opening-fix/firstplay/run-seeds.sh (seeds 4, 5; waits for look-pass-6's browser), then
+  run-full.sh (full runs seeds 1, 2; logs run-full.log). Both detached; restart-safe via *.done files.
+- 06:36 UTC INTEGRATOR NOTE: "Integrator ruling 2" is at the tail of docs/design/tasks/opening-fix.md: 12 of 15 accepted
+  (every archetype >= 2 of 3; no revert); after the long runs, two switch-off arms on the five long-set colonies from
+  this sweep's hand-overs (cavity-only mask; unplug floor + draft off) to explain 249 workers against 271 / 270 -
+  report, change nothing unless an arm wins 4 of 5 (then wait for a ruling); R14 on a night hand-over: state
+  temperatures and dig rate, restate R14 from the first active hour if cold is the whole cause.

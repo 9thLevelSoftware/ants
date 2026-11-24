@@ -20,7 +20,7 @@ import { MoundRenderer } from '../terrain/moundRenderer';
 import { TerrainRenderer } from '../terrain/terrainRenderer';
 import type { HoleProbe } from '../terrain/holeMask';
 import { buildSkyOcclusion } from '../terrain/skyOcclusion';
-import { ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, HAZE_EASE_S, INTERIOR_LOOK, STARS_DOF_GAIN, UNDERGROUND } from './constants';
+import { ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, HAZE_EASE_S, INTERIOR_LOOK, LIGHT_SWITCH_S, STARS_DOF_GAIN, UNDERGROUND } from './constants';
 import { LightingRig } from './lightingRig';
 import { HASH_SEED, hashNum, hashStr } from './signature';
 import {
@@ -28,7 +28,7 @@ import {
   movedStaticPrims, moonFromSun, objectMoves, objectMovesSignature, readEnvironment, readWeather, staticPrims, sunFromCalendar, terrainSource, zoneMask, zoneTypeAt, type CarveView,
   type EnvSample,
 } from './simAdapter';
-import { computeLighting, createLightingState, hazeVisBU, type LightingState } from './timeOfDay';
+import { blendLighting, computeLighting, copyLighting, createLightingState, hazeVisBU, type LightingState } from './timeOfDay';
 import type { EnvOverride, WorldFrame, WorldRenderContext } from './types';
 
 /** Primitive detail switch distance per preset, BU (from the camera to the primitive's bounding sphere). */
@@ -56,6 +56,10 @@ export class WorldRenderer {
   /** Flower heads built from petals and florets near the camera (dressing/flowerDressing.ts). */
   flowers!: FlowerDressing;
   readonly lighting: LightingState = createLightingState();
+  /** The lighting just before the light source last changed by a cut, fading out: weight `lightFromW` (LIGHT_SWITCH_S). */
+  private readonly lightFrom: LightingState = createLightingState();
+  private lightFromW = 0;
+  private lastOverride: boolean | null = null;
   readonly env: EnvSample = createEnvSample();
   private ctx!: WorldRenderContext;
   private sky!: SkyUniforms;
@@ -257,6 +261,10 @@ export class WorldRenderer {
 
     // environment -> lighting
     this.sampleEnvironment(sim, frame.env ?? null);
+    // the founding shot lights the world as at a fixed hour: a cut when it starts and when it ends, crossfaded
+    const overridden = !!frame.env;
+    if (this.lastOverride !== null && overridden !== this.lastOverride && frame.dt > 0) { copyLighting(this.lightFrom, this.lighting); this.lightFromW = 1; }
+    this.lastOverride = overridden;
     // a NaN or negative dt (clock glitch, paused tab) counts as a settle frame instead of poisoning the eased state
     const dt = Number.isFinite(frame.dt) && frame.dt > 0 ? frame.dt : 0;
     const ue = UNDERGROUND.easeS > 0 ? 1 - Math.exp(-dt / UNDERGROUND.easeS) : 1;
@@ -274,6 +282,10 @@ export class WorldRenderer {
       cameraHeightBU: camHeightBU, interior: this.interior,
       under: this.under, hazeScale: q.fog.enabled ? q.fog.hazeScale : 0,
     }, this.lighting);
+    if (this.lightFromW > 0) {
+      this.lightFromW = dt === 0 ? 0 : Math.max(0, this.lightFromW - dt / LIGHT_SWITCH_S);
+      blendLighting(this.lighting, this.lightFrom, this.lightFromW * this.lightFromW * (3 - 2 * this.lightFromW));
+    }
     this.rig.apply(this.lighting, this.ctx.scene, q.fog.enabled);
     const dof = q.post.enabled && q.post.dof.enabled && q.post.dof.bokehScale > 0;
     applySky(this.sky, this.lighting, this.env.moonDir, this.env.moonIllum, this.lighting.keyColor, dof ? STARS_DOF_GAIN : 1);

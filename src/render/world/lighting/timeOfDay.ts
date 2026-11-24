@@ -81,6 +81,38 @@ export function createLightingState(): LightingState {
 
 const ca = new Color(), cb = new Color();
 
+/** Copies every field of a lighting state (no allocation). */
+export function copyLighting(out: LightingState, s: LightingState): LightingState {
+  out.keyDir.copy(s.keyDir); out.keyColor.copy(s.keyColor); out.keyIntensity = s.keyIntensity; out.moonlit = s.moonlit; out.penumbra = s.penumbra;
+  out.hemiSky.copy(s.hemiSky); out.hemiGround.copy(s.hemiGround); out.hemiIntensity = s.hemiIntensity; out.envIntensity = s.envIntensity;
+  out.skyZenith.copy(s.skyZenith); out.skyHorizon.copy(s.skyHorizon); out.skyGround.copy(s.skyGround);
+  out.sunGlow = s.sunGlow; out.sunDisc = s.sunDisc; out.stars = s.stars; out.overcast = s.overcast; out.sunDir.copy(s.sunDir);
+  out.fogColor.copy(s.fogColor); out.fogDensity = s.fogDensity; out.exposureEV = s.exposureEV; out.saturation = s.saturation;
+  out.gain[0] = s.gain[0]; out.gain[1] = s.gain[1]; out.gain[2] = s.gain[2]; out.fillIntensity = s.fillIntensity; out.nightW = s.nightW;
+  return out;
+}
+
+/**
+ * Moves `out` toward `from` by the share `w` (1 = all the way to `from`, 0 = `out` as it is): the lighting of a moment crossfaded into the one before
+ * it, for the instants the light source changes by a cut (the founding shot's fixed hour starting and ending, look pass 6). Directions are blended
+ * and renormalised; `moonlit` and the other flags are the new state's. No allocation.
+ */
+export function blendLighting(out: LightingState, from: LightingState, w: number): LightingState {
+  if (w <= 0) return out;
+  const t = Math.min(1, w);
+  out.keyDir.lerp(from.keyDir, t).normalize(); out.sunDir.lerp(from.sunDir, t).normalize();
+  out.keyColor.lerp(from.keyColor, t); out.hemiSky.lerp(from.hemiSky, t); out.hemiGround.lerp(from.hemiGround, t);
+  out.skyZenith.lerp(from.skyZenith, t); out.skyHorizon.lerp(from.skyHorizon, t); out.skyGround.lerp(from.skyGround, t); out.fogColor.lerp(from.fogColor, t);
+  out.keyIntensity = lerp(out.keyIntensity, from.keyIntensity, t); out.penumbra = lerp(out.penumbra, from.penumbra, t);
+  out.hemiIntensity = lerp(out.hemiIntensity, from.hemiIntensity, t); out.envIntensity = lerp(out.envIntensity, from.envIntensity, t);
+  out.sunGlow = lerp(out.sunGlow, from.sunGlow, t); out.sunDisc = lerp(out.sunDisc, from.sunDisc, t); out.stars = lerp(out.stars, from.stars, t);
+  out.overcast = lerp(out.overcast, from.overcast, t); out.fogDensity = lerp(out.fogDensity, from.fogDensity, t);
+  out.exposureEV = lerp(out.exposureEV, from.exposureEV, t); out.saturation = lerp(out.saturation, from.saturation, t);
+  out.gain[0] = lerp(out.gain[0], from.gain[0], t); out.gain[1] = lerp(out.gain[1], from.gain[1], t); out.gain[2] = lerp(out.gain[2], from.gain[2], t);
+  out.fillIntensity = lerp(out.fillIntensity, from.fillIntensity, t); out.nightW = lerp(out.nightW, from.nightW, t);
+  return out;
+}
+
 function lerpHex(a: string, b: string, t: number, out: Color): Color {
   ca.set(a);
   cb.set(b);

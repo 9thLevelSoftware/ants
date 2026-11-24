@@ -145,6 +145,15 @@ export function buildViewsDebug(game: Game) {
     cameraOptions(o: { ceilingComfort?: boolean }) { session().views.third.setOptions(o); return plain(session().views.third.opts); },
     /** The possession view's cell camera (look pass 6) on or off, for before / after pictures. */
     cellCam(on: boolean) { session().views.cellCamEnabled = !!on; return plain({ on: session().views.cellCamEnabled }); },
+    /** Look pass 6: a nest renderer layer ('ghosts' | 'caps') hidden or shown, to find which one draws a thing in a picture. True when it was found. */
+    hideLayer(name: 'ghosts' | 'caps', hidden = true) {
+      const nest = (L as unknown as { nest?: Record<string, { group?: { visible: boolean } } | undefined> }).nest;
+      const g = nest?.[name]?.group;
+      if (!g) return false;
+      g.visible = !hidden;
+      game.requestRender();
+      return true;
+    },
     /** Possession camera read-out of the last frame. */
     possession() {
       const o = session().views.third.out;

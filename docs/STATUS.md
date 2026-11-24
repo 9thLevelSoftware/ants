@@ -1618,3 +1618,19 @@ outputs are git-ignored and are lost if the container is reclaimed (then rerun `
   verify), each with a RESUME note pointing at its progress file. Journal:
   `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_8495311f-e29/journal.jsonl`.
 - Check-in re-enabled (hourly while something runs).
+
+### Nov 24 ~06:36 UTC — check-in: opening-fix close sweep 12 of 15; browser seeds 1 and 3 pass; ruling 2
+
+- Close sweep on the opening-fix tree (9a8cdf07, fresh foundings, same first workers as gate-sim-2's sweeps in 15 of
+  15): **viable 12 of 15, every archetype >= 2 of 3** (we 2, sg 2, pp 2, cpv 3, kd 3; misses sg #2, we #3, pp #3 on
+  winter sugar, 0.59-0.83 of R27). Workers at winter **249** (gate-sim-2: 271 with item 4, 270 without), median P
+  0.425 (0.515 / 0.434). Tables `test-output/opening-fix/sweep-table.md`, `sweep-table-vs-sweep.md`. The five
+  sweep-15 hand-overs and the long runs are still running.
+- Browser `firstplay.mjs` without stand-ins: seed 1 passes beats 01-13 (entrance open after about 7 game hours, a
+  night hand-over), **seed 3 passes 01-13** (open within 753 ticks, a morning hand-over); seeds 4, 5 and the two full
+  runs are queued behind look-pass-6's browser.
+- Ruling 2 (tail of `opening-fix.md`): 12 of 15 accepted; two switch-off arms on five colonies to explain the 249;
+  R14 restated from the first active hour if cold is the whole cause of the slow night reopen.
+- look-pass-6: real founding on seed 1 passes beats 01-13 with the new cameras; side-view framing for the outcome card
+  fixed after its first picture cut the queen; night exposure raised (variant v1; pictures at low only so far); found
+  that the camera-transition dip / crossfade was computed and never drawn (now drawn).

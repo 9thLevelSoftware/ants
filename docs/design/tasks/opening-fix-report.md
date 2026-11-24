@@ -4,18 +4,21 @@ Task spec: `docs/design/tasks/opening-fix.md` (with integrator ruling 1). Progre
 `docs/design/tasks/progress/opening-fix-impl.md`. Two engineers worked on it: the first (Nov 23 ~22:40 - Nov 24 00:44
 UTC, cut off by container restart 8) found both causes and built fixes 1 and 2; the second (from 00:46 UTC) carried
 out ruling 1 (wide mound-mask probe, the floor at 4 workers), added the unplug draft, and ran the close.
-Final tree: frozen as `/home/user/frozen-openingfix` (sim tree hash `9a8cdf07`, 01:15 UTC Nov 24).
+A third engineer resumed after container restart 9 (05:29 UTC Nov 24): browser seeds 2-5 and the full runs, the R14
+trace, the sweep tables and this report.
+Final tree: frozen as `/home/user/frozen-openingfix` (sim tree hash `9a8cdf07`, 01:15 UTC Nov 24); `src/sim` was not
+changed after the freeze (an R14 prototype was tried in the live tree and reverted, section 6).
 
 ## 0. Result in one screen
 
 | | before (live tree, Nov 23) | after (final tree) |
 |---|---|---|
-| seed 2, browser | lapse ends `failed`, "Water filled the burrow" | BROWSER_S2 |
-| seed 1, browser | entrance stays `reopening:130` (4 workers) | BROWSER_S1 |
+| seed 2, browser | lapse ends `failed`, "Water filled the burrow" | **beats 01-13 pass, no stand-ins**: seal 223, 7 workers, open 6-7 game h after the hand-over (R14 missed) |
+| seed 1, browser | entrance stays `reopening:130` (4 workers) | **beats 01-13 pass, no stand-ins**: seal 108, 4 workers, open 6-7 game h after the hand-over (R14 missed) |
 | seed 2, headless | seal 93 voxels, queen drowns at t 6671 | seal 223, 11 workers, open 1000 ticks after hand-over |
 | seed 1, headless | passes (12 workers; not the browser's game) | seal 165, 13 workers, open 500 |
 | seeds 3 / 4 / 5, headless | 3 pass, 4 `reopening:235` for good, 5 pass | all pass; open 750 / 1500 / 750 |
-| sweep (15 fresh foundings) | gate-sim-2: 12 / 15 (sweep), 13 / 15 (sweep2) | SWEEP |
+| sweep (15 fresh foundings) | gate-sim-2: 12 / 15 (sweep), 13 / 15 (sweep2) | **12 / 15**, every archetype >= 2 of 3 (spec bar 13: missed by one); workers at winter 249 (271 / 270) |
 
 ## 1. Per seed: cause, breaking commit, fix, test
 

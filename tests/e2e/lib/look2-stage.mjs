@@ -98,6 +98,26 @@ export async function stage(page, log, { arch = null, seed = 1 } = {}) {
     if (cavity) await g((p) => window.__game.teleport('possessed', p), { x: cavity.x - 4 * bu, y: cavity.y, z: cavity.z });
     await g(() => window.__game.step(4));
   };
+  /** Look pass 6: the possessed worker in the shaft of the entrance, 2.5 BU under it. */
+  const tunnelWorker = async () => {
+    await g(() => window.__game.release());
+    await g((id) => window.__game.possess(id), worker.id);
+    const E = nest0.entrances?.[0]?.pos;
+    if (E) await g((p) => window.__game.teleport('possessed', p), { x: E.x, y: E.y - 2.5 * bu, z: E.z });
+    await g(() => window.__game.step(4));
+  };
+  /** Look pass 6: the possessed worker in the founding chamber with eight more workers round her. */
+  const crowdWorker = async () => {
+    await nestWorker();
+    if (!cavity) return;
+    await g(({ c, bu }) => {
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * 2 * Math.PI, r = (1.2 + 0.4 * (i % 3)) * bu;
+        window.__game.cheat.spawnAnts(1, 'worker', null, { x: c.x - 4 * bu + Math.cos(a) * r, y: c.y, z: c.z + Math.sin(a) * r });
+      }
+      window.__game.step(6);
+    }, { c: cavity, bu });
+  };
   /** Observer camera `upBu` above and `backBu` behind the start point, looking at it (default 60 / 80 BU; the first
    *  look-pass-2 'before' sheet used 22 / 40, which is the 'observerlow' view). */
   const observerAt = async (upBu = 60, backBu = 80) => {
@@ -177,5 +197,5 @@ export async function stage(page, log, { arch = null, seed = 1 } = {}) {
     return { subject, points, ring };
   }, { bu });
 
-  return { bu, worker, nest0, start, cavity, setLight, render, frames, statsNow, surfaceWorker, nestWorker, observerAt, sliceAt, edgeAt, groundPoints };
+  return { bu, worker, nest0, start, cavity, setLight, render, frames, statsNow, surfaceWorker, nestWorker, tunnelWorker, crowdWorker, observerAt, sliceAt, edgeAt, groundPoints };
 }
