@@ -58,3 +58,8 @@ the stamps above ran ~2 h ahead: "02:30" above = ~00:30 UTC).
 - 01:15 UTC: tree frozen -> /home/user/frozen-openingfix (tree 9a8cdf07); close.sh RUNNING (setsid; log test-output/opening-fix/close.log; sweep -> test-output/opening-fix/sweep, f15 -> .../f15, long -> .../sweep-long). Do NOT edit src/sim until it is done unless a fix is needed (frozen copy runs its own code anyway). Next: browser seeds 1,2 UNTIL=13.
 - 01:27 UTC: browser seed1-final (UNTIL=13, DUMP) running -> test-output/opening-fix/firstplay/seed1-final; report draft written (placeholders BROWSER_*, SWEEP_*).
 - 01:33 UTC: BROWSER seed1-final PASS beats 01-13, no stand-ins (4 workers, seal 108, open:0; hand-over tick ~26987 -> reopen-check 28740 = ~7 game h, R14 MISS; pictures 12/13 looked at: outcome card 'First workers: 4', open entrance on crater mound, a worker outside). Experiment floor-before-queen-care on s4 hand-over: no gain (1500 both; only 2 workers home) -> reverted, tree == frozen. Next: browser seed 2.
+
+## RESTART 9. Third engineer resumes 05:29 UTC Nov 24 (date -u).
+- Tree check 05:29 UTC: git clean at 04a155c; src/sim and tools/sim == /home/user/frozen-openingfix (diff -rq empty).
+  close-resume.sh running (integrator, 05:27): sweep 5/15 done, rest running. Not touched by me.
+- 05:30 UTC: browser seed 2 UNTIL=13 DUMP starting -> test-output/opening-fix/firstplay/seed2-final (+ .log).
