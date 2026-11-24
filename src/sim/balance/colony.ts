@@ -421,6 +421,13 @@ export const SCOUT_MISSING_MAX_FRAC = 0.25;
  * >= 0.5 in every colony on every day and the full floor never lifted.
  */
 export const SCOUT_SHORT_KNOWN_FRAC = 0.1;
+/**
+ * Task opening-fix (GDD 02 §6.3 deviation; GDD 06 §5.13 (b), GDD 03 §4.2 / §13: the first workers reopen the plug):
+ * while a nest of the colony has no `open` entrance and a `reopening` throat with plug soil left, the auto allocation
+ * serves this many diggers for it right after the brood's care, before the scout floor and `forage` (at most the dig
+ * demand). The browser's first play (seed 2) kept the throat `reopening` for 16 game hours with no digger left.
+ */
+export const UNPLUG_FLOOR_DIGGERS = 2;
 
 /**
  * R39 (direction 26 item 1, round 12; GDD 02 §6.2 deviation): the `tend` demand is asked for by the carbohydrate the

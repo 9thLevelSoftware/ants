@@ -19,6 +19,7 @@ import { closeAim, handover, openAim } from './handover';
 import { beginLapse, lapseTick } from './lapse';
 import { assessDigSite, readoutTick } from './readout';
 import { reopenTick } from './reopen';
+import { keepQueenDry } from './dryQueen';
 
 /** The phase now (a function call, so TypeScript does not narrow it across the transitions below). */
 function phaseOf(op: OpeningState): OpeningPhase {
@@ -143,6 +144,7 @@ function step(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
       return;
     case 'timelapse': {
       holdStill(sim);
+      keepQueenDry(sim, q, nest); // she walks out of the cell's water by herself (opening-fix)
       sealedOrOpen(sim, op, q, nest);
       if (!q.alive) return;
       const r = lapseTick(sim, op, q);

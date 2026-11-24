@@ -67,6 +67,11 @@ export class CapSet {
     this.show();
   }
 
+  /** Width of the edge line along every cut edge, in solidness units (capMesh.ts `uEdgeW`). */
+  setEdge(w: number): void {
+    for (const m of this.meshes) m.setEdge(w);
+  }
+
   hide(): void {
     for (const r of this.rasters) r.cancel();
     for (const m of this.meshes) m.hide();

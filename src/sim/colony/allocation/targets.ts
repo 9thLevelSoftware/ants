@@ -78,6 +78,16 @@ function scoutFloorSlot(order: readonly Task[], hygiene: boolean): number {
   return order.indexOf(hygiene ? 'haul' : 'queen-care');
 }
 
+/*
+ * The unplug floor (task opening-fix, a deviation from GDD 02 §6.3's fixed order like the two above): while the
+ * colony has no `open` entrance and a `reopening` throat still holds plug soil (nest entranceToUnplug), that many
+ * diggers (one per such nest, at most the dig demand) are served right after the brood's care, before the scout floor
+ * and `forage`. GDD 06 §5.13 (b) and GDD 03 §4.2 / §13: the first workers reopen the plug. With the GDD order a
+ * colony of 5-7 nanitics (one of them possessed by the player) gives `dig` nothing once a narrow way out exists: the
+ * browser's first play on seed 2 (Nov 23) kept the throat `reopening` with 72 plug samples for 16 game hours, the
+ * foragers walking out past the rim while no worker was left to dig it (R14: open within 4 game hours).
+ */
+
 /** Splits `total` over weights with largest remainders (integers summing to total). */
 export function apportion(total: number, weights: number[]): number[] {
   const sum = weights.reduce((a, b) => a + b, 0);
@@ -97,13 +107,13 @@ export function apportion(total: number, weights: number[]): number[] {
  */
 function autoTargets(
   demand: Float32Array, w: Workforce, threat: boolean, target: Int16Array, hygiene: boolean, prospForage: number,
-  scoutFloor: number,
+  scoutFloor: number, unplugFloor = 0,
 ): void {
   const fi = ti('forage');
   const extra = Math.max(0, Math.min(prospForage, demand[fi]));
   demand[fi] -= extra;
   const free = new Free(w.all, w.adult, w.outside);
-  planTargets(demand, free, threat, target, hygiene, scoutFloor);
+  planTargets(demand, free, threat, target, hygiene, scoutFloor, unplugFloor);
   demand[fi] += extra;
   if (extra > 0) target[fi] += free.take(poolOfTask('forage'), Math.max(0, Math.round(demand[fi]) - target[fi]));
 }
@@ -114,7 +124,7 @@ function autoTargets(
  * (scoutFloorSlot); the scout entry at its own place then tops up to half its demand as any task does.
  */
 function planTargets(
-  demand: Float32Array, free: Free, threat: boolean, target: Int16Array, hygiene: boolean, scoutFloor = 0,
+  demand: Float32Array, free: Free, threat: boolean, target: Int16Array, hygiene: boolean, scoutFloor = 0, unplugFloor = 0,
 ): void {
   let sum = 0;
   for (const t of PRIORITY) sum += demand[ti(t)];
@@ -124,12 +134,16 @@ function planTargets(
     for (const t of order) target[ti(t)] = free.take(poolOfTask(t), Math.round(demand[ti(t)]));
     return;
   }
-  const si = ti('scout');
-  const floorAfter = scoutFloor > 0 ? scoutFloorSlot(order, hygiene) : -1;
+  const si = ti('scout'), di = ti('dig');
+  const careEnd = scoutFloorSlot(order, hygiene);
+  const floorAfter = scoutFloor > 0 ? careEnd : -1;
   const floorScouts = Math.min(Math.round(scoutFloor), Math.round(demand[si]));
+  const floorDiggers = Math.min(Math.round(unplugFloor), Math.round(demand[di]));
   for (let k = 0; k < order.length; k++) {
     const i = ti(order[k]);
     target[i] += free.take(poolOfTask(order[k]), Math.max(0, Math.ceil(0.5 * demand[i]) - target[i]));
+    // the closed nest's plug before any work outside (unplugFloorSlot), then the scout floor
+    if (k === careEnd && floorDiggers > 0) target[di] += free.take(poolOfTask('dig'), Math.max(0, floorDiggers - target[di]));
     if (k === floorAfter) target[si] += free.take(poolOfTask('scout'), Math.max(0, floorScouts - target[si]));
   }
   for (const t of order) {
@@ -183,13 +197,13 @@ function manualTargets(
 export function computeTargets(
   col: Colony, available: number, threat: boolean,
   workforce: Workforce = { all: available, adult: available, outside: available }, hygiene = false, prospForage = 0,
-  scoutFloor = 0,
+  scoutFloor = 0, unplugFloor = 0,
 ): number {
   const target = col.alloc.target;
   target.fill(0);
   const a = col.directives.allocation;
   const w = { ...workforce, all: available };
-  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target, hygiene, prospForage, scoutFloor);
+  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target, hygiene, prospForage, scoutFloor, unplugFloor);
   else manualTargets(col.alloc.demand, w, a, col.directives.taskShares, target);
   let assigned = 0;
   for (let i = 0; i < target.length; i++) assigned += target[i];

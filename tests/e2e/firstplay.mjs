@@ -30,6 +30,31 @@ export default async (ctx) => {
   const { page, log, out } = ctx;
   const result = { beats: [], checks: {}, out };
   const h = helpers(ctx, result);
+  // FIRSTPLAY_DUMP=1 (opening-fix, instrumentation only): before every beat and at the lapse start / the reopen check, one JSON line in
+  // <out>/dump.jsonl with the tick, the state hash, the founding phase, the possessed ant, the player nest's water, entrances and cell,
+  // and (reopen) the colony's workers with their task, state and nav; compared with tools/sim/opening.ts's hashes.
+  const dump = async (tag) => {
+    if (!process.env.FIRSTPLAY_DUMP) return;
+    const d = await g((t) => {
+      const gm = window.__game, s = window.__hud?.game?.session, sim = s?.sim;
+      if (!sim) return { tag: t };
+      const col = sim.state.player.colonyId, n = sim.state.nests.find((x) => x.colony === col), a = sim.stores.ants.get(sim.state.player.possessedAntId);
+      const r = (o) => JSON.parse(JSON.stringify(o ?? null));
+      return r({ tag: t, tick: sim.state.tick, hash: gm.stateHash(), phase: sim.state.player.opening?.phase, speed: sim.state.env.time.speed,
+        possessed: a ? { id: a.id, caste: a.caste, pos: a.pos } : null, water: n?.flood.water, level: n?.flood.level,
+        entrances: n?.entrances.map((e) => ({ id: e.id, st: e.status, plug: e.plugVoxelCount, pos: e.pos })), chambers: n?.chambers.map((c) => ({ id: c.id, t: c.type, c: c.center })),
+        plans: n?.digPlans.filter((p) => p.status !== 'complete' && p.status !== 'cancelled').map((p) => ({ id: p.id, kind: p.kind, src: p.source, st: p.status })),
+        opening: { lapse: sim.state.player.opening?.lapse, hazards: sim.state.player.opening?.hazardLog?.slice(-4) },
+        workers: t.startsWith('reopen') ? sim.state.ants.filter((x) => x.alive && x.colony === col).map((x) => ({ id: x.id, caste: x.caste, task: x.task, state: x.state, pos: x.pos, nav: x.nav, action: x.action })) : undefined });
+    }, tag);
+    fs.appendFileSync(`${out}/dump.jsonl`, JSON.stringify(d) + '\n');
+    // FIRSTPLAY_DUMP_STATE=<beat prefix>: the whole sim state (typed arrays as arrays) at that beat, for a field-by-field diff
+    if (process.env.FIRSTPLAY_DUMP_STATE && tag.startsWith(process.env.FIRSTPLAY_DUMP_STATE)) {
+      const st = await g(() => JSON.stringify(window.__hud.game.session.sim.state, (_k, x) => (ArrayBuffer.isView(x) ? Array.from(x) : x)));
+      fs.writeFileSync(`${out}/state-${tag}.json`, st);
+    }
+  };
+  if (process.env.FIRSTPLAY_DUMP) { const b = h.beat; h.beat = async (name, ...rest) => { await dump(name); return b(name, ...rest); }; }
   const { g, expect, summary, view, phase, render, step, visible, beat } = h;
   const UNTIL = process.env.FIRSTPLAY_UNTIL ?? '';
   const SHORT = !!process.env.FIRSTPLAY_SHORT;
@@ -253,6 +278,7 @@ export default async (ctx) => {
 
         // ---- 10. "Tend the brood" (real click): the time-lapse overlay, then the skip button --------------------------
         await click('founding-tend');
+        await dump('lapse-start');
         await step(1);
         expect(await phase() === 'timelapse', 'Tend the brood did not start the time-lapse', await phase());
         // Step until the overlay shows brood (larvae), in short steps. The lapse is NOT closed by the founding flow: the simulation ends it
@@ -322,6 +348,7 @@ export default async (ctx) => {
         opened ||= (await nestOf(h)).entrances.some((e) => e.status === 'open');
         outOk ||= opened && await outside();
       }
+      await dump('reopen-check');
       result.checks.reopened = { opened, outside: outOk, phase: await phase(), entrances: (await nestOf(h)).entrances.map((e) => `${e.status}:${e.plugVoxelCount}`) };
       log('reopened', JSON.stringify(result.checks.reopened));
       if (!opened && process.env.FIRSTPLAY_AUTOFOUND) {

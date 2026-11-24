@@ -1550,3 +1550,19 @@ outcome framing, smaller items). Scratch trees r14-P3b, r15e and keep-gate2-item
 - wf-build launched 23:39 UTC Nov 23: task `wihfa2h2v`, run `wf_f0cca05a-1b1` (opening-fix opus / opus; look-pass-6
   sonnet / opus verify, visual). Journal:
   `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_f0cca05a-1b1/journal.jsonl`.
+
+### Nov 24 ~00:45 UTC — container restart 8 (about 00:44 UTC); opening-fix and look-pass-6 relaunched
+
+The checkout, `test-output` and the scratchpad survived; the workflow `wihfa2h2v` and two background runs of the
+opening-fix engineer were lost. State from the progress files (their clock stamps are not reliable):
+- **opening-fix:** headless driver of the player's opening exists (`tools/sim/opening.ts`,
+  `src/sim/colony/founding/playerOpeningKit.ts`). **Seed 2's cause:** breaking commit 995244e = round 14's mound-mask
+  hole probe; it changes the seal (plug 93 against 229 voxels), the queen ends at the cell bottom in 3 mm of water, and
+  in the lapse she is held still and excluded from fleeing water -> drowned founding. Fix 1: `founding/dryQueen.ts`
+  (she walks to a dry floor above the water level during the lapse), test red without. **Seed-1-type cause:** after the
+  hand-over the allocation gives `dig` no worker (6 nanitics all taken by care, scout floor, forage, store), so the
+  plug is never cleared; fix 2: an unplug floor of 2 diggers while a nest has no open entrance
+  (`allocation/demand.ts unplugFloor`), test red without; changes every game after the hand-over -> full sweep due.
+  Headless seeds: 2 pass, 3 pass, 4 failed before fix 2, 5 not run. Browser confirmation not yet done.
+- **look-pass-6:** item 1 (camera in the founding cell) in progress: `src/render/camera/cellCam.ts` - in a tight cell
+  the soil above is cut away and the queen is framed from above; cut-away cap texture detail being raised.

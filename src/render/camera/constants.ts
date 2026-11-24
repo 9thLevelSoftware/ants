@@ -273,3 +273,50 @@ export const FSHOT_EASE_MOVE_BU_PER_S = 12;
 export const FSHOT_LIGHT_HOUR = 17.5;
 /** Reduced motion (GDD 08 section 7.10): the camera stays on one still, refreshed (crossfade) this often in real seconds. */
 export const FSHOT_STILL_S = 3;
+
+/**
+ * The cell camera (look pass 6, item 1): in a room barely larger than the ant (the founding cell: 18 x 10 x 16 mm round a queen of 8.5 mm)
+ * the possession rig cannot back off: it ends up inside her radius and dithers her, or in the soil and shows the void through the cut cone.
+ * GDD 01 6.2 to 6.5 and GDD 08 11.5 say nothing about a room this small, so the founding shot's rule applies (GDD 08 7.10 "X-ray cutaway",
+ * GDD 06 5.11): the soil between the camera and the ant is cut away, not the camera pushed into her. While the rig's camera stands closer
+ * to the ant than CELLCAM_ON_L (underground only) for CELLCAM_ON_S, the camera goes up and back over her at the founding shot's pitch, a slice
+ * through the open space at her back hides the soil above it, and she is drawn solid (no fade, no occlusion cone). It hands back when the rig
+ * has stood farther than CELLCAM_OFF_L for CELLCAM_OFF_S. The blend between the two poses takes CELLCAM_BLEND_S.
+ */
+export const CELLCAM_ON_L = 1.9;
+export const CELLCAM_OFF_L = 2.4;
+export const CELLCAM_ON_S = 0.3;
+export const CELLCAM_OFF_S = 1.0;
+export const CELLCAM_BLEND_S = 0.5;
+/** The subject sphere (centre: the ant's thorax) has this radius in body lengths; the frame is filled CELLCAM_FILL by it. */
+export const CELLCAM_RADIUS_L = 1.0;
+export const CELLCAM_FILL = 0.9;
+/** The slice plane passes this far (BU) above the ant's highest point, never above the roof of the cell over her. */
+export const CELLCAM_CUT_ABOVE_BU = 0.12;
+/** The slice centre and height are held on this grid (mm): the cut faces are rasterised again whenever they change. */
+export const CELLCAM_CUT_GRID_MM = 3;
+/** Auto-follow of the cell camera's azimuth (as CAM_AUTOFOLLOW_*): idle seconds, time constant, speed cap (degrees per second). */
+export const CELLCAM_FOLLOW_DELAY_S = 1.5;
+export const CELLCAM_FOLLOW_TAU_S = 1.2;
+export const CELLCAM_FOLLOW_MAX_DEG_S = 60;
+/** The camera's pitch in the cell: the founding shot's, FSHOT_PITCH_DEG. */
+export const CELLCAM_MIN_RADIUS_BU = 0.5;
+/**
+ * The cell camera's side view, for an ant on a steep wall or tunnel slope (her up's height below CELLCAM_SIDE_ENTER_UP_Y; back to the view from
+ * above over CELLCAM_SIDE_EXIT_UP_Y): a vertical section stands CELLCAM_SIDE_OFFSET_L body lengths (at least; see cellCam.ts) toward the camera
+ * from her, held to CELLCAM_SIDE_FREE_FRACTION of the free room that way; the camera looks from CELLCAM_SIDE_PITCH_DEG above the horizontal.
+ * The cut faces are rasterised with texels of CELLCAM_TEXEL_BU (the colony view's are 0.5 BU: far too coarse for a cell 4 BU wide).
+ */
+export const CELLCAM_SIDE_ENTER_UP_Y = 0.6;
+export const CELLCAM_SIDE_EXIT_UP_Y = 0.8;
+export const CELLCAM_SIDE_OFFSET_L = 1.2;
+export const CELLCAM_SIDE_FREE_FRACTION = 0.85;
+export const CELLCAM_SIDE_PITCH_DEG = 28;
+export const CELLCAM_TEXEL_BU = 0.1;
+/** Width of the cut edge line in the cell camera's cut faces, solidness units (the colony view's is CUTAWAY.edgeBU 0.25: a 5 mm pale band round a 16 mm cell). */
+export const CELLCAM_EDGE_W = 0.04;
+/** The view from above returns after the floor and the open air over her have held this long, s. */
+export const CELLCAM_TOP_HOLD_S = 0.6;
+/** The side view needs this much free room (body lengths) toward the camera, or the camera is turned to the open side at CELLCAM_PULL_DEG_S. */
+export const CELLCAM_SIDE_MIN_FREE_L = 0.9;
+export const CELLCAM_PULL_DEG_S = 240;

@@ -24,6 +24,10 @@ export interface NestCutawayParams {
   viewDir?: { x: number; z: number };
   /** Vertical section: plane moved this far towards the camera from the centre, mm. */
   offset?: number;
+  /** Cut face raster texel, mm (default: the nest params' capTexelBU): a cut through a cell a few millimetres wide needs finer texels than a colony slice. */
+  texelMm?: number;
+  /** Edge line width along the cut edges, solidness units (default CUTAWAY.edgeBU). */
+  edgeW?: number;
 }
 
 export interface CutPlane {

@@ -177,6 +177,9 @@ export class ThirdPersonRig {
     return Math.min(CAM_SLOPE_LIFT_MAX_DEG * DEG, CAM_SLOPE_LIFT_K * Math.max(0, -Math.asin(clampN(this.lh.y, -1, 1))));
   }
 
+  /** The target's smoothed speed, mm per real s (the cell camera follows the heading only while she walks). */
+  get speedMmS(): number { return this.speed; }
+
   /** Snap behind the target (after possession or teleport). */
   snap(): void {
     this.initialised = false;

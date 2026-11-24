@@ -24,6 +24,14 @@ export interface CutawayParams {
   outsideDarken: number;
   /** Deepest carved point the slider may reach (mm), already including the 10 BU margin. */
   minPlaneY: number;
+  /** Vertical section instead of the horizontal slice (the cell camera's side view; the colony view never sets it). */
+  section?: 'horizontal' | 'vertical';
+  /** Vertical section: horizontal direction camera to subject, and how far the plane stands toward the camera from `center`, mm. */
+  viewDir?: { x: number; z: number };
+  offset?: number;
+  /** Cut face raster texel, mm (see NestCutawayParams). */
+  texelMm?: number;
+  edgeW?: number;
 }
 
 export interface ColonyOptions {

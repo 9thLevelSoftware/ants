@@ -322,7 +322,8 @@ export class NestRenderer {
       return;
     }
     const key = cutKey(cp); // carve edits patch the face (setSource's carve listener), they do not restart it
-    const texel = Math.max(CUTAWAY.capTexelBU * src.bu, (2 * cp.radius) / CUTAWAY.capMaxTexels);
+    const texel = Math.max(p.texelMm ?? CUTAWAY.capTexelBU * src.bu, (2 * cp.radius) / CUTAWAY.capMaxTexels);
+    this.caps.setEdge(p.edgeW ?? CUTAWAY.edgeBU);
     this.caps.update(cp, src, key, texel, CUTAWAY.capMaxTexels, CUTAWAY.capBudgetMs);
   }
 

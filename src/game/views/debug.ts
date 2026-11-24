@@ -143,10 +143,12 @@ export function buildViewsDebug(game: Game) {
     markerLabels() { return plain((L.lastMarkerScene?.labels ?? []).map((l) => ({ text: l.text, pos: l.pos }))); },
     /** Possession camera options not in the settings yet (ceiling comfort). */
     cameraOptions(o: { ceilingComfort?: boolean }) { session().views.third.setOptions(o); return plain(session().views.third.opts); },
+    /** The possession view's cell camera (look pass 6) on or off, for before / after pictures. */
+    cellCam(on: boolean) { session().views.cellCamEnabled = !!on; return plain({ on: session().views.cellCamEnabled }); },
     /** Possession camera read-out of the last frame. */
     possession() {
       const o = session().views.third.out;
-      return plain({ state: o.state, distance: o.distance, pinch: o.pinch, occlusion: o.fade.occlusion, opacity: o.fade.target, occludedFor: o.occludedFor, guarded: o.guarded, pos: o.pos, clearance: session().views.third.clearanceMm });
+      return plain({ state: o.state, distance: o.distance, pinch: o.pinch, occlusion: o.fade.occlusion, opacity: o.fade.target, occludedFor: o.occludedFor, guarded: o.guarded, pos: o.pos, clearance: session().views.third.clearanceMm, cell: session().views.cellState() });
     },
     /**
      * Steps the sim `ticks` ticks with the possessed ant steered toward `toward` (mm; else along `dir`, world space),

@@ -23,6 +23,8 @@ export interface FoundingShotSubject {
    */
   lift?: number;
   fill?: number;
+  /** Set by the cell camera's subject: false when no height of the slice plane over the ant is open air (a roof lower than her back). */
+  open?: boolean;
 }
 
 /** Copies the numbers of a subject (no allocation). */
@@ -74,9 +76,12 @@ export function foundingShotDistance(radiusMm: number, fill = FSHOT_FILL): numbe
   return radiusMm / (fill * Math.sin((FSHOT_FOV_DEG * DEG) / 2));
 }
 
-/** Fills `out` for the subject seen from `yawRad` (0 = from +Z). Allocation-free. */
-export function foundingShotAt(out: FoundingShot, s: FoundingShotSubject, yawRad: number, bu: number): FoundingShot {
-  const r = Math.max(s.radius, FSHOT_MIN_RADIUS_BU * bu);
+/**
+ * Fills `out` for the subject seen from `yawRad` (0 = from +Z). Allocation-free. `minRadiusBu` replaces FSHOT_MIN_RADIUS_BU: the cell camera
+ * (cellCam.ts) frames one ant, not a chamber.
+ */
+export function foundingShotAt(out: FoundingShot, s: FoundingShotSubject, yawRad: number, bu: number, minRadiusBu = FSHOT_MIN_RADIUS_BU): FoundingShot {
+  const r = Math.max(s.radius, minRadiusBu * bu);
   const d = foundingShotDistance(r, s.fill), p = FSHOT_PITCH_DEG * DEG, cp = Math.cos(p);
   const o = out.pose;
   o.pos.x = s.x + Math.sin(yawRad) * cp * d;

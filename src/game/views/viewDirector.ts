@@ -5,8 +5,8 @@
 import { vec3, type Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import {
-  CAM_HANDOVER_KEEP_MAX_L, CAM_REDUCED_CROSSFADE_S, CAM_SWITCH_DIP_HALF_S, FSHOT_FILL, FSHOT_ORBIT_REV_PER_S, FSHOT_STILL_S, FSHOT_YAW_DEG, copyShotSubject, easeShotSubject, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
-  copyPose, fitsAt, makePose, planTransition, type FoundingShotSubject, type TransitionPlan,
+  CAM_HANDOVER_KEEP_MAX_L, CAM_REDUCED_CROSSFADE_S, CAM_SWITCH_DIP_HALF_S, FSHOT_FILL, FSHOT_ORBIT_REV_PER_S, FSHOT_STILL_S, FSHOT_YAW_DEG, CAM_AUTOFOLLOW_MIN_SPEED_BU, CELLCAM_CUT_GRID_MM, CELLCAM_MIN_RADIUS_BU, CELLCAM_TEXEL_BU, CELLCAM_EDGE_W, CellCam, azimuthBetween, blendPoses, cellShotSubject, cellSideShotAt, makeCellSideShot, copyShotSubject, easeShotSubject, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
+  copyPose, fitsAt, makePose, planTransition, type FoundingShotSubject, type ThirdPersonOutput, type TransitionPlan,
   type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type FieldFn, type PossessionCamState, type TraceFn,
 } from '@/render/camera';
 import { SLICE_REPEAT_HZ } from '@/input';
@@ -135,6 +135,15 @@ export class ViewDirector {
   /** Reduced motion: real seconds since the still was taken. */
   private shotStillS = 0;
   private shotYaw = FSHOT_YAW_DEG * Math.PI / 180;
+  /** The cell camera (render/camera/cellCam.ts): the possession view in a room barely larger than the ant. */
+  private readonly cell = new CellCam();
+  /** The cell camera is on (off only for before / after pictures and tests: `views.cellCam(false)`). */
+  cellCamEnabled = true;
+  private readonly cellSubject: FoundingShotSubject = { x: 0, y: 0, z: 0, radius: 0, cutY: 0 };
+  private readonly cellShot = makeFoundingShot();
+  private readonly cellSide = makeCellSideShot();
+  private readonly cellShotPose: CameraPose = makePose();
+  private readonly cellPose: CameraPose = makePose();
   private readonly frameOut: ViewFrame = {
     pose: makePose(), dip: 0, focus: 100, subjectOpacity: 1, possessionState: null, fade: null, cutaway: null, observerMode: null,
   };
@@ -170,7 +179,7 @@ export class ViewDirector {
       return;
     }
     if (view === 'photo') { this.photoOrigin = prev === 'photo' ? this.photoOrigin : prev; this.photo.enter(this.last); }
-    if (view === 'possess') { this.third.snap(); this.stopFollowing(); }
+    if (view === 'possess') { this.third.snap(); this.cell.reset(); this.stopFollowing(); }
     if (view === 'observer') {
       // GDD 01 §2 "X: release; camera stays, becomes follow-orbit on the released ant": the orbit starts where the
       // possession camera was
@@ -287,6 +296,7 @@ export class ViewDirector {
     this.shotHeldOn = false;
     if (source) this.shotYaw = FSHOT_YAW_DEG * Math.PI / 180;
     else this.third.snap();
+    this.cell.reset();
     const plan = handoverPlan('possess', 'possess', from, this.peekPose(), this.world.bu, !!this.third.opts.reducedMotion, this.world.trace, this.minClearanceMm);
     this.transition.start(from, plan);
   }
@@ -345,6 +355,7 @@ export class ViewDirector {
       const o = this.third.update(dt, this.followTarget, { yawDeg: l.x, pitchDeg: l.y, zoomLog: zoom('zoom'), recentre: !!input && input.pressed('recentre') },
         { trace: w.trace, field: w.field, underground: this.subjectUnderground, airborne: this.subjectAirborne, flying: this.subjectFlying });
       f.pose = o; f.focus = o.focusDistance; f.subjectOpacity = o.fade.target; f.possessionState = o.state; f.fade = o.fade;
+      this.applyCellCam(dt, l.x, o, f);
     } else if (this.view === 'observer') {
       const l = look('obs-look');
       const m = input ? input.axis2('obs-move') : ZERO2;
@@ -384,6 +395,51 @@ export class ViewDirector {
       f.pose = o; f.focus = o.dof.focusDistance;
     }
     return f;
+  }
+
+  /**
+   * The cell camera over the rig's frame (cellCam.ts): where the rig's camera is squeezed against the ant, underground, the picture is the
+   * founding shot's view of her (above and behind, the soil above her back cut away) and she is drawn solid; the rig's own fade and occlusion
+   * cone are off. Blended with the rig's pose by the cell camera's weight.
+   */
+  private applyCellCam(dt: number, yawDeg: number, o: ThirdPersonOutput, f: ViewFrame): void {
+    const t = this.followTarget, bu = this.world.bu, L = this.subjectLengthBu * bu, c = this.cell;
+    if (!this.cellCamEnabled) { c.reset(); return; }
+    const candidate = this.subjectUnderground && !this.subjectAirborne && !this.subjectFlying;
+    const subject = this.cellSubject;
+    if (candidate || c.active) cellShotSubject(subject, t, L, bu, this.world.field); else subject.open = true;
+    const weight = c.update(dt, o.focusDistance, L, candidate, azimuthBetween(t.pos, o.pos, 0.3 * L), t.up.y, subject.open !== false);
+    if (weight <= 0) return;
+    c.steer(dt, yawDeg, t, this.third.speedMmS > CAM_AUTOFOLLOW_MIN_SPEED_BU * bu, this.third.opts.autoFollow !== 'off', L, bu, this.world.field);
+    const e = weight * weight * (3 - 2 * weight), es = c.sideWeight * c.sideWeight * (3 - 2 * c.sideWeight);
+    // the view from above and the side view, blended by the side weight; then the rig's own pose to the cell camera's by the weight
+    let shotPose: CameraPose, shotDist: number, cut: CutawayParams;
+    if (c.sideWeight < 1) foundingShotAt(this.cellShot, subject, c.azimuth, bu, CELLCAM_MIN_RADIUS_BU);
+    if (c.sideWeight > 0) cellSideShotAt(this.cellSide, subject, t, L, c.azimuth, bu, this.world.field);
+    if (c.sideWeight <= 0) { shotPose = this.cellShot.pose; shotDist = this.cellShot.distance; cut = this.cellShot.cutaway; }
+    else if (c.sideWeight >= 1) { shotPose = this.cellSide.pose; shotDist = this.cellSide.distance; cut = this.cellSide.cutaway; }
+    else {
+      shotPose = blendPoses(this.cellShotPose, this.cellShot.pose, this.cellSide.pose, es);
+      shotDist = this.cellShot.distance + (this.cellSide.distance - this.cellShot.distance) * es;
+      cut = es < 0.5 ? this.cellShot.cutaway : this.cellSide.cutaway;
+    }
+    blendPoses(this.cellPose, o, shotPose, e);
+    f.pose = this.cellPose;
+    f.focus = o.focusDistance + (shotDist - o.focusDistance) * e;
+    f.subjectOpacity = 1;
+    f.fade = null;
+    // the cut faces are rasterised again whenever the plane or its centre changes: the centre is held on a grid
+    const g = CELLCAM_CUT_GRID_MM;
+    cut.center.x = Math.round(cut.center.x / g) * g; cut.center.z = Math.round(cut.center.z / g) * g;
+    cut.texelMm = CELLCAM_TEXEL_BU * bu;
+    cut.edgeW = CELLCAM_EDGE_W;
+    f.cutaway = cut;
+  }
+
+  /** The cell camera's state, for the debug read-out. */
+  cellState(): { weight: number; sideWeight: number; side: boolean; azimuthDeg: number; subject: FoundingShotSubject; sideOffset: number | undefined } {
+    const c = this.cell;
+    return { weight: c.weight, sideWeight: c.sideWeight, side: c.sideView, azimuthDeg: c.azimuth * 180 / Math.PI, subject: this.cellSubject, sideOffset: this.cellSide.cutaway.offset };
   }
 
   /** One frame of the active rig (real dt) blended through any running transition. */

@@ -100,6 +100,8 @@ export class CapMesh {
     this.mesh.visible = false;
   }
 
+  setEdge(w: number): void { this.material.uniforms.uEdgeW.value = w; }
+
   /** Shows the image on its face (re-uploads and re-places when its revision changed). */
   show(img: CapImage | null, revision: number): void {
     if (!img) { this.mesh.visible = false; return; }

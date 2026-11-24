@@ -11,7 +11,7 @@ import {
   SCOUT_MAX_FRAC, SCOUT_MIN_ACTIVITY, SCOUT_MISSING_FRAC, SCOUT_MISSING_MAX_FRAC, SCOUT_MISSING_SHORT,
   SCOUT_SHORTFALL_FRAC, SCOUT_SHORT_KNOWN_FRAC, SCOUTS_MISSING_MIN, SCOUTS_MISSING_SMALL_N, SMALL_COLONY_N, SMALL_KNOWN_SOURCES, SMALL_OUTSIDE_FRAC,
   SMALL_OUTSIDE_MIN, SMALL_SCOUTS_MIN, SOURCE_SLOT_FORAGERS, SPOILED_ITEMS_PER_STORE,
-  STORE_PER_FORAGER, THREAT_DEMAND_MULT, FORAGER_TRIPS_PER_GD, STOCK_REFILL_GD, TEND_HEADROOM, TEND_KEEP,
+  STORE_PER_FORAGER, THREAT_DEMAND_MULT, FORAGER_TRIPS_PER_GD, STOCK_REFILL_GD, TEND_HEADROOM, TEND_KEEP, UNPLUG_FLOOR_DIGGERS,
 } from '@/sim/balance';
 import { RIVAL_TEND_GUARD } from '@/sim/balance/ecology';
 import { PATCH_FORAGERS_MAX } from '@/sim/balance/foraging';
@@ -206,6 +206,20 @@ export function digDemand(sim: Sim, col: Colony): number {
   let unplug = 0;
   for (const nid of col.nestIds) if (entranceToUnplug(sim, nid)) unplug++;
   return nestDigDemand(sim, col.id) + unplug;
+}
+
+/**
+ * The unplug floor (targets.ts, task opening-fix): UNPLUG_FLOOR_DIGGERS for each of the colony's nests that has no `open`
+ * entrance and a `reopening` throat with plug soil left (entranceToUnplug), served before any work outside.
+ */
+export function unplugFloor(sim: Sim, col: Colony): number {
+  let n = 0;
+  for (const nid of col.nestIds) {
+    const nest = sim.stores.nests.get(nid);
+    if (!nest || nest.entrances.some((e) => e.status === 'open')) continue;
+    if (entranceToUnplug(sim, nid)) n += UNPLUG_FLOOR_DIGGERS;
+  }
+  return n;
 }
 
 /** Threat multiplier for guards and patrols: alarm near an entrance. */
