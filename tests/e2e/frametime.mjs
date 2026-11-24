@@ -24,6 +24,12 @@ export default async ({ page, log }) => {
   await g(() => window.__game.release());
   await g(() => window.__game.camera.set('observer'));
   await g(({ o, bu }) => window.__game.camera.setPose({ x: o.x - 25 * bu, y: o.y + 15 * bu, z: o.z - 25 * bu }, o), { o, bu });
+  // FRAMETIME_HOUR=<hour of the summer day>, FRAMETIME_WEATHER=clear|overcast|rain: the same scene at another light (look pass 6: the night lighting at low)
+  if (process.env.FRAMETIME_HOUR) {
+    await g((h) => window.__game.cheat.setTime(8 * 6000 + Math.round((h / 24) * 6000)), Number(process.env.FRAMETIME_HOUR));
+    await g((w) => window.__game.cheat.setWeather(w), process.env.FRAMETIME_WEATHER ?? 'clear');
+    result.light = { hour: Number(process.env.FRAMETIME_HOUR), weather: process.env.FRAMETIME_WEATHER ?? 'clear' };
+  }
   result.ants = (await g(() => window.__game.perf())).ants ?? null;
   for (const q of qualities) {
     await g((id) => window.__game.quality(id), q);

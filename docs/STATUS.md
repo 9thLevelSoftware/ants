@@ -1650,3 +1650,18 @@ outputs are git-ignored and are lost if the container is reclaimed (then rerun `
   pictures pending); the grey square in seed 2's shaft is the flood-water sheet seen edge-on (recoloured); **its
   firstplay seed 2 fails at beat 08 "camera is inside solid in the chamber"** with the cell camera not engaged in a
   tunnel - under investigation by the engineer.
+
+### Nov 24 ~08:47 UTC — check-in: browser seeds 1, 3, 4, 5 pass the opening; two open questions (ruling 3)
+
+- Browser `firstplay.mjs` beats 01-13 without stand-ins: seeds 1, 3, 4, 5 pass (seed 2 running as a full run).
+  The full run of seed 1 fails after beat 13: no trail forms in 18000 ticks - a 4-worker colony's dabs evaporate
+  between trips (traced headless).
+- **A player's founding hands over 4 workers** on seeds 1, 4, 5 (12 eggs laid, queen still at 73 % reserves); the
+  sweeps' autoplayer lays 24 eggs and hands over 8-16. Ruling 3 asks where the 8 eggs go and what the opening tells
+  the player about clutch size.
+- Switch-off runs on the three non-viable sweep colonies: the unplug floor off flips all three to viable (R27 1.27 -
+  1.52), the old mask flips one. The engineer reads it as regression to the mean (the floor is on for about 320
+  ticks). I started the floor-off arm on all 15 hand-overs myself (`test-output/opening-fix/off-unplug15`,
+  `/home/user/keep-off-unplug`) to settle it.
+- look-pass-6: cell camera before / after replays looked at by the engineer (queen whole in the cell after); queue of
+  browser runs continues (seed 2 with the cell camera, clover, light series, frame time, panels / controls / views).

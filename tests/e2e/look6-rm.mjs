@@ -40,22 +40,31 @@ export default async ({ page, log, out }) => {
         const px = x.getImageData(0, 0, w, h).data; let sum = 0;
         for (let k = 0; k < px.length; k += 4) sum += (0.2126 * px[k] + 0.7152 * px[k + 1] + 0.0722 * px[k + 2]) / 255;
         const v = window.__hud?.game?.session?.views;
-        return { luma: Math.round((sum / (px.length / 4)) * 1000) / 1000, opacity: Number(getComputedStyle(cv).opacity), dip: v?.frameOut?.dip ?? null, running: v?.transition?.running ?? null, kind: v?.transition?.kind ?? null, reduced: v?.third?.opts?.reducedMotion ?? null };
+        return { luma: Math.round((sum / (px.length / 4)) * 1000) / 1000, opacity: Number(getComputedStyle(cv).opacity), dip: v?.frameOut?.dip ?? null, running: v?.transition?.running ?? null, kind: v?.transition?.kind ?? null, reduced: v?.third?.opts?.reducedMotion ?? null, light: window.__game.lighting() };
       }, dt));
     }
     return r;
   };
+  // L6_RM_LIGHT_ONLY=1: only the light series (8 frames of 0.15 s after each cut), no crossfade search
+  const LIGHT_ONLY = !!process.env.L6_RM_LIGHT_ONLY, N_LIGHT = LIGHT_ONLY ? 8 : 16, DT_LIGHT = LIGHT_ONLY ? 0.15 : 0.1;
   const res = {};
   res.before = (await frames(2, 0.1)).map((f) => f.luma);
   res.setting = await g(() => window.__game.getSettings?.()?.camera ?? window.__game.settings().camera);
   await g((s) => { window.__hud.game.session.views.setFoundingShot(() => s); }, subject);
-  res.on = await frames(16, 0.1);
+  res.on = await frames(N_LIGHT, DT_LIGHT);
   await g(() => window.__game.renderFrame({ settle: 1 }));
   await page.screenshot({ path: `${out}/rm-shot-on.png`, timeout: 300000 });
   await g(() => window.__hud.game.session.views.setFoundingShot(null));
-  res.off = await frames(16, 0.1);
+  res.off = await frames(N_LIGHT, DT_LIGHT);
   await g(() => window.__game.renderFrame({ settle: 1 }));
   await page.screenshot({ path: `${out}/rm-shot-off.png`, timeout: 300000 });
+  if (LIGHT_ONLY) {
+    const ex = (a) => a.map((f) => f.light?.exposureEV);
+    res.summary = { exposureOn: ex(res.on), exposureOff: ex(res.off), keyOn: res.on.map((f) => f.light?.keyIntensity), keyOff: res.off.map((f) => f.light?.keyIntensity) };
+    fs.writeFileSync(`${out}/rm-light.json`, JSON.stringify(res, null, 1));
+    log('rm light', JSON.stringify(res.summary));
+    return res.summary;
+  }
   // reduced motion: the still is retaken every 3 s with a crossfade; frames of 0.1 s until it comes (and goes)
   await g((s) => { window.__hud.game.session.views.setFoundingShot(() => s); }, subject);
   await frames(3, 0.1);

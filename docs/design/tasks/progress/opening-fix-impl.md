@@ -110,3 +110,28 @@ the stamps above ran ~2 h ahead: "02:30" above = ~00:30 UTC).
 - 07:42 UTC: CLOSE DONE 07:37. Long runs (test-output/opening-fix/sweep-long/longrun-table.md): winter 1 -> winter 2 workers
   83 -> 108 (gate-sim-2 reverted 85 -> 94, item-4 tree 85 -> 105); R22 5/5; R34 >=1.0x 4/5 (bar 4), >=1.5x 2/5 (bar 3;
   was 0/5 and 1/5). Per colony w2: cpv#1 36, kd#3 10, pp#3 28, sg#2 19, we#2 15.
+- 07:46 UTC: BROWSER seed5-final PASS 01-13 no stand-ins: q 0.623 rBu 2, seal 104, 12 eggs, 4 workers, open+outside by the 2nd poll (<=503 ticks, R14 MET; hand-over ~22:40 but 23 C heat). SEEDS DONE 07:46; full runs (run-full.sh) starting.
+- 07:47 UTC: optional attribution started: test-output/opening-fix/switchoff.sh (scratch trees /home/user/scratch-of/off-mask = 07583fe's cavity-only moundRelax.ts, off-unplug = UNPLUG_FLOOR_DIGGERS 0) on sg#2, we#3, pp#3 hand-overs -> switchoff.txt. Not required by ruling 1.3 (12 not < 12); informative only. Delete /home/user/scratch-of after.
+- 08:00 UTC: full seed 1 browser run started 08:00 (test-output/opening-fix/firstplay/full-seed1). switch-off so far: off-mask sg#2 NO, we#3 yes; off-unplug sg#2 yes. Control (frozen tree from the same caches) queued after (switchoff-control.sh) - single runs may be noise.
+- 08:35 UTC SWITCH-OFF RESULT (informative; ruling 1.3 threshold not crossed): from this tree's own hand-over caches of the
+  three non-viable sweep colonies, to winter (test-output/opening-fix/switchoff.txt, dirs control/, off-mask/, off-unplug/):
+  control (frozen tree) sg#2 NO 0.59, we#3 NO 0.83 (= the sweep's runs exactly: the cache continuation reproduces them);
+  off-mask (round 14's cavity-only probe) sg#2 NO 0.53, we#3 yes 1.04, pp#3 NO 0.38; off-unplug (floor+draft off)
+  sg#2 yes 1.51, we#3 yes 1.52, pp#3 yes 1.27 (R27 C-store ratios). BUT floorProbe.ts on the same caches: the floor is on
+  for ONE spell of 321 / 309 ticks right after the hand-over (sg#2 24000 ticks, we#3 60000 ticks), never again
+  (floor-probe.txt). So its direct effect is the first ~1.3 game h; the flips are trajectory divergence + regression to
+  the mean of three runs selected for failing (off-mask also flips one). Not evidence of a systematic cost; NOT reverted
+  (R14 needs the floor). A real attribution needs paired switch-off runs on all 15 (or more seeds): ~2 h of two cores.
+- 08:19 UTC FULL RUN seed 1 (browser, no stand-ins): beats 01-13 pass; FAILS at the 13 -> 14 trail check: "no forager laid a
+  trail to the food within 18000 ticks" (4 workers; scouts did not find the spill in 9000 ticks, forage marker placed,
+  9000 more, trail 0). Headless reproduction on the seed-4 hand-over (4 workers): tools/sim/probe/trailProbe.ts ->
+  test-output/opening-fix/headless/trail-s4.txt: food known, the one forager collects 9 times in 18000 ticks, lays
+  trail on 3 return trips, but at most 2 trail cells are ever active (max 0.13 ph), never linked: GDD 02 §8.3's
+  sizeFactor(4 workers) = 0.3 x one trip per ~8 game h -> dabs evaporate before a second trip. Design property of a
+  4-worker colony (balance), not a hand-over defect: not fixed; the script's stand-in FIRSTPLAY_STANDIN_TRAIL exists
+  for exactly this. Full seed 2 running (08:20).
+- 08:47 UTC INTEGRATOR NOTE: "Integrator ruling 3" is at the tail of docs/design/tasks/opening-fix.md: (1) the integrator
+  is running floor-off on all 15 sweep hand-overs (test-output/opening-fix/off-unplug15, tree /home/user/keep-off-unplug;
+  do not start a copy; table it when DONE; if it is better by >= 2 viable or >= 15 workers, find what the draft leaves
+  behind and make the floor release cleanly); (2) the player's founding hands over 4 workers from 12 eggs with the
+  queen at 73 % reserves: answer where the 8 eggs go (defect?) and what the opening tells the player about clutch size.

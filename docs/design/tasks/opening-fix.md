@@ -124,3 +124,26 @@ no open entrance). In addition:
   - state the temperatures and the dig rate in the report and restate R14 as "within 4 game hours of the first hour
   above the activity threshold". If something else holds them (no digger allocated at night, a rest rule), fix that.
 - Seeds 4 and 5 in the browser and the two full runs go on as you planned.
+
+## Integrator ruling 3 (08:47 UTC Nov 24)
+- **The unplug floor's cost is not settled by three selected colonies.** Floor-off flipped all three (R27 0.59 / 0.83 /
+  ? -> 1.51 / 1.52 / 1.27) although the floor is on for about 320 ticks; that is either regression to the mean or a
+  lasting effect of the draft (who stays a digger, who was pulled off the first foraging). The integrator is running
+  the floor-off arm on **all 15** hand-overs of the close sweep (`test-output/opening-fix/off-unplug15`, tree
+  `/home/user/keep-off-unplug`, two niced slots, started 08:47; `summary.txt` ends DONE). Do not start a copy. When it
+  is done, table it against the sweep (viable, workers at winter, R27 ratio, eclosions, per colony) and say what it
+  shows. If floor-off is better by 2 or more viable colonies or by 15 or more workers in sum, find what the draft
+  leaves behind after the entrance is open (roles kept, a forager's first trips lost, the allocator's hysteresis) on one
+  flipped colony's first game day, and make the floor release cleanly; the opening must keep passing on seeds 1-5.
+- **A real player's founding hands over 4 workers** (browser seeds 1, 4, 5: 12 eggs laid, 4 first workers, the queen
+  still at 73 % reserves; seed 3: 7; the autoplayer of the sweeps: 8-16 from 24 eggs). With 4 workers the colony lays no
+  trail (your trace) and reopens slowly, so the first hour the player sees is the weakest colony the game can make.
+  Two questions, answer both with numbers before closing: (a) where do 8 of 12 eggs go in the player's lapse (causes
+  by count from the lapse trace: seed 1 shows "lost" already at progress 0.32) and is any of it a defect - a queen at
+  73 % reserves that raises a third of her clutch is suspicious against GDD 06 §5's fast-tracked first brood; (b) what
+  does the opening tell the player about how many eggs to lay (the HUD reads "Eggs 0 of 48"; the script lays 12): if
+  the design's intent is a clutch nearer the autoplayer's, the script should lay as the on-screen guidance says, and
+  if the guidance says nothing, say so for the app engineer. Fix what is a sim defect in (a); do not change the
+  design's numbers without a ruling.
+- The trail check failing with 4 workers is accepted as a consequence, not a separate defect, until (a) and (b) are
+  answered.

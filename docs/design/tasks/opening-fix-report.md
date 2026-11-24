@@ -17,7 +17,10 @@ changed after the freeze (an R14 prototype was tried in the live tree and revert
 | seed 1, browser | entrance stays `reopening:130` (4 workers) | **beats 01-13 pass, no stand-ins**: seal 108, 4 workers, open 6-7 game h after the hand-over (R14 missed) |
 | seed 2, headless | seal 93 voxels, queen drowns at t 6671 | seal 223, 11 workers, open 1000 ticks after hand-over |
 | seed 1, headless | passes (12 workers; not the browser's game) | seal 165, 13 workers, open 500 |
-| seeds 3 / 4 / 5, headless | 3 pass, 4 `reopening:235` for good, 5 pass | all pass; open 750 / 1500 / 750 |
+| seeds 3 / 4 / 5, headless | 3 pass, 4 `reopening:235` for good, 5 pass | all pass; open 750 / 1287 / 750 ticks after the hand-over |
+| seeds 3 / 4 / 5, browser | - | **all pass beats 01-13, no stand-ins**; open within 3 / 6 / 2 game h (R14 met / missed / met) |
+| item 5: 5 paired sweep-15 hand-overs to winter | sweep 15: 4 of 5 viable | **5 of 5** |
+| long runs (5 colonies, year two) | gate-sim-2: 85 -> 94 / 105 workers | **83 -> 108**; R34 1.0 x 4 of 5, 1.5 x 2 of 5 |
 | sweep (15 fresh foundings) | gate-sim-2: 12 / 15 (sweep), 13 / 15 (sweep2) | **12 / 15**, every archetype >= 2 of 3 (spec bar 13: missed by one); workers at winter 249 (271 / 270) |
 
 ## 1. Per seed: cause, breaking commit, fix, test
@@ -104,7 +107,7 @@ hand-over snapshot (`--save-handover`, `tools/sim/probe/reopenProbe.ts`).
 | 1 | PASS, seal 225, 12 w, open 750 | PASS (same) | PASS, seal 165, 13 w, open 500 |
 | 2 | FAIL lapse `failed`, seal 93 | PASS, seal 93, 6 w, open 4000 | PASS, seal 223, 11 w, open 1000 |
 | 3 | - | PASS, seal 310, 8 w, open 750 | PASS, seal 361, 8 w, open 750 |
-| 4 | - | FAIL `reopening:235` (4 w) | PASS, seal 235, 4 w, open 1500 (over R14's 1000) |
+| 4 | - | FAIL `reopening:235` (4 w) | PASS, seal 235, 4 w, open 1500 by 250-tick polls, 1287 tick-exact (over R14's 1000) |
 | 5 | - | - | PASS, seal 132, 4 w, open 750 |
 
 ## 3. Browser (items 1 and 6)
@@ -120,7 +123,7 @@ and reopen ticks are the `dump.jsonl` lines `12-outcome-card` and `reopen-check`
 | 2 | 0.651 poor, 2 BU | 223 | 12 | 7 | 19:46, night | 1503-1753 ticks (6-7 h) | missed | seal 223, 11 w, open 1000 |
 | 3 | 0.711 poor, 2 BU | 312 | 12 | 7 | ~08:00, 25 C | 503-753 ticks (2-3 h) | **met** | seal 361, 8 w, open 750 |
 | 4 | 0.767 fair, 2 BU | 235 | 12 | 4 | ~01:15, night | 1253-1503 ticks (5-6 h) | missed | seal 235, 4 w, open 1287 (tick-exact) |
-| 5 | BROWSER_S5 |
+| 5 | 0.623 poor, 2 BU | 104 | 12 | 4 | ~22:40, 23 C (heat) | 253-503 ticks (1-2 h) | **met** | seal 132, 4 w, open 750 |
 
 Pictures 12 and 13 looked at for every seed: 12 = the outcome card ("First workers: N", queen's reserves) over the
 queen in her cell; 13 = the open entrance in its crater mound (seed 2 at night, dark but readable; seeds 1 and 4 at dawn, a worker visible beside the mound in seed 1;
@@ -140,7 +143,56 @@ count). That is why seeds 3-5 were run in the browser too.
 
 ## 4. Sweep check (item 5)
 
-SWEEP_SECTION
+Run by `test-output/opening-fix/close.sh` / `close-resume.sh` from the frozen copy (tree `9a8cdf07`, the final tree),
+fresh cache `test-output/opening-fix/cache`; 5 runs before the pause (01:14-01:39 UTC), 10 after restart 9 (05:27-06:16).
+**The fixes change every game** (the wide mound-mask probe acts all game long; the unplug floor and draft act at every
+hand-over until the entrance is open), so the full sweep was run, not only the paired hand-overs.
+
+**Full sweep, 15 fresh foundings** (`test-output/opening-fix/sweep-table.md`, against gate-sim-2's sweep2;
+`sweep-table-vs-sweep.md` against its first sweep):
+
+| | gate-sim-2 sweep (item 4 in, 55c4dfff) | gate-sim-2 sweep2 (item 4 reverted, 43fbaf86) | **this tree (9a8cdf07)** |
+|---|---|---|---|
+| viable | 12 of 15 (sg #2, sg #3, kd #3 not) | 13 of 15 (pp #3, cpv #3 not) | **12 of 15** (sg #2, we #3, pp #3 not) |
+| per archetype | sg 1 of 3 | all >= 2 | **all >= 2** (we 2, sg 2, pp 2, cpv 3, kd 3) |
+| workers at winter (sum) | 271 | 270 | 249 |
+| median intake / need P | 0.515 | 0.434 | 0.425 |
+
+All three misses fail on one check only, R27 winter carbohydrate stores (0.59, 0.83, 0.77 of the need). The spec's bar
+(viable >= 13 of 15 and >= 2 of 3 per archetype) is **missed by one**; integrator ruling 1.3's threshold (find the
+cost by switch-off runs if viability drops below 12) is not crossed, so no switch-off runs were made. The first
+workers are identical in all 15 runs on both trees (the foundings are equal up to the hand-over); the difference is
+after it: 249 workers at winter against 270-271. **Not attributed**: the closing tree of gate-sim-2 (item 4 + the
+point-field eviction fix + the tier argument) was never swept itself, and the machine had no free core for switch-off
+runs while the close and the browser runs were going. If the integrator wants it attributed: run sg #2, we #3, pp #3
+and two viable colonies from `test-output/opening-fix/cache` hand-overs with the mound-mask probe switched back
+(`moundRelax.ts buildMask`) and with the unplug floor / draft off (`UNPLUG_FLOOR_DIGGERS = 0`).
+
+**Item 5, the paired check** (`f15-table.md`): the five sweep-15 hand-overs of the long-run set, run to winter on this
+tree from sweep 15's own hand-over files:
+
+| run | sweep 15 viable / workers / C | this tree viable / workers / C |
+|---|---|---|
+| woodland-edge #2 | yes / 11 / 8.3 | yes / 13 / 11.47 |
+| suburban-garden #2 | NO / 17 / 0.01 | yes / 17 / 5.95 |
+| car-park-verge #1 | yes / 23 / 16.92 | yes / 23 / 24.96 |
+| playground-park #3 | yes / 19 / 12.59 | yes / 21 / 10.19 |
+| kitchen-door #3 | yes / 9 / 6.65 | yes / 10 / 6.65 |
+
+Viability drops in none of the five (bar: at most one); one gains. **Met.**
+
+**Long runs (year two, the same five colonies, fresh foundings on this tree;** `sweep-long/longrun-table.md`):
+
+| | gate-sim-2 reverted | gate-sim-2 item 4 in (kept) | **this tree** |
+|---|---|---|---|
+| workers winter 1 -> winter 2 | 85 -> 94 | 85 -> 105 | **83 -> 108** |
+| R22 spring >= 0.7 x winter | 5 of 5 | 5 of 5 | 5 of 5 |
+| R34 winter 2 >= 1.0 x winter 1 (bar 4) | 4 of 5 | 4 of 5 | 4 of 5 |
+| R34 >= 1.5 x (bar 3) | 0 of 5 | 1 of 5 | **2 of 5** |
+
+Per colony at winter 2: cpv #1 36, kd #3 10, pp #3 28, sg #2 19, we #2 15 (kd #3 is the R34 miss, as on both earlier
+trees).
+
 
 ## 5. Appendix E checks
 
@@ -151,8 +203,9 @@ this task: R13 (a flood-safe site does not fill in the lapse; seed 2) and R14 (o
 
 ## 6. Still wrong
 
-1. **R14 (open within 4 game hours of the hand-over) is met by day, missed by night.** Browser: seed 3 (hand-over
-   ~08:00, 25 C) opens within 503-753 ticks; seeds 1, 2, 4 (hand-over at night) take 1253-1753 ticks (5-7 game h).
+1. **R14 (open within 4 game hours of the hand-over) is met when the hand-over is warm, missed when it is cold.**
+   Browser: seed 3 (hand-over ~08:00, 25 C) opens within 503-753 ticks and seed 5 (~22:40 but 23 C, a hot night,
+   plug 104) within 253-503; seeds 1, 2, 4 (cool nights, 12-15 C) take 1253-1753 ticks (5-7 game h).
    Beat 13 itself passes on all of them (its window is 30 x 250 ticks). **Trace (resume, item 3 of the integrator's
    note)** on the seed-4 hand-over snapshot (`tools/sim/probe/unplugTrace.ts`, archived; output
    `test-output/opening-fix/headless/trace-s4.txt`): plug 235 voxels, open at +1287 ticks, **the same tick the plug
@@ -161,7 +214,7 @@ this task: R13 (a flood-safe site does not fill in the lapse; seed 2) and R14 (o
    different path: a founding plug is dug by `unseal-entrance`, not by a plan's spheres). The time is the bite rate:
    the unplugging digger ran `unseal-entrance` for 1092 ticks for about 60 bites, ~19 ticks a bite (0.625 s of nanitic
    work / work rate ~0.33 at the night's 12-15 C), each opening ~2 plug voxels, with at most UNPLUG_DIGGERS_MAX = 2
-   diggers in the throat: 235 voxels / (2 x 2) x 19 ~ 1100 ticks. By day the same plug takes about a third of that.
+   diggers in the throat: 235 voxels / (2 x 2) x 19 ~ 1100 ticks. Warm, the same plug takes about a third of that (work rate ~1).
    So the night misses come from the plug size and the cold work rate, both balance, which the spec forbids changing
    here (no rebalancing). One small defect was found and **not** kept: the unplug stand point (`dig.ts unplugStep`,
    radius + 1.5 BU down the throat axis) lies inside the plug when the mouth is wide (seed 4: f = -2, no nav

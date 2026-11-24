@@ -4,7 +4,7 @@ FOUNDRESS is a naturalistic ant colony sandbox for the browser, written in TypeS
 
 It is single-player and needs no server. The game is unfinished: the state of play is at the end of this file.
 
-Last checked 2026-11-23 on the working tree of look pass 5 (last commit `645f21f`). The commands were run on 2026-11-18 (commit `fb15f3d`); on 2026-11-23 the install, type check, test, harness and URL-flag lines were used again and still hold.
+Last checked 2026-11-24 on the working tree of look pass 6 (the commit after `e8dbd50`). The commands were run on 2026-11-18 (commit `fb15f3d`); on 2026-11-23 and 2026-11-24 the install, type check, test, harness and URL-flag lines were used again and still hold.
 
 ## Requirements
 
@@ -190,7 +190,7 @@ What does not work yet, or not well:
 - **Three of the four species are not available.** *Camponotus*, *Messor* and *Atta* have modules, but their colonies did not meet the viability bar, so they are flagged `available: false` and the New Game screen greys them out.
 - Several difficulty parameters have no effect yet (they are marked "Not in this build" on the New Game screen).
 - The rulings R13, R14 and R28 in `docs/STATUS.md` are written down but not built.
-- The look has known defects (night scenes are almost black at ground level, some materials, a coarse dot pattern on the queen when the camera sits close inside the nest, the time-lapse sometimes missing the queen); the first-hour pictures are listed in `docs/design/tasks/look-pass-5-report.md`. The frame rate on a real GPU has not been measured: all rendering tests used software rendering.
+- The look has known defects, listed with pictures in `docs/design/tasks/look-pass-6-report.md` (what look pass 6 fixed: night scenes that were almost black, the possession camera inside the queen in the founding cell, the queen half under the result card; what still reads as unfinished: dithered ants between the camera and a possessed ant in a crowded chamber, the flood sheet in a flooded shaft, white weep vents on the kitchen-door wall, some materials). The frame rate on a real GPU has not been measured: all rendering tests used software rendering.
 - The full test suite has known red tests; the list is in `docs/STATUS.md`.
 
 A longer list for players is in `docs/MANUAL.md`, section "Known problems".

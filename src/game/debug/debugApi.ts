@@ -178,6 +178,12 @@ export function createDebugApi(game: Game) {
         return { f: s.sim.field.sampleXYZ(p.x, p.y, p.z), radius: s.views.third.radiusMm, cutAway: s.views.cameraInCutAway(p) };
       },
     },
+    /** The world's lighting as drawn in the last frame (look pass 6: the light crossfade at the founding shot's cuts): exposure, key and fill intensity, night weight. */
+    lighting() {
+      const w = (game.registry?.entries.find((e) => e.slot === 'world')?.renderer as unknown as { world?: { lighting?: Record<string, unknown> } } | undefined)?.world?.lighting;
+      if (!w) return null;
+      return plain({ exposureEV: w.exposureEV, keyIntensity: w.keyIntensity, hemiIntensity: w.hemiIntensity, envIntensity: w.envIntensity, nightW: w.nightW, moonlit: w.moonlit });
+    },
     cheat: buildCheats(game),
     /** Scent view, overlays and particle effects (src/game/debug/stage2Debug.ts). */
     fx: buildFxDebug(() => game.registry, () => game.requestRender()),
