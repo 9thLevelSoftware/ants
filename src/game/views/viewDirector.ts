@@ -378,6 +378,7 @@ export class ViewDirector {
     }
     // the sphere holds the whole queen (the subject's own radius is the spread of her brood and workers about the centre, 4 mm in a cell
     // with one egg pile: less than her half length, so she would fill the frame and be cut at its edge)
+    if (s.sphereRadius !== undefined) { s.x = s.sphereX!; s.y = s.sphereY!; s.z = s.sphereZ!; s.radius = s.sphereRadius; } // the card's fitted subject frames the view from above: the side view takes the cell's own sphere
     if (s.radius < CELLCAM_RADIUS_L * a.lengthMm) s.radius = CELLCAM_RADIUS_L * a.lengthMm;
     const side = cellSideShotAt(this.cellSide, s, t, a.lengthMm, this.shotSideAz, bu, this.world.field);
     applyLift(side.pose, s.lift ?? 0);

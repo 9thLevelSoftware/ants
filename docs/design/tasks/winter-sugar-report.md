@@ -256,3 +256,56 @@ worker-ticks outside, same discoveries) - so the fix cannot change those two col
 
 Per the ruling: the 15 and the five long runs were run again on the fixed tree (section C, close 2), and the task
 closes on it.
+
+## B7. A third year for the two fragile colonies (item 7)
+
+From the closing tree (close 2), playground-park #3 and suburban-garden #2 ran on through the second winter to game day
+60 (year 3 doy 16) from their fresh foundings (`close2/sweep-long/`, `UNTIL_DAY=60`). pp #3 is the same game as on the
+first close's tree (every day row equal); sg #2's year changes from its hand-over's first hours (the A3 release fix).
+
+| | playground-park #3 | suburban-garden #2 |
+|---|---|---|
+| enters winter 2 (workers, C : R27 need) | 23, 6.1 : 7.0 (**0.87**) | 24, 17.9 : 5.7 (3.11) |
+| lowest C after it | 0.0 on y3 doy 9 (C 1.96 at spring 3, 0.60 on doy 3) | 12.4 (y3 doy 16) |
+| **spring 3** (doy 1): workers, queen | **21, alive** | **18, alive** |
+| deaths winter 2 -> y3 doy 16 | old age 10, predation 6; none from starvation | old age 9, lost 3, drowning 3, crushed 1 |
+| year 3 to doy 16: eggs / eclosions | 78 / 39 | 47 / 12 |
+| starvation stage in year 3 | lean from doy 3; **rationing on doy 9-11, 13-14** (C 0.0-1.0) | rationing on doy 9 only |
+| workers y3 doy 15 | 35 (47 on doy 16) | 22 |
+
+A colony short of sugar at its second winter does not die of it in this model: pp #3's winter lapse and its spring
+stand on the stores it has (no worker starves, the queen lives), it reaches spring 3 with 21 of its 23 workers - but it
+comes out with no carbohydrate, runs lean from spring and rations through the summer brood peak of year 3 (doy 9-14)
+while it grows to 35-47 workers on protein (78 eggs, 39 eclosions). sg #2, which entered winter 2 with three times its
+need, spends spring and summer 3 fed.
+
+## C. Close
+
+### C8. Fresh sweep and long runs on the closing tree (close 2)
+
+Tree: the live tree after ruling 1's fix, frozen as `/home/user/frozen-wintersugar2` (sim + worldgen + core hash
+bf7364d3 = live). `tools/sim/sweep-life.sh` from it: 15 fresh foundings (`close2/cache`; byte-identical to the first
+close's hand-overs, e.g. woodland-edge #1 9d00f377...), each to Winter 1 (`close2/sweep/`, table
+`close2/sweep-table.md`); then the five long runs from the same foundings to the second winter (pp #3 and sg #2 on to
+day 60). Script `test-output/winter-sugar/close2/close.sh` (restart-safe).
+
+**Year one (15 fresh foundings):**
+
+| | opening-fix final (base) | arm T alone | close 1 (A1-A3 + T) | **close 2 (A1-A3 fixed + T)** | bar |
+|---|---|---|---|---|---|
+| viable | 15 of 15 | 15 of 15 | 13 of 15 | **13 of 15** (pp #3, kd #3: 0.89 of R27) | >= 14 of 15 |
+| per archetype | 3 of 3 each | 3 of 3 each | pp 2, kd 2, others 3 | **pp 2, kd 2, others 3** | >= 2 of 3 |
+| workers at winter | 264 | 255 | 256 | **261** | (item 6: >= 255) |
+| C in store at winter, sum | - | 196.6 | 169.6 | **185.6** | - |
+| R19 growth bar | 4 of 7 | - | 5 of 7 | **5 of 7** (median P intake / need 0.39 < 0.7; first workers >= 9 in 11 of 15 < 13) | 7 of 7 |
+
+What the fix changed (the four colonies whose diggers it released, section B6): sg #1 2.76 -> 3.93 x R27 (14 -> 18
+workers), pp #1 1.13 -> 3.08 (20 -> 18), sg #2 2.77 -> 2.17 (16 -> 15), pp #2 2.47 -> 2.44 (16 -> 20); the other eleven
+are the first close's games (their day rows are equal; the final state hashes differ only by the new blackboard key).
+
+**The viability bar (>= 14 of 15) is missed by one, as on the first close**, and the two colonies that miss it are the
+same games as there: kitchen-door #3 and playground-park #3, 0.89 of their R27 need. Their cause is in section B6 (who
+unplugs decides who is free in hour 3, and the herd discovery that follows); it is not a defect I could find, so
+nothing was reverted. Without A3 both are viable (arm T: 1.92 and 1.89), with A3 alone and no tend floor too (1.62,
+1.07; `switchoff-T/`, the first engineer's switch-off runs) - on these two colonies the loss needs A3's changed first
+hours and the tend floor together; each alone keeps them viable.

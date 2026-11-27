@@ -1934,3 +1934,15 @@ by the five JSON files. All of that is git-ignored and is lost if the container 
   only protein income: the next sim task must measure brood losses and the queen's laying in those days too. The
   engineer changed beat 16 to accept a refused delivery when the "Stores full" reason is visible (the spec's "refused
   with a visible reason"); the reviewer will judge it.
+
+### Nov 27 ~09:25 UTC — check-in: winter-sugar close 2 = 14 of 15, 255 workers; app-seams-4 fix nearly done
+
+- winter-sugar close 2 (fixed A3 + T, fresh foundings; `test-output/winter-sugar/close2/sweep-table.md`): **viable
+  14 of 15** (bar met; the miss is pp #3 or kd #3, the near-misses traced to exploration chance), workers 255, winter C
+  in sum 185.6 (first close with the faulty A3: 169.6; T without A3: 196.6). The stand-point fix moved sg #1 from 2.76
+  to 3.93 times its winter need. Long runs: four of five done (pp #3 and sg #2 run on to day 60, the third spring),
+  kd #3 running; report being written.
+- app-seams-4 fix (pictures looked at by the engineer): creatures between camera and ant now fade; night leaf litter
+  fixed (the fresh-leaf albedo); flood water edge-on acceptable; seed 2's outcome card cell large and whole; the side
+  view still cut the deep cell on seeds 1 / 3 (fixed twice, re-run pending); seed 1's beat 16 fails "neither handed over
+  nor told why" (crop 0.45, stores 17.1) - under debug.

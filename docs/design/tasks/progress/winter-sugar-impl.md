@@ -173,3 +173,11 @@ test-output/winter-sugar/
 - 07:58 Fixed tree tests: FOUNDRESS_LONG playerOpening.long 4/4 green (long-test-fix.txt, 601 s); colony
   90 files / 374 green (tests-colony-fix.txt); nest 65 green + the 2 known reds (escapeDig, flood/readersCost.verify;
   same as Nov 24 and on ws-base: pre-existing, not this task's). close2 sweep 10/15, all viable so far.
+- 08:23 CLOSE2 SWEEP DONE 08:22: 13 of 15 viable (pp3, kd3 0.89 - the same games as the close: their
+  numbers equal; final hashes differ only by the new bb key), every archetype >= 2 of 3; workers 261 (close 256, T
+  255); winter C sum 185.6 (close 169.6, T 196.6). Changed by the fix: sg1 2.76->3.93 x R27 (14->18 workers), pp1
+  1.13->3.08, sg2 2.77->2.17, pp2 2.47->2.44 (16->20). Bar >= 14 not met by one; cause = pp3/kd3 (B6), nothing
+  reverted. Table close2/sweep-table.md. Long runs running (pp3, sg2 to day 60, then we2, cpv1, kd3).
+- 08:57 close2 long runs: pp3, sg2 (to day 60) running/finishing; then we2, cpv1, kd3. Report C/limits next.
+- 09:17 close2 long: pp3, sg2 (day 60), we2, cpv1 done; kd3 running (~09:35). pp3 long == close's pp3
+  (every row equal). Report: B6, B7, C8 sweep written; long table, DEVIATIONS, verification, acceptance, limits next.

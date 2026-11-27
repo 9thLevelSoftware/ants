@@ -201,8 +201,12 @@ export class FoundingFlow implements FoundingActions {
     if (!s) return null;
     if (f) {
       s.lift = f.lift; s.fill = f.fill;
-      if (s.minRadiusBu !== undefined) s.radius *= perspectiveGrow(f.fill); // the whole cell was found: it fits the band whatever the perspective
-    } else { s.lift = 0; s.fill = FSHOT_FILL; s.yawRad = undefined; }
+      if (s.minRadiusBu !== undefined) { // the whole cell was found: it fits the band whatever the perspective
+        const grow = perspectiveGrow(f.fill);
+        s.radius *= grow;
+        if (s.sphereRadius !== undefined) s.sphereRadius *= grow;
+      }
+    } else { s.lift = 0; s.fill = FSHOT_FILL; s.yawRad = undefined; s.sphereRadius = undefined; }
     return s;
   }
 

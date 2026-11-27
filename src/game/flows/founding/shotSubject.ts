@@ -82,13 +82,20 @@ export function foundingShotSubject(sim: Sim, out: FoundingShotSubject, wholeCel
   const cell = wholeCell ? cachedFootprint(sim, anchor.pos, planeY, frame) : null;
   out.minRadiusBu = cell ? CELL_MIN_RADIUS_BU : undefined;
   out.yawRad = cell && 'yawRad' in cell ? (cell as FramedFootprint).yawRad : undefined;
+  out.sphereRadius = undefined;
   if (cell) {
     // the sphere of the cell the slice shows (queen in its middle third); the brood is in it by the fit, check anyway: the sphere grows to hold
     // the queen's brood, never the workers (who walk the throat and the shaft: not what the card's picture is about)
-    let r = cell.radius;
-    if (out.yawRad === undefined) for (const b of st.brood) if (b.alive && b.colony === col && b.carriedBy < 0) r = Math.max(r, Math.hypot(b.pos.x - cell.x, b.pos.y - cell.y, b.pos.z - cell.z));
-    out.x = cell.x; out.y = cell.y; out.z = cell.z;
-    out.radius = r + SPREAD_PAD_BU * bu * 0.5;
+    const fitted = out.yawRad !== undefined;
+    // a fitted subject (the screen fit at a yaw, for the view from above) also carries the view-independent sphere: the cell camera's side view (a queen on a steep wall) frames that
+    const ball = fitted ? cachedFootprint(sim, anchor.pos, planeY, undefined, true) : cell;
+    if (ball) {
+      let r = ball.radius;
+      for (const b of st.brood) if (b.alive && b.colony === col && b.carriedBy < 0) r = Math.max(r, Math.hypot(b.pos.x - ball.x, b.pos.y - ball.y, b.pos.z - ball.z));
+      r += SPREAD_PAD_BU * bu * 0.5;
+      if (fitted) { out.sphereX = ball.x; out.sphereY = ball.y; out.sphereZ = ball.z; out.sphereRadius = r; } else { out.x = ball.x; out.y = ball.y; out.z = ball.z; out.radius = r; }
+    }
+    if (fitted) { out.x = cell.x; out.y = cell.y; out.z = cell.z; out.radius = cell.radius + SPREAD_PAD_BU * bu * 0.5; }
   }
   // the queen's frame: on a steep wall of the throat the view director shows the side view instead of the slice from above (look pass 6)
   out.ant = q ? { pos: q.pos, up: q.up, fwd: q.fwd, lengthMm: q.lengthBu * bu } : undefined;

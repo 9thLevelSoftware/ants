@@ -107,3 +107,16 @@ describe('shotAskChanged (the card opens: the picture behind it is retaken at on
     expect(shotAskChanged(0.5, 0.3, subject({ lift: 0.5, fill: 0.31 }))).toBe(true);
   });
 });
+
+describe('the fitted card subject (yaw, own sphere) survives copy and ease', () => {
+  it('copyShotSubject and easeShotSubject carry yawRad and the sphere of the side view', () => {
+    const target = subject({ yawRad: 1.25, sphereX: 5, sphereY: -3, sphereZ: 7, sphereRadius: 21 });
+    const held = copyShotSubject(subject(), target);
+    expect([held.yawRad, held.sphereX, held.sphereY, held.sphereZ, held.sphereRadius]).toEqual([1.25, 5, -3, 7, 21]);
+    const other = subject();
+    easeShotSubject(other, target, 1 / 60, BU);
+    expect([other.yawRad, other.sphereRadius]).toEqual([1.25, 21]);
+    easeShotSubject(other, subject(), 1 / 60, BU); // the source stops asking for it (the card closes): it goes at once
+    expect([other.yawRad, other.sphereRadius]).toEqual([undefined, undefined]);
+  });
+});

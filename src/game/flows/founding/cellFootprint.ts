@@ -21,9 +21,9 @@ const START_SEARCH_BU = 1.5;
  * sqrt(h^2 + (dy cos p)^2 + 2 |dy| h cos p sin p).
  */
 const COS_P = Math.cos((FSHOT_PITCH_DEG * Math.PI) / 180), SIN_P = Math.sin((FSHOT_PITCH_DEG * Math.PI) / 180);
-function screenReach(dx: number, dy: number, dz: number): number {
-  const h = Math.hypot(dx, dz), v = Math.abs(dy) * COS_P;
-  return Math.sqrt(h * h + v * v + 2 * v * h * SIN_P);
+function screenReach(dx: number, dy: number, dz: number, cosP = COS_P, sinP = SIN_P): number {
+  const h = Math.hypot(dx, dz), v = Math.abs(dy) * cosP;
+  return Math.sqrt(h * h + v * v + 2 * v * h * sinP);
 }
 
 /** The queen stands within this share of the sphere's radius from its centre (the "middle third" of the diameter). */
@@ -99,9 +99,10 @@ function fillCell(field: FieldLike | undefined, anchor: FootAnchor, planeY: numb
  * Flood fill (6-connected) of the open voxels at or under `planeY` from the open one nearest to `anchor` (the queen). Returns null when
  * there is no field, no open voxel near the anchor, or the open region reaches the edge of the probe (a tunnel running on is not a cell).
  * The sphere is the bounding box's centre moved toward the anchor as far as it takes to bring her into the middle third of its diameter
- * (smallest sphere that does), so the picture shows the cell whole with the queen in the middle of it.
+ * (smallest sphere that does), so the picture shows the cell whole with the queen in the middle of it. `anyView`: the plain 3D sphere (a vertical extent counts in full),
+ * which holds the cell for every camera pitch: the cell camera's side view looks from 14 degrees, where the top view's cos(52) discount of the depth would cut a deep cell.
  */
-export function cellFootprint(field: FieldLike | undefined, anchor: FootAnchor, planeY: number, bu: number): Footprint | null {
+export function cellFootprint(field: FieldLike | undefined, anchor: FootAnchor, planeY: number, bu: number, anyView = false): Footprint | null {
   const fl = fillCell(field, anchor, planeY, bu);
   if (!fl) return null;
   const { tail, i0, i1, k0, k1, jx0, jx1, nx, step, px, py, pz } = fl;
@@ -111,7 +112,7 @@ export function cellFootprint(field: FieldLike | undefined, anchor: FootAnchor, 
     let r2 = 0; // (the largest reach so far)
     for (let q = 0; q < tail; q++) {
       const c = queue[q]!, i = c % nx, rest = (c - i) / nx, k = rest % nx, j = (rest - k) / nx;
-      const d = screenReach(px(i) - cx, py(j) - cy, pz(k) - cz);
+      const d = anyView ? Math.hypot(px(i) - cx, py(j) - cy, pz(k) - cz) : screenReach(px(i) - cx, py(j) - cy, pz(k) - cz);
       if (d > r2) r2 = d;
     }
     return r2 + step * 0.87; // half a voxel's diagonal
@@ -119,7 +120,7 @@ export function cellFootprint(field: FieldLike | undefined, anchor: FootAnchor, 
   let out: Footprint | null = null;
   for (let t = 0; t <= 1.0001; t += 0.05) {
     const cx = cx0 + (anchor.x - cx0) * t, cy = cy0 + (anchor.y - cy0) * t, cz = cz0 + (anchor.z - cz0) * t;
-    const r = radiusAt(cx, cy, cz), off = screenReach(anchor.x - cx, anchor.y - cy, anchor.z - cz);
+    const r = radiusAt(cx, cy, cz), off = anyView ? Math.hypot(anchor.x - cx, anchor.y - cy, anchor.z - cz) : screenReach(anchor.x - cx, anchor.y - cy, anchor.z - cz);
     if (off <= r * QUEEN_CENTRAL_SHARE || t >= 1) { out = { x: cx, y: cy, z: cz, radius: r, cells: tail }; break; }
   }
   return out;
@@ -187,14 +188,16 @@ export function cellFootprintFramed(field: FieldLike | undefined, anchor: FootAn
   return { x, y, z, radius: best.r, cells: tail, yawRad: best.yaw };
 }
 
-/** Footprint of the cell the sim's field has around the anchor, cached for 64 ticks of the sim (the cell does not change shape faster). */
-const cache = new WeakMap<object, { key: string; value: Footprint | FramedFootprint | null }>();
-export function cachedFootprint(sim: Sim, anchor: FootAnchor, planeY: number, frame?: CardFrame): Footprint | FramedFootprint | null {
+/** Footprint of the cell the sim's field has around the anchor, cached for 64 ticks of the sim (the cell does not change shape faster). Per sim: the last few results by key (the card shot asks for two per frame, the fit and the sphere), so neither is recomputed every frame. */
+const cache = new WeakMap<object, Map<string, Footprint | FramedFootprint | null>>();
+export function cachedFootprint(sim: Sim, anchor: FootAnchor, planeY: number, frame?: CardFrame, anyView = false): Footprint | FramedFootprint | null {
   const bu = sim.world.bu, field = (sim as Partial<Sim>).field;
-  const key = `${Math.round(anchor.x / bu * 2)}|${Math.round(planeY / bu * 2)}|${Math.round(anchor.z / bu * 2)}|${Math.round(anchor.y / bu * 2)}|${sim.state.tick >> 6}|${frame ? `${frame.kx.toFixed(2)},${frame.kq.toFixed(2)}` : '-'}`;
-  const hit = cache.get(sim);
-  if (hit && hit.key === key) return hit.value;
-  const value = frame ? cellFootprintFramed(field, anchor, planeY, bu, frame) : cellFootprint(field, anchor, planeY, bu);
-  cache.set(sim, { key, value });
+  const key = `${Math.round(anchor.x / bu * 2)}|${Math.round(planeY / bu * 2)}|${Math.round(anchor.z / bu * 2)}|${Math.round(anchor.y / bu * 2)}|${sim.state.tick >> 6}|${frame ? `${frame.kx.toFixed(2)},${frame.kq.toFixed(2)}` : '-'}|${anyView ? 'a' : 't'}`;
+  let m = cache.get(sim);
+  if (!m) { m = new Map(); cache.set(sim, m); }
+  if (m.has(key)) return m.get(key)!;
+  const value = frame ? cellFootprintFramed(field, anchor, planeY, bu, frame) : cellFootprint(field, anchor, planeY, bu, anyView);
+  if (m.size >= 4) m.clear();
+  m.set(key, value);
   return value;
 }

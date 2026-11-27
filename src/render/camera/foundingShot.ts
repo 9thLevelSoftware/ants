@@ -27,6 +27,8 @@ export interface FoundingShotSubject {
   minRadiusBu?: number;
   /** The yaw the framing was made for (cellFootprint.ts, the card shot): the camera stands at it and does not orbit while the card is up. Absent = the slow orbit. */
   yawRad?: number;
+  /** With a fitted subject (yawRad): the view-independent bounding sphere of the same cell, for the cell camera's side view (a queen on a steep wall), which has its own pitch and yaw. */
+  sphereX?: number; sphereY?: number; sphereZ?: number; sphereRadius?: number;
   /**
    * The queen's own frame, when she is part of the subject (the cards' shot): where she stands, her surface normal and heading, her length.
    * With it the view director takes the cell camera's choice between the view from above and the side view, so a queen on a steep wall of the
@@ -41,6 +43,7 @@ export interface FoundingShotSubject {
 export function copyShotSubject(out: FoundingShotSubject, s: FoundingShotSubject): FoundingShotSubject {
   out.x = s.x; out.y = s.y; out.z = s.z; out.radius = s.radius; out.cutY = s.cutY;
   out.lift = s.lift ?? 0; out.fill = s.fill ?? FSHOT_FILL; out.minRadiusBu = s.minRadiusBu; out.yawRad = s.yawRad;
+  out.sphereX = s.sphereX; out.sphereY = s.sphereY; out.sphereZ = s.sphereZ; out.sphereRadius = s.sphereRadius;
   out.ant = s.ant;
   return out;
 }
@@ -68,6 +71,7 @@ export function easeShotSubject(held: FoundingShotSubject, target: FoundingShotS
   // the floor of the framing follows the source at once (the radius it limits is the one that is eased)
   held.minRadiusBu = target.minRadiusBu;
   held.yawRad = target.yawRad;
+  held.sphereX = target.sphereX; held.sphereY = target.sphereY; held.sphereZ = target.sphereZ; held.sphereRadius = target.sphereRadius;
 }
 
 /** True when the framing the source asks for (lift, fill) is not the one it asked for the frame before: the card opened or closed (viewDirector retakes the picture at once). */

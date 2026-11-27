@@ -115,3 +115,19 @@ describe('cardFraming room for the frame', () => {
     expect(cardFraming(H, rem).kx).toBeCloseTo(f.kx, 6); // no width given: 16:9
   });
 });
+
+describe('cellFootprint anyView (the sphere the cell camera\'s side view frames)', () => {
+  // a deep cell: 12 BU across, 22 BU deep under a throat at the plane; the side view looks from 14 degrees, where depth counts almost in full
+  const deep = fieldOf(ellipsoid({ x: 0, y: -26, z: 0 }, { x: 6, y: 11, z: 6 }), shaft(0, 0, 2.5, -22, 20));
+  const queen = { x: 0, y: -17, z: 0 };
+
+  it('holds every open voxel of a deep cell, which the top view\'s sphere (depth x cos 52) does not', () => {
+    const pts = cellPoints(deep, PLANE, 40, 60);
+    const any = cellFootprint(deep, queen, PLANE, BU, true)!, top = cellFootprint(deep, queen, PLANE, BU)!;
+    expect(any).not.toBeNull();
+    for (const p of pts) expect(Math.hypot(p.x - any.x, p.y - any.y, p.z - any.z)).toBeLessThanOrEqual(any.radius + 1e-6);
+    expect(any.radius).toBeGreaterThanOrEqual(top.radius);
+    const missed = pts.filter((p) => Math.hypot(p.x - top.x, p.y - top.y, p.z - top.z) > top.radius).length;
+    expect(missed).toBeGreaterThan(0); // the screen-reach sphere of the top view is not a 3D sphere: the deep ends stand outside it
+  });
+});
