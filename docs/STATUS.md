@@ -1981,3 +1981,5 @@ with the HUD, readable daylight; far buildings are pale slabs in the haze.
 days 2-3 after the hand-over (brood shrinks while protein rises), measured headless from the browser's hand-over saves,
 fixed at the cause; plus the small sim items (alert focus, test-world hand-over, "No diggers free", harvest-liquid,
 flood fill shape, winter-sugar review minors, escapeDig, readersCost).
+- wf-build launched 10:13 UTC Nov 27: task `w9pryrrmk`, run `wf_f1d8e8c5-50e` (early-growth opus / opus). Journal:
+  `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_f1d8e8c5-50e/journal.jsonl`.
