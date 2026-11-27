@@ -19,3 +19,7 @@ Started 2026-11-24 19:55 UTC. Last update see bottom.
 - uncommitted working-tree decor revert (DecorRenderer/drapedMaterial/shared/tuning) - implementer's leaf revert, not committed
 - creature moon rim numbers inline in GLSL (creatureChunk.ts), minor
 - 20:06 HYPOTHESIS leaf floor: leaf3 variants changed only nightAlbedo.dry (fresh held 0.30); pale maple-shaped leaves = FRESH atlas (drapedMaterial.ts:44-66, uDcFreshTint*kf); summer freshTint 0.85-0.95 vs dryTint 0.5. Next after s3 run: look3 variants test-output/app4-review/leaf-fresh-variants.json (f40/f10/d04f10), shot h22-clear:observerlow:medium -> test-output/app4-review/leaf
+
+## RESUMED Nov 27 06:05 UTC (new reviewer session, after restart 10)
+- tree clean at 8acb348; the four verify tests above are committed (7dc744f). s3-u12 run was cut at beat 05 (pause).
+- plan: re-run typecheck + task tests + verify tests; harness seed 3 (and 2) card framing; water edge; leaf; final report.
