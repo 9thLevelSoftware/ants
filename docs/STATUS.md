@@ -1907,3 +1907,19 @@ by the five JSON files. All of that is git-ignored and is lost if the container 
 - wf-build relaunched 06:04 UTC: task `wokhskj4p`, run `wf_ac96d7c5-04e`: winter-sugar (opus / opus, RESUME from its
   progress file) and app-seams-4 (review restarted: `skipImpl`, opus verify, then a sonnet fix stage). Journal:
   `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_ac96d7c5-04e/journal.jsonl`.
+
+### Nov 27 ~07:16 UTC — check-in: the A3 trace found a defect (fixed, close 2 running); app-seams-4 review failed
+
+- **winter-sugar:** the trace (ruling 1) first found no defect on pp #3 / kd #3 (the flips are exploration chaos:
+  which worker is free at the third hour decides which herd is found), then an early probe over all 15 found one: with
+  A3, diggers on sg #1 / sg #2 walked about 50 ticks to an unreachable stand point and were then **barred for 600
+  ticks with no bite** (A3's own lockout, in a new place); those entrances opened later with A3 than without. Fixed
+  (stand point and face point reachable, the failed walk no longer bars), test red on the old tree. Close 2 running
+  (fresh sweep + long runs, tree bf7364d3, `/home/user/frozen-wintersugar2`). The first close's long runs on A1-A3 + T:
+  108 workers at winter 2, R34 4 of 5, R27 4 of 5.
+- **app-seams-4 review: fail** - majors: seed 3's full run does not reproduce (it stops at 13 -> 14, no trail: the
+  script spills sugar while the colony needs protein - the sim's early-protein gap again); flood water still a pale
+  band edge-on and pale grey from above; creatures between camera and possessed ant are not faded; the night leaf
+  litter's cause is the FRESH leaf atlas albedo (reviewer confirmed with variants), not an unknown floor. Minors:
+  the card is whole but small on seed 3, per-frame allocation for debug stats, inline moon-rim numbers, a stale planner
+  hint, `FIRSTPLAY_UNTIL=12b`. Fix stage (Sonnet) running.

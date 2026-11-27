@@ -13,6 +13,7 @@ import type { QualityPreset } from '@/render/app/quality';
 import { CREATURE_STATS } from '@/sim/balance/creatures';
 import { CreatureFlag } from '@/sim/ecology/creatures/common';
 import { hash3 } from '@/render/ants/geometry/curves';
+import { fullyHidden, occluderWeight, stepHidden } from '@/render/ants/occluderFade';
 import { CR_STRIDE } from './batch';
 import type { Detail } from './geometry/builder';
 import { HerdLayer } from './herdLayer';
@@ -54,6 +55,8 @@ export interface CreatureRenderStats {
   looks: number; buildMs: number; spiderBodies: number;
   /** Sum over drawn creatures of their projected body length, px (triangles / this = triangles per projected px). */
   projectedPx: number;
+  /** Creatures in or fading out of the camera-to-subject cone this frame, and of those the ones not drawn at all (the ants' rule: ants/occluderFade.ts). */
+  faded: number; fadedHidden: number;
 }
 
 /** What a creature is drawn as (GDD 08 E17: `ui.look()` reports the render variant). */
@@ -64,6 +67,8 @@ interface RenderState {
   /** Cached look (id, -1 none) and what it was resolved for. */
   look: number; rev: number; vFlags: number; vVariant: string | null;
   level: ComfortLevel; ringed: boolean; label: string | null; size: number; spiderBody: boolean;
+  /** 0 solid .. 1 not drawn: the fade out of the camera-to-subject cone (ants/occluderFade.ts). */
+  hidden: number;
 }
 
 /** Ring labels per substituted kind (GDD 08 §12 "a ring on the ground with the label Spider"). */
@@ -106,11 +111,14 @@ export class CreatureRenderer {
   private px = new Float32Array(0);
   private looks = new Int16Array(0);
   private nearPx = new Float32Array(0);
+  private hide = new Float32Array(0);
+  /** The possessed ant the creatures fade away from (set by the slot each frame; null = none: photo mode, no third-person subject). */
+  private subject = { x: 0, y: 0, z: 0, lengthMm: 1, valid: false };
   /** Debug: force every creature to one detail (null = automatic). */
   forceDetail: Detail | null = null;
   readonly stats: CreatureRenderStats = {
     creatures: 0, drawn: [0, 0, 0], culled: 0, hidden: 0, markers: 0, labels: 0, herds: 0, aphids: 0, herdDecals: 0, pits: 0, bird: 0,
-    drawCalls: 0, triangles: 0, cpuMs: 0, looks: 0, buildMs: 0, spiderBodies: 0, projectedPx: 0,
+    drawCalls: 0, triangles: 0, cpuMs: 0, looks: 0, buildMs: 0, spiderBodies: 0, projectedPx: 0, faded: 0, fadedHidden: 0,
   };
 
   init(ctx: CreatureRenderContext): void {
@@ -163,6 +171,13 @@ export class CreatureRenderer {
     this.shared.uMoonRim.value = Number.isFinite(amplitude) ? Math.max(0, amplitude) : 0;
   }
 
+  /** The subject of the occluder fade (GDD 01 6.5 rule 2): the possessed ant's thorax and length (mm), or null for none. */
+  setOccluderSubject(pos: { x: number; y: number; z: number } | null, lengthMm = 1): void {
+    const s = this.subject;
+    if (!pos) { s.valid = false; return; }
+    s.x = pos.x; s.y = pos.y; s.z = pos.z; s.lengthMm = lengthMm; s.valid = true;
+  }
+
   setLod(o: Partial<CreatureLodSettings>): CreatureLodSettings { Object.assign(this.settings, o); return this.settings; }
 
   update(frame: CreatureFrameInfo): void {
@@ -174,11 +189,11 @@ export class CreatureRenderer {
     this.store.resetAll();
     this.marks.begin();
     const st = this.stats;
-    st.creatures = 0; st.drawn[0] = st.drawn[1] = st.drawn[2] = 0; st.culled = 0; st.hidden = 0; st.spiderBodies = 0; st.projectedPx = 0;
+    st.creatures = 0; st.drawn[0] = st.drawn[1] = st.drawn[2] = 0; st.culled = 0; st.hidden = 0; st.spiderBodies = 0; st.projectedPx = 0; st.faded = 0; st.fadedHidden = 0;
     const src = this.src, lookup = this.lookup;
     this.stamp++;
     if (!src || !lookup) {
-      this.store.commitAll(); this.marks.commit(); this.herds.hide();
+      this.store.setFadeBlend(false); this.store.commitAll(); this.marks.commit(); this.herds.hide();
       this.pits.update([], 0, this.frustum, null); this.bird.update(null, 0, () => 0);
       this.finishStats(t0);
       return;
@@ -196,8 +211,9 @@ export class CreatureRenderer {
     // ---- pass 1: sample, cull, stage
     const list = src.state.creatures;
     this.ensureCap(list.length);
-    let n = 0;
+    let n = 0, fading = false;
     this.seen = 0;
+    const subject = this.subject;
     const s = this.settings, smp = this.smp, pose = this.pose, table = this.table, rev = this.comfortRev;
     for (const c of list) {
       if (!c.alive) continue;
@@ -228,7 +244,14 @@ export class CreatureRenderer {
       const k = size / table.size[look]!;
       this.advance(rs, smp.pos, table.stride[look]! * k, size);
       if (pose.style === 'crawl' && pose.moving < 0.05) rs.phase = (rs.phase + dt * 0.25) % 1;
+      // a creature between the camera and the possessed ant fades away with alpha, like the ants (GDD 01 6.5 rule 2): not drawn once gone (no draw, no shadow)
+      if (subject.valid) {
+        const w = occluderWeight(cam, subject, subject.lengthMm, this.sph.center, size);
+        rs.hidden = rs.hidden > 0 || w > 0 ? stepHidden(rs.hidden, w, dt) : 0;
+      } else rs.hidden = 0;
+      if (rs.hidden > 0) { st.faded++; if (fullyHidden(rs.hidden)) { st.fadedHidden++; continue; } fading = true; }
       this.stageCreature(n, look, size, pose, rs, hover);
+      this.hide[n] = rs.hidden;
       this.px[n] = px;
       this.looks[n] = look;
       if (rs.spiderBody) st.spiderBodies++;
@@ -245,8 +268,9 @@ export class CreatureRenderer {
       let d: Detail = pickDetail(px, table.tris1[look]!, s, px >= nearCut);
       if (this.forceDetail !== null) d = this.forceDetail;
       const lod = this.store.lodAt(look, d);
-      lod.body.push(this.S, i * CR_STRIDE);
-      if (lod.wings) lod.wings.push(this.S, i * CR_STRIDE);
+      const hid = this.hide[i]!;
+      lod.body.push(this.S, i * CR_STRIDE, hid);
+      if (lod.wings) lod.wings.push(this.S, i * CR_STRIDE, hid);
       st.drawn[d]++;
       st.projectedPx += px;
       if (d === 0) nearUsed++;
@@ -258,6 +282,7 @@ export class CreatureRenderer {
       this.pits.update(eco.hazards, tick, this.frustum, lookup);
       this.bird.update(eco.birdEvent, tick - 1 + alpha, (x, z) => lookup.height(x, z, eco.birdEvent?.pos.y ?? 0), lookup.hardDistance());
     } else { this.herds.hide(); this.pits.update([], tick, this.frustum, null); this.bird.update(null, 0, () => 0); }
+    this.store.setFadeBlend(fading); // after pass 2 (looks are built there): blended only while one is mid-fade, opaque the rest of the time
     this.store.commitAll();
     this.marks.commit();
     this.finishStats(t0);
@@ -270,7 +295,7 @@ export class CreatureRenderer {
       const p = c.pos, id = c.id;
       r = {
         phase: hash3(id, 3, 1), x: p.x, y: p.y, z: p.z, seed: hash3(id, 5, 2), stamp: 0,
-        look: -1, rev: 0, vFlags: -1, vVariant: null, level: 'off', ringed: false, label: null, size: 1, spiderBody: false,
+        look: -1, rev: 0, vFlags: -1, vVariant: null, level: 'off', ringed: false, label: null, size: 1, spiderBody: false, hidden: 0,
       };
       this.states.set(id, r);
     }
@@ -375,7 +400,7 @@ export class CreatureRenderer {
     if (n <= this.cap) return;
     const c = Math.max(64, 1 << Math.ceil(Math.log2(n)));
     this.cap = c;
-    this.S = new Float32Array(c * CR_STRIDE); this.px = new Float32Array(c); this.nearPx = new Float32Array(c);
+    this.S = new Float32Array(c * CR_STRIDE); this.px = new Float32Array(c); this.nearPx = new Float32Array(c); this.hide = new Float32Array(c);
     this.looks = new Int16Array(c);
   }
 

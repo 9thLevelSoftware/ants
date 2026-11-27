@@ -395,6 +395,7 @@ export default async (ctx) => {
       log('card probe', JSON.stringify(dots));
       await page.screenshot({ path: `${result.out}/12c-card-overlay.png`, timeout: 300000 });
     }
+        done('12b'); // FIRSTPLAY_UNTIL=12b and =12 both stop here, after the settled card
         done('12');
         await click('founding-continue');
         await step(1);

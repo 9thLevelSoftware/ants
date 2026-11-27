@@ -1,9 +1,12 @@
 # winter-sugar report
 
 Task spec: `docs/design/tasks/winter-sugar.md`. Progress log: `docs/design/tasks/progress/winter-sugar-impl.md`.
-Evidence: `test-output/winter-sugar/` (git-ignored). One engineer, Nov 24 13:08 UTC onwards (no restart).
-
-(Draft; sections are filled in as the runs return.)
+Evidence: `test-output/winter-sugar/` (git-ignored). Two engineers: the first from Nov 24 13:08 UTC to the pause at
+20:06 UTC (A, B, the arms and the first close sweep); the second from Nov 27 06:03 UTC after container restart 10
+(integrator ruling 1: the trace of A3's paired cost, the A3 release fix it found, the second close, this report).
+The scratch trees the arms ran from (`/home/user/ws-base`, `ws-armW`, `ws-armT`, `ws-armWT`, `ws-a2`, `ws-a3`) were
+deleted on Nov 27 for disk; their source differences are kept as patches (`armW-src/armW.patch`,
+`trace/armT-on-base.patch`, `trace/A1-A3-on-T.patch`) and their trees' hashes in `trees.txt`.
 
 ## A. Leftovers of the opening
 
@@ -46,6 +49,12 @@ Evidence: `test-output/winter-sugar/` (git-ignored). One engineer, Nov 24 13:08 
 - Seed 4's hand-over snapshot (`test-output/opening-fix/headless/s4-handover.bin`, probe
   `tools/sim/probe/unplugTimes.ts`): before, the cell's digger is barred at +67 and never bites, a third digger joins at
   +1202, open at +1503; after, both diggers bite from +69 / +106, open at +1235.
+- **Amended on Nov 27 (integrator ruling 1, section B6):** A3 as first built could bar diggers in a new way - when the
+  nearest free face of the plug is a crack no walk reaches. A walk to the face point that ends with the digger out of
+  the bite's reach now sends her to the old axis point instead of counting against her (`dig.ts unplugStep`, bb
+  `bn.ua`; test `src/sim/ants/behaviours/nest/unplugStandReach.test.ts`, red without; D44 amended). The headless
+  openings below are from before the amendment; the amendment changes nothing on them where the face point is
+  reachable (seed 4's case).
 
 Headless openings (`tools/sim/opening.ts`, 4 lay batches; `test-output/winter-sugar/opening/table.txt`; tree before A3 =
 `/home/user/ws-a2` (A1 + A2 kit), after = `/home/user/ws-a3` (A1-A3); open = ticks after the hand-over, polled every 250
@@ -184,3 +193,66 @@ winter at 0.75 of the R27 need in both trees that carry it (W alone and the pair
 base and with T alone), a systematic year-one cost and the same kind of cost that withdrew R41 in round 14; its gain over
 T alone is +7 workers at the second winter on five runs (pair) and nothing on R27. The pair's trade is the same as T's.
 Arm T's cost: 9 fewer workers at the first winter (264 -> 255, at the bar), 3 colonies of 15 lower by 2-4.
+
+## B6. Integrator ruling 1: A3's paired cost traced (Nov 27)
+
+The ruling (spec tail): arm T adopted, R41 not; A3 stays, but its paired cost on the close's 15 hand-overs (A1-A3 + T:
+13 of 15 viable, 169.6 C at winter in sum; T without A3: 15 of 15, 196.6 C) is to be explained, with a one-hour
+timebox, by tracing the first game day of playground-park #3 and kitchen-door #3 with and without A3.
+
+Probes (all tool-side, `tools/sim/probe/`): `firstDay.ts` (task / state changes, discoveries, hourly allocation and
+positions over one game day), `unplugTimes.ts` (now with bites per digger), `unplugYear.ts` (every unplugging episode
+from the hand-over to Winter 1), `earlyOut.ts` (open time, worker-ticks outside and first discoveries in the first
+3000 ticks, one line), `standTrace.ts` (each digger in dig.unplug tick by tick: where she is on the throat axis, the
+stand point, her walk). Trees: the close's frozen tree (A1-A3 + T) and T without A3 rebuilt as the frozen tree with
+`dig.ts`'s A3 hunk reversed (`/home/user/ws-T2`; it reproduces arm T exactly: kd #3 hash at +6000 6aaa572a as
+`firstDay.ts` on the old arm-T tree, winter C 11.752 as `armT-long`). Both start from the close's own hand-overs
+(`close/cache`, same state hash in both trees). The probes reproduce the life runs (pp #3: open +218 / +253, first
+tender +1162 / +4602, end hash at winter c4a64ee7 = the close sweep's). Outputs: `test-output/winter-sugar/trace/`.
+
+**What the two failing colonies show (no defect there):**
+
+| | playground-park #3, A3 + T / T | kitchen-door #3, A3 + T / T |
+|---|---|---|
+| unpluggers (bites) | 7013 21, 7011 20 / 7013 26, 7011 25 | 7294 21, 7307 18 / 7294 20, 7303 12 (7307, 7305, 7296 barred at once for 600 ticks: the defect A3 fixes) |
+| entrance open | +218 / +253 | +246 / +236 |
+| unpluggers out of dig.unplug after the open | 2 and 7 ticks / 2 and 2 | 2 and 2 / 2 and 3 |
+| diggers released from the dig task | +552 to +558 in both trees (the same allocation pass) | allocation identical through hour 2 in both |
+| first herd discovered / first tender | +1094 (97 BU) / +1162 ; T: +4149 / +4602 | none on day 1 (first workable herd +12904) ; T: +3035 at 286 BU by the second scout / +3160 |
+| herds known doy 10-13 | 1, 1, 1, 2 / 3, 3, 3, 3 | - |
+| C delivered doy 10-13 | 9.0 / 16.5 | - |
+| unplugging episodes after the hand-over in year one | none in either tree; worker-ticks in dig.unplug for the year 339 / 404 | none in either tree; 356 / 299 |
+| winter C : R27 | 6.8 : 7.6 (0.89) / 15.0 : 8.0 (1.89) | 5.3 : 5.9 (0.89) / 11.8 : 6.1 (1.92) |
+
+No digger is held after the entrance is open, the release comes at the same allocation pass in both trees, and no
+second unplugging happens in the year. What A3 changes on these two is who unplugs: on kd #3 two diggers bite instead
+of one biter and three barred workers, so a different worker is free when the second scout slot opens in hour 3
+(7296 instead of 7303); T's 7303 finds the herd at 286 BU, A3's scouts find nothing that day. On pp #3 the entrance
+opens 35 ticks sooner and the colony finds the near herd early but the other two late. Over all 15 the year's
+deliveries are not smaller with A3 (trips 794 / 739, deliveries 1466 / 1441) but their mix is: C 334.5 / 364.9, P 156.3
+/ 135.8 - the herds are found later in 9 of 15 and sooner in 3. I read that as the early hours' chaos the herd
+discovery has always shown (one chaotic run proves nothing, direction 13), not a mechanism.
+
+**What the other thirteen showed (a defect, now fixed):** `earlyOut.ts` on all 15 (`trace/early.txt`): with A3 the
+entrance opened later than without it on 6 of 15 (suburban-garden #1 +559 against +270, sg #2 +535 / +323, pp #1 +310
+/ +204, cpv #2 +204 / +159). `unplugTimes.ts` and `standTrace.ts` on sg #1 (`trace/unplug-suburban-garden-1-*.txt`,
+`trace/stand-sg1-A3T.txt`): A3's stand point there is a crack beside the plug (1.68 BU off the axis against a 1.38 BU
+mouth, field 0.3 BU) that no walk reaches; the walker took the diggers to the nearest cell it could reach, 3.3 BU short
+and outside the bite's throat test (4.38 BU from the mouth), `approach` reported `arrived`, every think counted a
+fail and after DIG_BITE_FAILS_MAX the digger was barred for UNPLUG_RETRY_S - three diggers barred without a bite, the
+plug opened by a fourth at +559. On sg #2 one of the two diggers was barred the same way. This is the kind of defect
+the ruling describes ("changes who is free in another way"): A3 created a new way to bar a digger while fixing the old.
+
+**The fix (`dig.ts unplugStep`):** a walk to the face point that ends with the digger out of bite reach
+(`canDo('unseal-entrance')` = `out-of-reach`) counts nothing against her: she walks to the old axis point instead (bb
+`bn.ua`, reset when she enters dig.unplug), and only that walk can count towards the lockout. Seed 4's case (the axis
+point in soil, the face point reachable) is untouched. No constant. Test `src/sim/ants/behaviours/nest/unplugStandReach.test.ts`:
+the walk is stubbed for diggers in dig.unplug (it "arrives" where she stands, out of reach, as on sg #1) and the face
+point replaced; she must walk to the axis point before any lockout - green on the fixed tree, red on the close's tree
+("she walks to the axis point: expected undefined to be defined"). DEVIATIONS D44 amended. Open times with the fix
+(`trace/early-fix.txt`, same 15 hand-overs): sg #1 +263, sg #2 +311, pp #1 +177, pp #2 +193; equal to the A3 tree on
+the other eleven, among them pp #3 and kd #3, whose first 3000 ticks are identical with and without the fix (same
+worker-ticks outside, same discoveries) - so the fix cannot change those two colonies' year.
+
+Per the ruling: the 15 and the five long runs were run again on the fixed tree (section C, close 2), and the task
+closes on it.

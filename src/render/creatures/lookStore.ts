@@ -6,7 +6,7 @@ import type { BufferGeometry, Material, Object3D } from 'three';
 import { CreatureBatch } from './batch';
 import type { Detail } from './geometry/builder';
 import { LOOK_KEYS, LOOKS, lookIdOf, type LookDef } from './looks';
-import { makeCreatureDepthMaterial, makeCreatureMaterial, type MotionUniforms, type SharedCreatureUniforms } from './shader/materials';
+import { makeCreatureDepthMaterial, makeCreatureMaterial, setFadeBlend, type MotionUniforms, type SharedCreatureUniforms } from './shader/materials';
 import { lookStrideMm } from './cullBounds';
 
 export interface LookLod { body: CreatureBatch; wings: CreatureBatch | null; tris: number; wingTris: number }
@@ -42,6 +42,8 @@ export class LookEntry {
   }
 
   setShadows(on: boolean): void { this.lods[0]?.body.setShadows(on); }
+
+  setFadeBlend(on: boolean): void { for (const l of this.lods) if (l) setFadeBlend(l.body.mesh.material as Material, on); }
 
   reset(): void { for (const l of this.lods) { l?.body.reset(); l?.wings?.reset(); } }
   commit(): void { for (const l of this.lods) { l?.body.commit(); l?.wings?.commit(); } }
@@ -98,6 +100,8 @@ export class LookStore {
     return l;
   }
 
+  /** Blends (or stops blending) every body material: on while some creature fades out of the camera cone (shader/materials.ts). */
+  setFadeBlend(on: boolean): void { for (const e of this.entries.values()) e.setFadeBlend(on); }
   setShadows(on: boolean): void { this.shadows = on; for (const e of this.entries.values()) e.setShadows(on); }
   resetAll(): void { for (const e of this.entries.values()) e.reset(); }
   commitAll(): void { for (const e of this.entries.values()) e.commit(); }

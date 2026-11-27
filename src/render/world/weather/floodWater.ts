@@ -36,7 +36,8 @@ diffuseColor.rgb = mix(${f3(W.shallowTint)}, ${f3(W.deepTint)}, flDeep);`)
 { float nv = clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
   float fres = 0.02 + 0.98 * pow(1.0 - nv, 5.0);
   float soft = smoothstep(0.0, ${W.softEdge.toFixed(3)}, flS);
-  diffuseColor.a = clamp(mix(${W.alphaShallow.toFixed(3)}, ${W.alphaDeep.toFixed(3)}, flDeep) + fres * ${W.fresnelAlpha.toFixed(3)} + flEdge * 0.15, 0.0, 1.0) * soft;
+  float flGraze = mix(${W.edgeOnAlpha.toFixed(3)}, 1.0, smoothstep(0.0, ${W.edgeOnFrom.toFixed(3)}, nv));
+  diffuseColor.a = clamp(mix(${W.alphaShallow.toFixed(3)}, ${W.alphaDeep.toFixed(3)}, flDeep) * flGraze + fres * ${W.fresnelAlpha.toFixed(3)} * flGraze + flEdge * 0.15, 0.0, 1.0) * soft;
   outgoingLight += flEdge * (reflectedLight.directSpecular * 0.4 + totalEmissiveRadiance + vec3(${W.meniscusGain.toFixed(3)}) * 0.25); }
 #include <opaque_fragment>`);
 }

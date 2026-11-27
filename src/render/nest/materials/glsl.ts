@@ -28,6 +28,7 @@ uniform vec3 uCutFill; uniform float uCutFillLen;
 uniform vec3 uXNear; uniform vec3 uXDeep; uniform float uXDepth; uniform float uXOpacity;
 uniform float uBu;
 uniform float uTick; uniform vec3 uFresh;
+uniform vec4 uFlood; uniform vec3 uFloodTint; uniform vec3 uFloodDeep;
 uniform vec3 uOccA; uniform vec3 uOccB; uniform vec2 uOcc;
 // hidden = on the normal side of the plane and within uCutR horizontally along the plane (a cylinder above a
 // horizontal slice, a vertical slab in front of a vertical section)
@@ -161,7 +162,13 @@ void main() {
     float dp = abs(dot(vNestW - uCutC, uCutN));
     L += uCutFill * exp(-dp / uCutFillLen) * (0.45 + 0.55 * max(dot(nw, uCutN), 0.0)); // light enters from the cut side
   }
-  gl_FragColor = vec4(alb * L * ao, 1.0);
+  vec3 col = alb * L * ao;
+  // standing water as a volume (params.ts FLOOD_VOLUME): what lies under the water level is tinted by the water above it, from every view angle
+  if (uFlood.w > 0.5) {
+    float wd = uFlood.x - vNestW.y;
+    if (wd > 0.0) col = mix(col, col * uFloodTint + uFloodDeep, (1.0 - exp(-wd / uFlood.y)) * uFlood.z);
+  }
+  gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>

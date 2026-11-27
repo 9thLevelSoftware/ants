@@ -11,7 +11,7 @@ import type { Ant, Behaviour, DigPlan, DigSlot, Entrance, Nest, Sim } from '@/si
 import { navTo, navStop } from '@/sim/locomotion';
 import { claimDigSite, entranceToUnplug, planDigAim, releaseDigSite, unplugStandPoint } from '@/sim/nest';
 import { SEAL_THROAT_BU } from '@/sim/balance/actions';
-import { cancel, interruptible } from '@/sim/ants/actions';
+import { canDo, cancel, interruptible } from '@/sim/ants/actions';
 import { taskHeadcount } from '@/sim/colony';
 import {
   DIG_AIM_BU, DIG_BITE_CHECK_TICKS, DIG_BITE_FAILS_MAX, DIG_CLAIM_TRIES, DIG_FACE_CONE_DEG, DIG_RETRY_S, DIG_TURN_ARRIVE_BU, DIG_TURN_BU,
@@ -23,7 +23,7 @@ import { secondsToTicks } from '@/sim/time';
 import { carryTo, hasWayOut } from './carry';
 import { approach, endCycle, primitiveDone, recover, releaseAll, think, carryingLoad } from './common';
 import { B, bbv, setState, waitThink } from './fsm';
-import { act, entity, travel } from './travel';
+import { act, entity, resetTravel, travel } from './travel';
 import { dist } from './places';
 
 const ENTRY = 'dig.claim';
@@ -33,6 +33,8 @@ const FAILS = 'bn.df', TURN = 'bn.tn', TURNED = 'bn.td', FORCE = 'bn.fo';
 const STEP = 'bn.dsp';
 /** bb: tick before which this digger does not try unplugging again; failed unplug attempts in the state. */
 const UNPLUG_UNTIL = 'bn.uu', UNPLUG_FAILS = 'bn.uf';
+/** bb: this digger walks to the throat-axis stand point (1) because the plug's free face lay out of her walk's reach. */
+const UNPLUG_AXIS = 'bn.ua';
 const UNPLUG = 'dig.unplug';
 const feet: Vec3 = { x: 0, y: 0, z: 0 };
 const heading: Vec3 = { x: 0, y: 0, z: 0 };
@@ -65,7 +67,7 @@ function unplugTarget(sim: Sim, ant: Ant): Entrance | null {
 
 function claimStep(sim: Sim, ant: Ant): void {
   if (ant.carry.kind === 'item') { setState(sim, ant, 'dig.stow'); return; }
-  if (!slotOf(sim, ant) && unplugTarget(sim, ant)) { ant.bb[UNPLUG_FAILS] = 0; setState(sim, ant, UNPLUG, 'job:dig'); return; }
+  if (!slotOf(sim, ant) && unplugTarget(sim, ant)) { ant.bb[UNPLUG_FAILS] = 0; ant.bb[UNPLUG_AXIS] = 0; setState(sim, ant, UNPLUG, 'job:dig'); return; }
   if (slotOf(sim, ant) || claimDigSite(sim, ant)) { setState(sim, ant, 'dig.travel', 'deficit:dig'); return; }
   // no free slot: wait DIG_RETRY_S and try again; after DIG_CLAIM_TRIES give the task back to the allocator
   const tries = Math.floor((sim.state.tick - ant.stateTick) / secondsToTicks(DIG_RETRY_S));
@@ -165,12 +167,23 @@ function unplugStep(sim: Sim, ant: Ant): void {
   // cell), inside the unseal primitive's throat test with the walk's stall tolerance to spare; the old point a fixed
   // depth down the throat axis only when the plug shows no free face in reach (it lay in the plug of a wide mouth)
   const reach = SEAL_THROAT_BU * bu + e.radius - SLOT_STALL_ACCEPT_BU * bu;
-  if (!unplugStandPoint(sim, e, ant.pos, reach, stand)) {
+  const face = bbv(ant, UNPLUG_AXIS, 0) === 0 && unplugStandPoint(sim, e, ant.pos, reach, stand);
+  if (!face) {
     const inside = e.radius + UNPLUG_STAND_BU * bu;
     stand.x = e.pos.x - e.dir.x * inside; stand.y = e.pos.y - e.dir.y * inside; stand.z = e.pos.z - e.dir.z * inside;
   }
   const st = approach(sim, ant, entity('point', -1, stand), SLOT_ARRIVE_BU * bu, true, SLOT_STALL_ACCEPT_BU * bu);
   if (st === 'moving') return;
+  // integrator ruling 1: the free face can lie where no walk reaches (suburban-garden #1's hand-over: a crack beside
+  // the plug; the walker stopped at the nearest cell it reached, 3 BU lower and outside the bite's throat test, and
+  // the digger was barred after DIG_BITE_FAILS_MAX thinks). A walk that ends out of bite reach of the face point
+  // costs her nothing: she walks to the axis point instead, and only that walk counts against her.
+  if (face && canDo(sim, ant, 'unseal-entrance', { kind: 'entrance', id: e.id, pos: e.pos }).reason === 'out-of-reach') {
+    ant.bb[UNPLUG_AXIS] = 1;
+    resetTravel(ant);
+    waitThink(sim, ant);
+    return;
+  }
   // at the stand point (or as near as the walk gets) and still no bite: count it, give up after DIG_BITE_FAILS_MAX
   ant.bb[UNPLUG_FAILS] = bbv(ant, UNPLUG_FAILS, 0) + 1;
   // a walk that failed against the plug itself (she stands at its face, or the point lies in plug soil) bars her

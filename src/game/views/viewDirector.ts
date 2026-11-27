@@ -5,7 +5,7 @@
 import { vec3, type Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import {
-  CAM_HANDOVER_KEEP_MAX_L, CAM_REDUCED_CROSSFADE_S, CAM_SWITCH_DIP_HALF_S, FSHOT_FILL, FSHOT_ORBIT_REV_PER_S, FSHOT_STILL_S, FSHOT_YAW_DEG, CAM_AUTOFOLLOW_MIN_SPEED_BU, CELLCAM_CUT_GRID_MM, CELLCAM_SECTION_HOLD_MM, CELLCAM_SIGHT_STEP_MM, CELLCAM_MIN_RADIUS_BU, CELLCAM_RADIUS_L, CELLCAM_TEXEL_BU, CELLCAM_EDGE_W, CellCam, applyLift, azimuthBetween, blendPoses, freeToward, openAzimuth, CELLCAM_SIDE_ENTER_UP_Y, CELLCAM_SIDE_MIN_FREE_L, cellShotSubject, cellSideShotAt, makeCellSideShot, finishCut, makeHeldSection, copyShotSubject, easeShotSubject, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
+  CAM_HANDOVER_KEEP_MAX_L, CAM_REDUCED_CROSSFADE_S, CAM_SWITCH_DIP_HALF_S, FSHOT_FILL, FSHOT_ORBIT_REV_PER_S, FSHOT_STILL_S, FSHOT_YAW_DEG, CAM_AUTOFOLLOW_MIN_SPEED_BU, CELLCAM_CUT_GRID_MM, CELLCAM_SECTION_HOLD_MM, CELLCAM_SIGHT_STEP_MM, CELLCAM_MIN_RADIUS_BU, CELLCAM_RADIUS_L, CELLCAM_TEXEL_BU, CELLCAM_EDGE_W, CellCam, applyLift, azimuthBetween, blendPoses, freeToward, openAzimuth, CELLCAM_SIDE_ENTER_UP_Y, CELLCAM_SIDE_MIN_FREE_L, cellShotSubject, cellSideShotAt, makeCellSideShot, finishCut, makeHeldSection, copyShotSubject, easeShotSubject, shotAskChanged, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
   copyPose, fitsAt, makePose, planTransition, type FoundingShotSubject, type ThirdPersonOutput, type TransitionPlan,
   type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type FieldFn, type PossessionCamState, type TraceFn,
 } from '@/render/camera';
@@ -150,6 +150,9 @@ export class ViewDirector {
   private shotHeldOn = false;
   /** Reduced motion: real seconds since the still was taken. */
   private shotStillS = 0;
+  /** The framing (lift, fill) the source asked for last frame: a change of it is the card opening (or closing), see nextShotSubject. */
+  private shotAskLift = 0;
+  private shotAskFill = 0;
   private shotYaw = FSHOT_YAW_DEG * Math.PI / 180;
   /** The cell camera (render/camera/cellCam.ts): the possession view in a room barely larger than the ant. */
   private readonly cell = new CellCam();
@@ -326,10 +329,17 @@ export class ViewDirector {
    */
   private nextShotSubject(target: FoundingShotSubject, dt: number): FoundingShotSubject {
     const held = this.shotHeld;
+    const askChanged = shotAskChanged(this.shotAskLift, this.shotAskFill, target);
+    if (dt > 0) { this.shotAskLift = target.lift ?? 0; this.shotAskFill = target.fill ?? FSHOT_FILL; }
     if (!this.shotHeldOn) {
       copyShotSubject(held, target);
       this.shotHeldOn = true;
       this.shotStillS = 0;
+    } else if (dt > 0 && askChanged && !this.third.opts.reducedMotion) {
+      // the card opens (the source asks for another framing: lift and fill): the picture behind it is retaken at once under a short crossfade,
+      // not eased over a second or two with the card already in front of a cell that is still moving (app-seams-4 fix pass, review item 5)
+      copyShotSubject(held, target);
+      this.transition.start(this.last, { kind: 'crossfade', duration: CAM_REDUCED_CROSSFADE_S });
     } else if (this.third.opts.reducedMotion) {
       this.shotStillS += dt;
       const lookChanged = (target.lift ?? 0) !== held.lift || (target.fill ?? FSHOT_FILL) !== held.fill;
@@ -343,6 +353,8 @@ export class ViewDirector {
     }
     const use = copyShotSubject(this.shotUse, held);
     use.cutY = target.cutY; // the slice follows the source at once: an animal must never be cut away
+    // a subject fitted for a yaw (the card shot) is seen from it, still: the orbit would turn the cell out of its frame
+    if (target.yawRad !== undefined) this.shotYaw = target.yawRad;
     return use;
   }
 
@@ -540,7 +552,7 @@ export class ViewDirector {
 
   /** One frame of the active rig (real dt) blended through any running transition. */
   update(dt: number, input: InputState | null): ViewFrame {
-    if (this.shotSource && !this.third.opts.reducedMotion) this.shotYaw += FSHOT_ORBIT_REV_PER_S * 2 * Math.PI * dt;
+    if (this.shotSource && !this.third.opts.reducedMotion && this.shotHeld.yawRad === undefined) this.shotYaw += FSHOT_ORBIT_REV_PER_S * 2 * Math.PI * dt;
     const f = this.updateRig(dt, input);
     if (input) releaseClaims(input);
     let t = this.transition.update(dt, f.pose);

@@ -121,3 +121,48 @@ test-output/winter-sugar/
   docs/design/tasks/winter-sugar.md: T adopted, W not; A3 stays but trace its paired cost on pp #3 / kd #3's first
   game day (timebox 1 h; fix the release if it is a defect, then 15 + 5 again; else close on A1-A3 + T at 13 of 15);
   rerun the lost long run(s); then the report.
+- 06:06 UTC Nov 27 RESUMED (new engineer). Tree checked: live sim hash 8724d2e2 == /home/user/frozen-wintersugar
+  (A1-A3 + T), git clean except integrator's STATUS. switchoff-T (A3 alone, ws-a3) done: pp3, kd3 both viable.
+  close/sweep-long: 4 JSONs (kd3 lost). Trace (ruling 1, timebox to ~07:15): firsts from JSONs: kd3 with A3 first
+  workable herd +12904 (without A3 +3054); pp3 with A3 +1114 but 1 herd known d2-3 (without: 3). Writing probe
+  tools/sim/probe/firstDay.ts (restore close cache bin, 1 game day, both trees).
+- 06:11 TRACE DONE (ruling 1; probes tools/sim/probe/firstDay.ts + unplugTimes.ts bite counts; outputs
+  test-output/winter-sugar/trace/). Probe reproduces life.ts (open 218/253 pp3, first tender 1162/4602). Same start
+  hash both trees. NO DEFECT: every unplugger leaves dig.unplug within 2-3 ticks of the open, no lockout after open,
+  diggers' dig task ends at the same ticks in both trees (pp3 +552..558); allocation identical through H2.
+  kd3: A3 = 2 unpluggers biting (39 bites, open +246); T = 1 biter + 3 barred (32 bites, open +236); so a different
+  worker is free at ~H3 (2nd scout 7296 vs 7303); T's 7303 finds the herd at 286 BU at +3035, A3's scouts find
+  nothing on day 1 (herd +12904). pp3: A3 opens 35 ticks sooner and finds herd 6072 (97 BU) at +1094 (T +4149) but
+  knows 1 herd doy 10-12 vs 3 (T): C in doy 12 0.74 vs 5.86; scouting allocation same (2). Paired 15: A3+T higher
+  in 4, lower in 8, equal 3 -> exploration chaos. DECISION: close on A1-A3 + T at 13/15 (ruling branch 2).
+  kd3 long rerun started 06:11 (frozen-wintersugar, PAR=1, close/kd3-rerun.out); old log kept as
+  kitchen-door-3.lost-nov24.log. Next: delete ws-* trees, tests/typecheck, close tables, report.
+- 06:25 Year probe tools/sim/probe/unplugYear.ts (hand-over to Winter 1). T-without-A3 tree rebuilt as
+  /home/user/ws-T2 (frozen + dig.ts A3 hunk reversed; reproduces arm T: kd3 +6000 hash 6aaa572a, winter C 11.752).
+  ws-a2/a3/armT/armW/armWT/base DELETED (patches kept: armW-src/armW.patch, trace/*.patch). kd3: NO reopening
+  after the hand-over one in year one in either tree; dig.unplug worker-ticks 356 (A3) vs 299; end hash A3T 8fb157ed
+  == close sweep. Running pp3 year probe both trees, then tests + report.
+- 06:48 kd3 long rerun DONE 06:29 (close/sweep-long 5/5): close long = w2 108, R34 4/5 (we2 0.80), R27 w2
+  4/5 (pp3 0.87), R22 5/5 (tables close/close-vs-armT-table.md, close/sweep-long/longrun-table.md). pp3 year probe:
+  no reopening in year 1 either tree (unplug worker-ticks 339 A3 / 404 T); hashes == sweep runs. Paired 15 (A3+T vs
+  T): delivered C 334.5 vs 364.9, P 156.3 vs 135.8, trips 794 vs 739 (no traffic loss; a C/P mix shift), C lower in
+  11/15. Early probe (earlyOut.ts, 3000 ticks, all 15 both trees) -> trace/early.txt running. Timebox closes ~07:05:
+  verdict no defect -> close on A1-A3 + T. Next: tests/typecheck, report, delete ws-T2 + frozen at the end.
+- 06:54 DEFECT FOUND in A3 (early probe: A3 opens SLOWER on 6/15, sg1 559 vs 270, sg2 535 vs 323).
+  unplugTimes on sg1: with A3 diggers 8373, 8361, 8363 walk ~50 ticks then are BARRED 600 ticks with 0 bites (A3's
+  stand point unreachable -> walk 'failed' not counted as against-plug); without A3 both bite from +104. sg2: 5998
+  barred. => ruling branch 1: fix, red test, rerun 15 + 5 on the fixed tree. Diagnosing the stand point now.
+- 07:09 A3 RELEASE FIX in live src/sim/ants/behaviours/nest/dig.ts (unplugStep: bb 'bn.ua' UNPLUG_AXIS; a
+  walk to the face point that ends with canDo(unseal-entrance) = out-of-reach switches her to the axis point, no fail
+  counted). Cause (tools/sim/probe/standTrace.ts, trace/stand-sg1-A3T.txt): sg1 face point s -2.27 r 1.68 (crack
+  beside the plug), walker 'arrives' at s -5.5 (3.3 BU off, outside the 4.38 BU throat test) -> 4 fails -> barred.
+  Fixed tree (ws-fix): sg1 open +263 (A3 559, T 270), sg2 +311 (535/323); pp3/kd3 first 3000 ticks IDENTICAL to A3
+  (trace/early-fix.txt) -> their 0.89 will not change. Test src/sim/ants/behaviours/nest/unplugStandReach.test.ts
+  (stubs approach for dig.unplug + face point): green live, red on frozen-wintersugar. Next: typecheck, folder tests,
+  freeze -> /home/user/frozen-wintersugar2, close2.sh (fresh sweep + long), report.
+- 07:12 Checks on the fixed live tree: typecheck clean (whole project); behaviours/nest + actions/dig.test:
+  41 files / 93 tests green (tests-behnest-fix.txt); outdoor/determinism.perf green (determinism-perf-fix.txt).
+  CLOSE 2 STARTED 07:12: test-output/winter-sugar/close2/close.sh (frozen /home/user/frozen-wintersugar2, tree
+  bf7364d3 = live; fresh sweep -> close2/sweep + close2/cache, then long runs -> close2/sweep-long, pp3/sg2 to day 60).
+  Restart-safe: cd close2; nohup setsid bash close.sh &. ws-fix, ws-T2 deleted. frozen-wintersugar (old close)
+  kept until the report is written. Next: DEVIATIONS D44 amendment, report.

@@ -67,12 +67,25 @@ export class NestSlot implements SubRenderer {
     const gain = Math.min(1, Math.pow(2, NEST_LOOK.exposureEV - ev));
     this.nest.setArtificialGain(gain);
     this.nest.setCutGain(cutGain(ev));
+    this.nest.setFloodLevel(this.floodLevel(frame.camera.position));
     this.nest.update(n);
     this.updateSenseLight(gain);
     if (this.ctx.game.testMode) { // single settled frames: every pending chunk and the whole cap now
       this.nest.flush();
       if (frame.cutaway && frame.cutaway.mode === 'slice') this.nest.flushCutaway();
     }
+  }
+
+  /** The water level (world y, mm) of the flooded nest nearest to the camera (one level per frame: the walls' shader has one), or null when no nest holds water. */
+  private floodLevel(cam: { x: number; y: number; z: number }): number | null {
+    if (!this.sim) return null;
+    let level: number | null = null, best = Infinity;
+    for (const nest of this.sim.stores.nests.list) {
+      if (!nest.alive || nest.flood.water <= 0) continue;
+      const o = nest.origin, d = (o.x - cam.x) ** 2 + (o.y - cam.y) ** 2 + (o.z - cam.z) ** 2;
+      if (d < best) { best = d; level = nest.flood.level; }
+    }
+    return level;
   }
 
   /**

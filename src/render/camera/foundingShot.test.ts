@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FSHOT_CARD_FILL, FSHOT_CARD_LIFT, FSHOT_FILL, FSHOT_FOV_DEG, FSHOT_MIN_RADIUS_BU, FSHOT_PITCH_DEG } from './constants';
-import { copyShotSubject, easeShotSubject, foundingShotAt, foundingShotDistance, makeFoundingShot, type FoundingShotSubject } from './foundingShot';
+import { copyShotSubject, easeShotSubject, foundingShotAt, foundingShotDistance, makeFoundingShot, shotAskChanged, type FoundingShotSubject } from './foundingShot';
 import { FSHOT_EASE_RADIUS_BU_PER_S } from './constants';
 
 const BU = 4;
@@ -95,5 +95,15 @@ describe('founding shot subject easing', () => {
     for (let i = 0; i < 60 * 20; i++) easeShotSubject(held, target, 1 / 60, BU);
     expect(held.lift).toBeCloseTo(FSHOT_CARD_LIFT, 3);
     expect(held.fill).toBeCloseTo(FSHOT_CARD_FILL, 3);
+  });
+});
+
+describe('shotAskChanged (the card opens: the picture behind it is retaken at once)', () => {
+  it('is false while the source asks for the same framing, true when lift or fill change, and reads absent fields as the time-lapse framing', () => {
+    expect(shotAskChanged(0, FSHOT_FILL, subject())).toBe(false);
+    expect(shotAskChanged(0, FSHOT_FILL, subject({ lift: 0, fill: FSHOT_FILL }))).toBe(false);
+    expect(shotAskChanged(0, FSHOT_FILL, subject({ lift: 0.5, fill: 0.3 }))).toBe(true);
+    expect(shotAskChanged(0.5, 0.3, subject({ lift: 0.5, fill: 0.3 }))).toBe(false);
+    expect(shotAskChanged(0.5, 0.3, subject({ lift: 0.5, fill: 0.31 }))).toBe(true);
   });
 });

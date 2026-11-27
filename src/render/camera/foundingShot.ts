@@ -25,6 +25,8 @@ export interface FoundingShotSubject {
   fill?: number;
   /** The subject sphere counts as at least this many BU across half (default FSHOT_MIN_RADIUS_BU): a subject that is the whole cell (card shot) may be smaller than a lone queen's frame. */
   minRadiusBu?: number;
+  /** The yaw the framing was made for (cellFootprint.ts, the card shot): the camera stands at it and does not orbit while the card is up. Absent = the slow orbit. */
+  yawRad?: number;
   /**
    * The queen's own frame, when she is part of the subject (the cards' shot): where she stands, her surface normal and heading, her length.
    * With it the view director takes the cell camera's choice between the view from above and the side view, so a queen on a steep wall of the
@@ -38,7 +40,7 @@ export interface FoundingShotSubject {
 /** Copies the numbers of a subject (no allocation). */
 export function copyShotSubject(out: FoundingShotSubject, s: FoundingShotSubject): FoundingShotSubject {
   out.x = s.x; out.y = s.y; out.z = s.z; out.radius = s.radius; out.cutY = s.cutY;
-  out.lift = s.lift ?? 0; out.fill = s.fill ?? FSHOT_FILL; out.minRadiusBu = s.minRadiusBu;
+  out.lift = s.lift ?? 0; out.fill = s.fill ?? FSHOT_FILL; out.minRadiusBu = s.minRadiusBu; out.yawRad = s.yawRad;
   out.ant = s.ant;
   return out;
 }
@@ -65,6 +67,12 @@ export function easeShotSubject(held: FoundingShotSubject, target: FoundingShotS
   held.fill = approach(held.fill ?? FSHOT_FILL, target.fill ?? FSHOT_FILL, k, Infinity);
   // the floor of the framing follows the source at once (the radius it limits is the one that is eased)
   held.minRadiusBu = target.minRadiusBu;
+  held.yawRad = target.yawRad;
+}
+
+/** True when the framing the source asks for (lift, fill) is not the one it asked for the frame before: the card opened or closed (viewDirector retakes the picture at once). */
+export function shotAskChanged(prevLift: number, prevFill: number, target: FoundingShotSubject): boolean {
+  return Math.abs((target.lift ?? 0) - prevLift) > 1e-3 || Math.abs((target.fill ?? FSHOT_FILL) - prevFill) > 1e-3;
 }
 
 export interface FoundingShot {

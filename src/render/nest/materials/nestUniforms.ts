@@ -1,7 +1,7 @@
 // Uniforms shared by every nest material (walls of every substrate, x-ray passes, cap). One Uniform object per
 // value: update `.value` once per frame and every material sees it (tech-stack 7).
 import { Color, Uniform, Vector2, Vector3, Vector4 } from 'three';
-import { FRESH_WALL, NEST_LIGHT, XRAY } from '../params';
+import { FLOOD_VOLUME, FRESH_WALL, NEST_LIGHT, XRAY } from '../params';
 
 export const CUT_OFF = 0, CUT_SLICE = 1, CUT_XRAY = 2;
 
@@ -52,6 +52,10 @@ export interface NestUniforms {
   /** Simulation tick now, and the fresh-wall look: x duration (ticks), y albedo factor, z extra wetness. */
   uTick: Uniform<number>;
   uFresh: Uniform<Vector3>;
+  /** Standing water (params.ts FLOOD_VOLUME): x level (world y, mm), y e-fold depth (mm), z strength, w on (0 / 1); the tint multiplier and the deep colour added. */
+  uFlood: Uniform<Vector4>;
+  uFloodTint: Uniform<Color>;
+  uFloodDeep: Uniform<Color>;
   /** Occlusion cone (camera -> short of the possessed ant, see glsl.ts): ends, x end radius (0 = off), y fraction kept. */
   uOccA: Uniform<Vector3>;
   uOccB: Uniform<Vector3>;
@@ -89,6 +93,9 @@ export function createNestUniforms(): NestUniforms {
     uBu: new Uniform(4),
     uTick: new Uniform(0),
     uFresh: new Uniform(new Vector3(FRESH_WALL.ticks, FRESH_WALL.darken, FRESH_WALL.wet)),
+    uFlood: new Uniform(new Vector4(0, FLOOD_VOLUME.efoldMm, FLOOD_VOLUME.strength, 0)),
+    uFloodTint: new Uniform(new Color(...FLOOD_VOLUME.tint)),
+    uFloodDeep: new Uniform(new Color(...FLOOD_VOLUME.deep)),
     uOccA: new Uniform(new Vector3()),
     uOccB: new Uniform(new Vector3()),
     uOcc: new Uniform(new Vector2(0, 0.25)),

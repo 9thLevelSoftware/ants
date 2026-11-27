@@ -24,6 +24,8 @@ export class CreatureBatch {
   mesh!: InstancedMesh;
   m!: Float32Array;
   a = {} as Record<CrAttr, Float32Array>;
+  /** Per-instance fade alpha complement (aHide, 0 = solid, see ants/occluderFade.ts). */
+  hide!: Float32Array;
   n = 0;
   cap = 0;
   readonly tris: number;
@@ -50,6 +52,9 @@ export class CreatureBatch {
       g.setAttribute(k, new InstancedBufferAttribute(arr, 4).setUsage(DynamicDrawUsage));
       this.a[k] = arr;
     }
+    const hide = new Float32Array(cap);
+    g.setAttribute('aHide', new InstancedBufferAttribute(hide, 1).setUsage(DynamicDrawUsage));
+    this.hide = hide;
     if (this.depth) mesh.customDepthMaterial = this.depth;
     mesh.castShadow = false;
     mesh.receiveShadow = true;
@@ -71,18 +76,19 @@ export class CreatureBatch {
   /** Reserves the next slot (growing when full) and returns its index. */
   next(): number {
     if (this.n >= this.cap) {
-      const keep = this.n, m = this.m, a = { ...this.a }, shadow = this.mesh.castShadow;
+      const keep = this.n, m = this.m, a = { ...this.a }, hide = this.hide, shadow = this.mesh.castShadow;
       this.alloc(this.cap * 2);
       this.m.set(m);
       for (const k of CR_ATTRS) this.a[k].set(a[k]);
+      this.hide.set(hide);
       this.n = keep;
       this.mesh.castShadow = shadow;
     }
     return this.n++;
   }
 
-  /** Copies a staged instance (CR_STRIDE floats at `o`) into the next slot. */
-  push(S: Float32Array, o: number): number {
+  /** Copies a staged instance (CR_STRIDE floats at `o`) into the next slot; `hidden` is its fade (0 solid .. 1 gone). */
+  push(S: Float32Array, o: number, hidden = 0): number {
     const j = this.next();
     const m = this.m, mj = j * 16;
     for (let k = 0; k < 16; k++) m[mj + k] = S[o + k]!;
@@ -91,6 +97,7 @@ export class CreatureBatch {
     A[aj] = S[o + 16]!; A[aj + 1] = S[o + 17]!; A[aj + 2] = S[o + 18]!; A[aj + 3] = S[o + 19]!;
     P[aj] = S[o + 20]!; P[aj + 1] = S[o + 21]!; P[aj + 2] = S[o + 22]!; P[aj + 3] = S[o + 23]!;
     T[aj] = S[o + 24]!; T[aj + 1] = S[o + 25]!; T[aj + 2] = S[o + 26]!; T[aj + 3] = S[o + 27]!;
+    this.hide[j] = hidden;
     return j;
   }
 
@@ -105,6 +112,8 @@ export class CreatureBatch {
       const at = mesh.geometry.getAttribute(k) as InstancedBufferAttribute;
       at.clearUpdateRanges(); at.addUpdateRange(0, n * 4); at.needsUpdate = true;
     }
+    const ah = mesh.geometry.getAttribute('aHide') as InstancedBufferAttribute;
+    ah.clearUpdateRanges(); ah.addUpdateRange(0, n); ah.needsUpdate = true;
   }
 
   dispose(): void {

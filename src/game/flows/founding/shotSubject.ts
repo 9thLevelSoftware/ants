@@ -7,7 +7,7 @@
 import { foundingNest } from '@/sim/colony/founding';
 import { FSHOT_CUT_ABOVE_BU, type FoundingShotSubject } from '@/render/camera';
 import type { Sim } from '@/sim/types';
-import { cachedFootprint } from './cellFootprint';
+import { cachedFootprint, type CardFrame, type FramedFootprint } from './cellFootprint';
 
 /**
  * First workers close to the cell's centre count as being in it (the others went out or stay deeper down): in full up to this many BU,
@@ -31,9 +31,10 @@ const CELL_MIN_RADIUS_BU = 1.5;
 
 /**
  * `wholeCell`: the subject is the sphere around the cell the slice shows (cellFootprint.ts: the open voxels under the plane that connect to the queen), so a shot framed behind a card shows
- * the cell whole, not only the sphere of the animals in it. Not used by the time-lapse, which frames the animals.
+ * the cell whole, not only the sphere of the animals in it. Not used by the time-lapse, which frames the animals. With `frame` (the card's room, cardFraming.ts) the
+ * cell is fitted on the screen at a yaw of its own choice (`yawRad` of the subject: the view holds it) instead of by a sphere.
  */
-export function foundingShotSubject(sim: Sim, out: FoundingShotSubject, wholeCell = false): FoundingShotSubject | null {
+export function foundingShotSubject(sim: Sim, out: FoundingShotSubject, wholeCell = false, frame?: CardFrame): FoundingShotSubject | null {
   const st = sim.state, col = st.player.colonyId, bu = sim.world.bu;
   const queenId = sim.stores.colonies.get(col)?.queenId;
   const q = queenId !== undefined && queenId >= 0 ? sim.stores.ants.get(queenId) : undefined;
@@ -78,13 +79,14 @@ export function foundingShotSubject(sim: Sim, out: FoundingShotSubject, wholeCel
   out.x = cx; out.y = cy; out.z = cz;
   out.radius = spread + SPREAD_PAD_BU * bu;
   out.cutY = planeY;
-  const cell = wholeCell ? cachedFootprint(sim, anchor.pos, planeY) : null;
+  const cell = wholeCell ? cachedFootprint(sim, anchor.pos, planeY, frame) : null;
   out.minRadiusBu = cell ? CELL_MIN_RADIUS_BU : undefined;
+  out.yawRad = cell && 'yawRad' in cell ? (cell as FramedFootprint).yawRad : undefined;
   if (cell) {
     // the sphere of the cell the slice shows (queen in its middle third); the brood is in it by the fit, check anyway: the sphere grows to hold
     // the queen's brood, never the workers (who walk the throat and the shaft: not what the card's picture is about)
     let r = cell.radius;
-    for (const b of st.brood) if (b.alive && b.colony === col && b.carriedBy < 0) r = Math.max(r, Math.hypot(b.pos.x - cell.x, b.pos.y - cell.y, b.pos.z - cell.z));
+    if (out.yawRad === undefined) for (const b of st.brood) if (b.alive && b.colony === col && b.carriedBy < 0) r = Math.max(r, Math.hypot(b.pos.x - cell.x, b.pos.y - cell.y, b.pos.z - cell.z));
     out.x = cell.x; out.y = cell.y; out.z = cell.z;
     out.radius = r + SPREAD_PAD_BU * bu * 0.5;
   }

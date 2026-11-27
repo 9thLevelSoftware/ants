@@ -155,6 +155,19 @@ export const FRESH_WALL = {
 } as const;
 
 /**
+ * app-seams-4 fix pass: standing water as a volume. The flood sheet (world/weather/floodWater.ts) is a surface; seen edge-on it was a pale line over an
+ * untinted cavity, and from above a grey film. The walls and floor under the water level are tinted by the water above them instead (the same cool
+ * blue-green as the sheet's deep colour): `efoldMm` the depth over which the tint saturates, `strength` the share of the tint at full depth, `tint`
+ * a multiplier of the lit colour and `deep` a faint colour added in the deep part (linear).
+ */
+export const FLOOD_VOLUME = {
+  efoldMm: 2.2,
+  strength: 0.85,
+  tint: [0.5, 0.74, 0.8] as [number, number, number],
+  deep: [0.0, 0.004, 0.006] as [number, number, number],
+} as const;
+
+/**
  * Per-vertex nest attribute: ambient occlusion, soil moisture, tick the wall was carved (fresh look), and the signed
  * openness of the ground above the vertex (mm, > 0 where the terrain is cut open: no skin band there).
  */

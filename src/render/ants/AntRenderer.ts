@@ -156,6 +156,11 @@ export class AntRenderer {
   /** Set per frame from AntFrameInfo.hidePossessedHighlight (photo mode). */
   private hidePossessedRim = false;
 
+  /** The subject of the occluder fade as of the last update (the possessed ant's thorax, mm, and her length), or null: other renderers (creatures) fade away from it too. */
+  occluderSubject(): { pos: Vector3; lengthMm: number } | null {
+    return this.subject.valid && !this.hidePossessedRim ? this.subject : null;
+  }
+
   private highlightOf(kind: PickTarget['kind'], id: number, possessed: boolean): number {
     if (possessed && kind === 'ant' && !this.hidePossessedRim) return HIGHLIGHT.possessed;
     if (this.hover && this.hover.kind === kind && this.hover.id === id) return -HIGHLIGHT.hovered;
@@ -292,7 +297,8 @@ export class AntRenderer {
     }
     const st = this.stats;
     st.ants = n + culled; for (let k = 0; k < 4; k++) st.visible[k] = this.sel.counts[k]!;
-    st.faded = fadedN; st.hiddenAnts = hiddenN; st.fadeOn = subjectOn ? 1 : 0; st.fadeMaxWeight = maxW; st.fadeDbg = [camPos.x, camPos.y, camPos.z, subject.pos.x, subject.pos.y, subject.pos.z, subject.lengthMm];
+    st.faded = fadedN; st.hiddenAnts = hiddenN; st.fadeOn = subjectOn ? 1 : 0; st.fadeMaxWeight = maxW; const dbg = st.fadeDbg ?? (st.fadeDbg = [0, 0, 0, 0, 0, 0, 0]); // filled in place: update() is a per-frame path
+    dbg[0] = camPos.x; dbg[1] = camPos.y; dbg[2] = camPos.z; dbg[3] = subject.pos.x; dbg[4] = subject.pos.y; dbg[5] = subject.pos.z; dbg[6] = subject.lengthMm;
     st.culled = culled; st.dropped = this.sel.dropped; st.wings = wings; st.carried = carried;
     st.looseItems = this.loose.drawn; st.drawCalls = calls + this.loose.drawCalls; st.triangles = tris + this.loose.triangles;
     st.cpuMs = performance.now() - t0; st.sampleMs = t1 - t0; st.uploadMs = t2 - t1;

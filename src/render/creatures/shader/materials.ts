@@ -9,7 +9,7 @@ import {
 } from 'three';
 import {
   CREATURE_BEGIN_NORMAL, CREATURE_BEGIN_VERTEX, CREATURE_COLOR_FRAGMENT, CREATURE_COLOR_VERTEX, CREATURE_DEPTH_BEGIN_VERTEX, CREATURE_FRAG_PARS,
-  CREATURE_MOON_RIM, CREATURE_ROUGHNESS, CREATURE_VERT_PARS,
+  CREATURE_FADE_FRAGMENT, CREATURE_FADE_PARS, CREATURE_MOON_RIM, CREATURE_ROUGHNESS, CREATURE_VERT_PARS,
 } from './creatureChunk';
 import { PIT_FRAG_CLIP, PIT_FRAG_PARS, PIT_VERT_INSTANCE, PIT_VERT_MESH, PIT_VERT_MESH_PARS, PIT_VERT_PARS } from './pitDepth';
 import { CREATURE_SURFACE, PIT_DEPTH } from '../tuning';
@@ -41,6 +41,7 @@ function uniformsFor(m: MotionUniforms, shared: SharedCreatureUniforms) {
 function patch(shader: WebGLProgramParametersWithUniforms, withNormal: boolean): void {
   shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\n' + CREATURE_VERT_PARS);
   if (withNormal) {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\n' + CREATURE_FADE_PARS);
     shader.vertexShader = shader.vertexShader
       .replace('#include <beginnormal_vertex>', CREATURE_BEGIN_NORMAL)
       .replace('#include <begin_vertex>', CREATURE_BEGIN_VERTEX)
@@ -94,10 +95,25 @@ export function makeCreatureMaterial(m: MotionUniforms, shared: SharedCreatureUn
     patch(shader, true);
     // wing membranes keep their flat tint (they are transparent sheets, not a body surface)
     if (!o.transparent) patchSurface(shader);
+    else shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', CREATURE_FADE_FRAGMENT);
     if (o.pit) patchPit(shader, PIT_VERT_INSTANCE);
   };
-  mat.customProgramCacheKey = () => `creature-${o.transparent ? 't' : 's'}${o.doubleSide ? 'd' : ''}${o.pit ? 'p' : ''}`;
+  mat.userData.baseTransparent = !!o.transparent;
+  // the key follows the live blend flag: setFadeBlend() switches a body material while a creature fades (both programs stay cached; the opaque one drops the alpha)
+  mat.customProgramCacheKey = () => `creature-${o.transparent ? 't' : mat.transparent ? 'b' : 's'}${o.doubleSide ? 'd' : ''}${o.pit ? 'p' : ''}`;
   return mat;
+}
+
+/**
+ * Blends a body material while some creature is fading out of the camera cone (GDD 01 6.5 rule 2, as the ants do: ants/shader/materials.ts): the instances
+ * carry their own alpha (aHide), which an opaque program ignores. Off again when nothing fades, so the creatures are drawn opaque the rest of the time.
+ */
+export function setFadeBlend(mat: Material, on: boolean): boolean {
+  const want = on || mat.userData.baseTransparent === true;
+  if (mat.transparent === want) return false;
+  mat.transparent = want;
+  mat.needsUpdate = true;
+  return true;
 }
 
 /** The pit cone material (plain mesh): vertex colours, pit depth rule with per-mesh uniforms uPitC / uPitR. */

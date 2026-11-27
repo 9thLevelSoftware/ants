@@ -72,7 +72,7 @@
 .fo-lapse-losses { right: 1rem; top: 40%; width: 11rem; font-size: var(--t-small); }
 
 /* ---- cards ---- */
-.fo-card-wrap { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.fo-card-wrap { position: absolute; inset: 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 62vh; pointer-events: none; } /* the card hangs from 62 % of the height: the picture of the cell has the band above it (game/flows/founding/cardFraming.ts CARD_TOP_FRACTION) */
 .fo-card { pointer-events: auto; background: var(--c-panel); border: 1px solid var(--c-border-strong); border-radius: var(--r-m); padding: 1.5rem 2rem; min-width: 24rem; max-width: 34rem; text-align: center; box-shadow: var(--e-2, 0 1rem 2rem rgba(0,0,0,0.4)); }
 .fo-card h2 { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 600; }
 .fo-card p { margin: 0.25rem 0 1rem; color: var(--c-text-2); }

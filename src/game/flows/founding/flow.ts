@@ -191,14 +191,18 @@ export class FoundingFlow implements FoundingActions {
   /** The shot's subject this frame: the cell centred while the lapse plays, shifted up behind the card once there is one. */
   private shotSubjectNow(): FoundingShotSubject | null {
     const card = this.phase() !== 'timelapse';
-    const s = this.sim ? foundingShotSubject(this.sim, this.shotSubject, card) : null;
+    // behind a card: the whole cell between the top of the screen and the card's top edge (cardFraming.ts), fitted on the screen at a yaw it chooses
+    const f = card
+      ? typeof document !== 'undefined'
+        ? cardFraming(window.innerHeight, parseFloat(document.documentElement.style.fontSize) || 16, window.innerWidth)
+        : { lift: FSHOT_CARD_LIFT, fill: FSHOT_CARD_FILL, kx: 1.4, kq: 1 }
+      : null;
+    const s = this.sim ? foundingShotSubject(this.sim, this.shotSubject, card, f ? { kx: f.kx, kq: f.kq } : undefined) : null;
     if (!s) return null;
-    if (card) {
-      // behind a card: the whole cell between the top of the screen and the card's top edge (cardFraming.ts)
-      const f = typeof document !== 'undefined' ? cardFraming(window.innerHeight, parseFloat(document.documentElement.style.fontSize) || 16) : { lift: FSHOT_CARD_LIFT, fill: FSHOT_CARD_FILL };
+    if (f) {
       s.lift = f.lift; s.fill = f.fill;
       if (s.minRadiusBu !== undefined) s.radius *= perspectiveGrow(f.fill); // the whole cell was found: it fits the band whatever the perspective
-    } else { s.lift = 0; s.fill = FSHOT_FILL; }
+    } else { s.lift = 0; s.fill = FSHOT_FILL; s.yawRad = undefined; }
     return s;
   }
 

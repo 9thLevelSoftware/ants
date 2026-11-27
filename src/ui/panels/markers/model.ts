@@ -13,7 +13,7 @@ export interface ToolInfo {
 }
 
 export const TOOL_INFO: Readonly<Record<ColonyToolId, ToolInfo>> = {
-  dig: { id: 'dig', word: 'Dig', icon: 'marker-dig', hint: 'Point at a nest wall to place a chamber, tunnel or shaft; click to confirm.' },
+  dig: { id: 'dig', word: 'Dig', icon: 'marker-dig', hint: 'Point at a nest wall, or the soil within a few steps of a room, to place a chamber, tunnel or shaft; click to confirm.' },
   forage: { id: 'forage', word: 'Forage', icon: 'marker-forage', hint: 'Click the ground: foragers favour this area. Drag to set the radius.' },
   avoid: { id: 'avoid', word: 'Avoid', icon: 'marker-avoid', hint: 'Click the ground: workers keep out of this area.' },
   rally: { id: 'rally', word: 'Rally', icon: 'marker-rally', hint: 'Click the ground or a chamber: workers gather here.' },

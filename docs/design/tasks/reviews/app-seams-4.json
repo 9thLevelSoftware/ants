@@ -147,6 +147,80 @@
    "Everything I started has finished. The processes visible now (tools/sim/longrun-life.sh, life.ts) belong to the winter-sugar sim engineer."
   ]
  },
- "review": null,
+ "review": {
+  "verdict": "fail",
+  "checksRun": [
+   "Resumed from progress file docs/design/tasks/progress/app-seams-4-review.md (tree clean at 8acb348; the earlier reviewer's 4 verify files committed in 7dc744f)",
+   "npm run typecheck: clean (twice, incl. after adding my test)",
+   "npx vitest run src/render/ants src/render/world/weather src/render/creatures src/game/flows/founding src/game/uiBridge src/game/views/colony: 68 files / 439 tests passed (incl. occluderFade.verify, cellFootprint.verify, digPlanner.verify, storesFull.verify)",
+   "npx vitest run src/render/ants/occluderRenderer.verify.test.ts (new): 1 pass, 1 expected FAIL (per-frame allocation)",
+   "Read all owned-path diffs since 51fbd5c: digPlanner.ts (wallToward, ANCHOR_PICK_REACH_BU), hudSlices.ts carriesIntoFullStores + PossessedPanel note, occluderFade.ts + AntRenderer/shader/materials/variantStore fade blend, floodShore.ts/floodWater.ts/tuning.ts, cellFootprint.ts/cardFraming.ts/shotSubject.ts/flow.ts/foundingShot.ts, creature moon rim (creatureChunk.ts, creaturesSlot.ts), decor leaf night albedo, firstplay.mjs/firstplay-steps.mjs/stage1a.mjs/panels.mjs changes, MANUAL.md, DEVIATIONS D-APP4-1..6. No files outside the owned paths touched by app-seams-4 (the src/sim diff since 51fbd5c is winter-sugar's)",
+   "Harness: tests/e2e/firstplay.mjs seed 3 (FIRSTPLAY_SEED=00000003, quality=test) on the current tree -> test-output/app4-review/s3-u12 (beats 01-13, then a failure at 13->14); looked at 12-outcome-card.png, 12b-outcome-card-settled.png and 13-first-workers-entrance.png",
+   "Harness: look3.mjs leaf variants (h22-clear:observerlow:medium; fresh 0.40 / 0.10 / dry 0.04+fresh 0.10) -> test-output/app4-review/leaf; looked at lf-f40 and lf-f10",
+   "Looked at the implementer's evidence: app4/fade/on-medium-tunnel-3.png, -8.png, off-medium-tunnel-3.png, sheets/item3-fade-sequence-low.jpg, sheets/item4-water2.jpg, sheets/item4-water-before-after.jpg, full-s2/10-first-clutch.png, sheets/item6-night-final.jpg, planner-after/pl-invalid.png",
+   "Checked that the earlier reviewer's idea of re-shooting the cards from the hand-over saves is unusable: the hand-over save loads in phase 'done' with no card (implementer's own cards/s3.log says 'card false'), so test-output/app4/cards/* do not show the outcome card"
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "Item 7: the seed 3 full run does not reproduce; it fails at beat 13->14 (no trail) on the same sim tree",
+    "where": "tests/e2e/firstplay.mjs:505-563 (colonyBeats trail check); run log test-output/app4-review/s3-u12.log",
+    "detail": "Reproduction: FIRSTPLAY_SEED=00000003 node tools/harness/play.mjs --root . --query \"test=1&quality=test\" --script tests/e2e/firstplay.mjs (I set FIRSTPLAY_UNTIL=12b, which does not stop the run; see the minor finding). Beats 01-13 pass. Then: 'Error: firstplay: no forager laid a trail to the food within 18000 ticks'. Trail check: {trail:0, via:'forage-marker', waited:24000, workers 10, brood 8, stores c 14 / p 1.9, deliveries 34}. waited=24000 means the run went through all three paths in turn: the stores-full branch (food chamber planned as a player, then 6000 more ticks), then the forage marker (9000 more ticks), and still had no trail. The implementer's full-s3 run found a trail by scouts after 4200 ticks with 11 workers. There is no src/sim/src/worldgen/src/core diff between 3af6006 (Nov 24 17:06, before their runs) and HEAD, so the cause is not new sim code. The founding the script plays varies from run to run (10 vs 11 workers, the queen 5 mm away), so the claim 'seeds 1, 2, 3 reach beat 25' rests on one run each and is not robust. This also shows that item 2's player remedy (plan a food chamber when stores-full is up) does not bring a trail within the beat's time: the plan is not dug quickly. The implementer's panels picture also shows 'No diggers free' on a food plan with 14 workers. Owner: shared. Sim: recruitment with a full larder, and digging of the food plan. App: decide the beat's correct form. The spec allows 'propose the beat's correct form', and the report does not do that for this case. Also on seed 3, after the hand-over, the HUD shows brood 0/0/0 and the beat 13 picture shows no worker at the entrance."
+   },
+   {
+    "severity": "major",
+    "title": "Item 4: flood water is still a pale band edge-on, and still pale grey from above",
+    "where": "src/render/world/weather/floodWater.ts (surface-only sheet), src/render/world/weather/tuning.ts FLOOD_WATER; evidence test-output/app4/full-s2/10-first-clutch.png, test-output/app4/sheets/item4-water-before-after.jpg (bottom-left), sheets/item4-water2.jpg",
+    "detail": "The spec names the defect 'edge-on a pale band'. In the implementer's own final seed 2 run (full-s2/10-first-clutch.png, cell camera side view), the water is a straight translucent grey-blue band across the whole cell at y about 270 px. The queen stands below the waterline, and nothing shows she is in water: the sheet is a surface only, so a side view gives a line and no volume tint. The after picture in item4-water-before-after.jpg (bottom-left) shows the same band. From above (item4-water2.jpg), the water reads as a pale grey translucent polygon with straight edges and corners, not 'darker' water. The report says item 4 is done and does not mention the edge-on case. The earlier reviewer noted the same and nothing changed. Needed: tint or fog the volume under the level (or fade the sheet's alpha and Fresnel at grazing view from inside the cut-away), plus a darker or less grey shallow tint, shown on seed 2's cell camera."
+   },
+   {
+    "severity": "major",
+    "title": "Item 3: creatures between the camera and the possessed ant are not faded (spec says 'an ant (or any creature)')",
+    "where": "src/render/creatures/** (no occluder code), src/render/creatures/CreatureRenderer.ts CreatureFrameInfo (no subject), docs/design/gdd/DEVIATIONS.md D-APP4-1",
+    "detail": "The integrator's ruling in spec item 3 covers 'an ant (or any creature) whose body lies inside the cone...'. Only AntRenderer applies occluderWeight. 'grep -rn occluder|OCCLUDER src/render/creatures' finds nothing, and CreatureFrameInfo has no field to carry the possessed ant's position. A spider, beetle or aphid between the third-person camera and the possessed worker is drawn solid and blocks the view. DEVIATIONS row D-APP4-1 narrows the rule to ants without saying so, and the report does not list this as not done. Fix: give the creature renderer the subject (the ants slot already has it: AntRenderer.subject) and reuse occluderWeight/stepHidden per creature instance."
+   },
+   {
+    "severity": "major",
+    "title": "Item 6: pale night leaf litter not fixed, and the report's diagnosis is wrong: the cause is the FRESH leaf atlas albedo",
+    "where": "src/render/world/decor/tuning.ts DECOR_LEAF.nightAlbedo (fresh 0.4); src/render/world/decor/drapedMaterial.ts dcItem (col = texture2D(tDcFresh) * uDcFreshTint); DecorRenderer.ts kf",
+    "detail": "The report (section 6), the tuning.ts comment and DEVIATIONS D-APP4-5 say the pale leaves sit on a 'floor that is not the decor leaf's albedo' because dry albedos of 0.04-0.10 read alike. The pale leaves in the pictures have the maple shape of the fresh atlas. The fresh leaves are tinted by uDcFreshTint, scaled by nightAlbedo.fresh = 0.40, on top of a summer freshTint of 0.85-1.05. The implementer only varied the dry value. Reproduction: LOOK3_VARIANTS=test-output/app4-review/leaf-fresh-variants.json LOOK3_SHOTS=h22-clear:observerlow:medium node tools/harness/play.mjs --root . --query \"test=1&seed=1&autostart=1&quality=low\" --script tests/e2e/look3.mjs --out test-output/app4-review/leaf. lf-f40 (current setting): two cream maple leaves outshine the soil. lf-f10 (fresh 0.10): the same leaves are dark grey under the soil's level. Draw calls and triangles are the same (87 / 765,581). This is a one-constant fix in decor/tuning.ts. The comment, report and DEVIATIONS text then need correcting. The pictures should be re-taken at 22:00 and 02:00, clear and rain."
+   },
+   {
+    "severity": "minor",
+    "title": "Item 5: the settled outcome card on seed 3 frames the cell whole but small; the first 0.5 s cuts it with the card",
+    "where": "src/game/flows/founding/cellFootprint.ts / cardFraming.ts / flow.ts shotSubjectNow; evidence test-output/app4-review/s3-u12/12-outcome-card.png and 12b-outcome-card-settled.png",
+    "detail": "Taken on the final code (perspectiveGrow included), seed 3, which the implementer had not re-shot. In 12b (settled 4 s), the cell is whole and the queen is central, but the cell is about 80 x 90 px in the ~240 px free band, up in its top part, and most of the picture is plain soil. In 12 (the frame the player sees first), the camera is still easing from the time-lapse framing and the cell's lower part is under the card's top edge. The cell is 'cut' for the first second or two of every card. Possible fixes: start the card shot from the eased target (or ease faster when the card appears), and drop the 12 BU-deep voxels the slice does not show from the sphere, or reduce their weight."
+   },
+   {
+    "severity": "minor",
+    "title": "Per-frame array allocation in AntRenderer.update for debug stats",
+    "where": "src/render/ants/AntRenderer.ts (st.fadeDbg = [camPos.x, ...] in update), src/render/slots/antsSlot.ts stats()",
+    "detail": "Every frame, update() allocates a new 7-element array for fadeDbg, a debug field. The ants slot then exports nine debug keys (fadeOn, fadeMaxWeight, fadeCx..fadeL) into the production stats. Failing regression test: src/render/ants/occluderRenderer.verify.test.ts, 'the fade statistics reuse their storage from frame to frame'. Fix: a preallocated Float32Array or number[] that is filled in place, or drop the debug fields."
+   },
+   {
+    "severity": "minor",
+    "title": "Creature moon-rim numbers are inline in GLSL and duplicate ANT_MOON_RIM",
+    "where": "src/render/creatures/shader/creatureChunk.ts CREATURE_MOON_RIM",
+    "detail": "The values 0.25 + 0.75 * smoothstep(-0.15, 0.65, ...) and the colour vec3(0.66, 0.78, 1.0) are written literally. The ant shader reads the same numbers from ANT_MOON_RIM in ants/tuning.ts. If the ant values are tuned, the creature values silently go out of step. Interpolate them from a tuning constant, as fragmentChunk.ts does."
+   },
+   {
+    "severity": "minor",
+    "title": "Dig planner hint still says 'Point at a nest wall' although soil clicks now snap",
+    "where": "Dig tool hint text (seen in test-output/app4/planner-after/pl-invalid.png: 'Point at a nest wall to place a chamber, tunnel or shaft; click to confirm.')",
+    "detail": "Item 1 made a click on the soil of the slice up to 8 BU from a room valid, and MANUAL section 17.3 says so. The in-game hint still tells the player to point at a wall."
+   },
+   {
+    "severity": "minor",
+    "title": "FIRSTPLAY_UNTIL=12b does not stop after beat 12b",
+    "where": "tests/e2e/firstplay.mjs: done('12') after the 12b beat; done() tests name.startsWith(UNTIL)",
+    "detail": "With FIRSTPLAY_UNTIL=12b the run goes on to the colony beats, because done is called with '12' and '12'.startsWith('12b') is false. FIRSTPLAY_UNTIL=12 stops before 12b is ever taken. Call done('12b') after the settled beat, or match either prefix."
+   }
+  ],
+  "testsAdded": [
+   "src/render/ants/occluderRenderer.verify.test.ts: 'possessing the ant that was faded out draws her at once, solid' (passes: regression)",
+   "src/render/ants/occluderRenderer.verify.test.ts: 'the fade statistics reuse their storage from frame to frame' (FAILS on purpose: per-frame allocation of stats.fadeDbg)",
+   "(from the interrupted earlier review session, committed in 7dc744f, all passing) src/render/ants/occluderFade.verify.test.ts, src/game/flows/founding/cellFootprint.verify.test.ts, src/game/views/colony/digPlanner.verify.test.ts, src/game/uiBridge/storesFull.verify.test.ts"
+  ]
+ },
  "fixReport": null
 }

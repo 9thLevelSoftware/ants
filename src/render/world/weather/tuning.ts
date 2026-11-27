@@ -73,14 +73,17 @@ export const RIPPLE_LIFE_S = 0.9;
  */
 export const FLOOD_WATER = {
   /** Tint over the shore and over the deep part (the underlying soil shows through shallow water). */
-  shallowTint: [0.1, 0.12, 0.11] as const,
-  deepTint: [0.012, 0.03, 0.04] as const,
+  shallowTint: [0.035, 0.07, 0.07] as const,
+  deepTint: [0.008, 0.024, 0.034] as const,
   /** Shore value (0 at the wall .. 1 well inside) at which the water reaches its full depth tint. */
   deepAt: 0.7,
   /** Alpha over the shallows and over the deep part; the Fresnel term adds up to `fresnelAlpha` at grazing view. */
-  alphaShallow: 0.3,
+  alphaShallow: 0.32,
   alphaDeep: 0.55,
-  fresnelAlpha: 0.25,
+  fresnelAlpha: 0.1,
+  /** Seen edge-on a flat sheet is a pale reflecting line: its alpha is cut to `edgeOnAlpha` of itself as the view angle to the surface falls under `edgeOnFrom` (cos of the angle to the normal); the water's volume (nest FLOOD_VOLUME) carries the read then. */
+  edgeOnFrom: 0.22,
+  edgeOnAlpha: 0.3,
   /** Depth (mm) over which the water fades in from the line where the floor comes up to it, and over which it reaches its deep tint. */
   depthSoftMm: 0.5,
   depthDeepMm: 3,
@@ -95,8 +98,8 @@ export const FLOOD_WATER = {
   rippleSpeed: 1.2,
   roughness: 0.08,
   /** A tunnel has no sky to mirror: a faint environment reflection and a faint self-light so it reads in the dim nest. */
-  env: 0.12,
-  emissive: 0.05,
+  env: 0.05,
+  emissive: 0.03,
 };
 /** Rebuild the flood surface at most every this many real seconds (and when the level moves by LEVEL_EPS mm). */
 export const FLOOD_REBUILD_S = 0.5;

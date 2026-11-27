@@ -169,6 +169,13 @@ export class NestRenderer {
     this.uniforms.uMoist.value.set(scale, offset);
   }
 
+  /** Standing water in the nest (params.ts FLOOD_VOLUME): its level (world y, mm), or null for none; the walls and floor under it are tinted by the water above. */
+  setFloodLevel(levelMm: number | null): void {
+    const f = this.uniforms.uFlood.value;
+    if (levelMm === null || !Number.isFinite(levelMm)) f.w = 0;
+    else { f.x = levelMm; f.w = 1; }
+  }
+
   /** Chunk keys reported dirty by the sim's `carve-chunks-dirty` event (the grid's own queue is drained anyway). */
   markDirty(keys: readonly number[]): void {
     this.meshes.markDirty(keys);
@@ -267,6 +274,7 @@ export class NestRenderer {
       chunks: d.chunks, regions: d.regions, draws: d.draws, triangles: d.triangles, vertices: d.vertices, pending: d.pending,
       gpuBytes: d.gpuBytes, meshMs: f.ms, meshBuilt: f.built, meshSteps: f.steps, maxFrameMs: d.maxFrameMs, totalBuilt: d.totalBuilt,
       openings: d.openings, capBusy: d.capBusy ? 1 : 0, ghosts: d.ghosts,
+      floodOn: this.uniforms.uFlood.value.w, floodLevel: this.uniforms.uFlood.value.x,
     };
   }
 

@@ -55,7 +55,7 @@ export class CreaturesRenderer implements SubRenderer {
     const s = this.creatures.stats;
     return {
       creatures: s.creatures, near: s.drawn[0], mid: s.drawn[1], far: s.drawn[2], culled: s.culled, herds: s.herds, aphids: s.aphids, herdDecals: s.herdDecals,
-      pits: s.pits, bird: s.bird, markers: s.markers, drawCalls: s.drawCalls, triangles: s.triangles, cpuMs: s.cpuMs, looks: s.looks,
+      pits: s.pits, bird: s.bird, markers: s.markers, faded: s.faded, fadedHidden: s.fadedHidden, drawCalls: s.drawCalls, triangles: s.triangles, cpuMs: s.cpuMs, looks: s.looks,
     };
   }
 

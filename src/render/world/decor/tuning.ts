@@ -181,13 +181,13 @@ export const DECOR_LEAF = {
   shadowRgb: [0.012, 0.010, 0.008],
   /**
    * Leaf albedo at full night weight, x the day value: a cream dry leaf stayed the brightest thing in a dark night frame. app-seams-4 item 6: 0.4 / 0.75 ->
-   * 0.15 / 0.4. Since look pass 6 raised the night exposure (NIGHT_LOOK.targetE 4) the pale litter outshone the soil it lies on
-   * (look6/night/b/b-v1-h22-clear-observerlow-high.png); measured on the same frame (`test-output/app4/leaf2`, 22:00 clear, ant height): brightest tenth of the
-   * leaf region 0.475 (0.4), 0.412 (0.25), 0.353 (0.15) against the soil's 0.235; the leaf region's median 0.22 -> 0.169 against the soil's 0.196.
-   * Not finished: in the observer's low view a pale leaf still reads 0.42 to 0.46 of the display range against the soil's 0.18, and albedos of 0.04 to 0.10 read alike
-   * (`test-output/app4/leaf3`): a floor that is not this albedo; lifting the roughness to 1 at night moved it by 6 % only (`leaf4`); where it comes from is not found.
+   * 0.15 / 0.4, then (fix pass) fresh 0.4 -> 0.18. Since look pass 6 raised the night exposure (NIGHT_LOOK.targetE 4) the pale litter outshone the soil it lies on.
+   * The pale maple-shaped leaves of the observer's low view are the FRESH atlas (drapedMaterial: tDcFresh x uDcFreshTint x this `fresh`, on top of a summer tint of 0.85 to 1.05),
+   * not the dry one: the first pass varied only `dry` (0.04 to 0.10 read alike) and wrongly blamed an unknown floor. Same frame, 22:00 clear, observer low, medium
+   * (`test-output/app4-review/leaf`, `leaf2`): fresh 0.40 and 0.25 two cream leaves brighter than the soil; 0.18 a grey leaf a little under the soil's level that
+   * can still be read as a leaf; 0.10 a leaf you can hardly find.
    */
-  nightAlbedo: { dry: 0.15, fresh: 0.4 },
+  nightAlbedo: { dry: 0.15, fresh: 0.18 },
   /**
    * Look pass 4: detail made in the shader because the scan (256 texels a leaf) is a flat blur at an ant's eye. Distances in mm
    * (full detail up to [0], gone by [1]); the outline warp (card units, noise cells per mm); serration of the margin (alpha units);

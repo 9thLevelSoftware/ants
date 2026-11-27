@@ -22,6 +22,8 @@
  *   uRetract xyz point the soft body retracts toward (mm)  w width of the spiral coil step (mm)
  */
 
+import { ANT_FILL, ANT_MOON_RIM } from '@/render/ants/tuning';
+
 export const CREATURE_VERT_PARS = /* glsl */ `
 attribute vec4 aRig;
 attribute vec4 aPivot;
@@ -29,6 +31,7 @@ attribute vec2 aFoot;
 attribute vec4 aAnim;
 attribute vec4 aPose;
 attribute vec4 aTint;
+attribute float aHide; // 0..1: this creature fades out of the camera-to-subject cone (ants/occluderFade.ts); alpha = 1 - aHide
 uniform float uTime;
 uniform vec4 uLeg;
 uniform vec4 uWave;
@@ -37,6 +40,7 @@ uniform vec4 uMisc;
 uniform vec4 uRetract;
 
 varying vec3 vCrRest;
+varying float vCrA;
 
 const float CR_TAU = 6.28318530718;
 
@@ -164,7 +168,8 @@ vec3 crP; vec3 crN; crDeform(position, normal, crP, crN);
 vec3 objectNormal = crN;
 `;
 export const CREATURE_BEGIN_VERTEX = /* glsl */ `vec3 transformed = crP;
-vCrRest = position;`;
+vCrRest = position;
+vCrA = 1.0 - aHide;`;
 export const CREATURE_COLOR_VERTEX = /* glsl */ `
 #include <color_vertex>
 vColor.rgb *= aTint.rgb;
@@ -197,17 +202,27 @@ float crSurface() {
 }
 `;
 
+/** The fade alpha of the instance (vertex side: CREATURE_BEGIN_VERTEX); every colour-pass material declares it. */
+export const CREATURE_FADE_PARS = /* glsl */ `varying float vCrA;`;
+/** Wing membranes (no surface patch): only the fade. */
+export const CREATURE_FADE_FRAGMENT = /* glsl */ `#include <color_fragment>
+  diffuseColor.a *= vCrA;`;
+
 export const CREATURE_COLOR_FRAGMENT = /* glsl */ `#include <color_fragment>
-  diffuseColor.rgb *= 1.0 + uSurface.x * (2.0 * crSurface() - 1.0);`;
+  diffuseColor.rgb *= 1.0 + uSurface.x * (2.0 * crSurface() - 1.0);
+  diffuseColor.a *= vCrA;`;
 
 export const CREATURE_ROUGHNESS = /* glsl */ `#include <roughnessmap_fragment>
   roughnessFactor = clamp(roughnessFactor + uSurface.y + uSurface.z * (crSurface() - 0.5), 0.0, 1.0);`;
 
-/** Night rim light from the moon side (app-seams-4 item 6): a faint cool edge light on the flank facing the key light; uMoonRim is 0 by day. */
+/**
+ * Night rim light from the moon side (app-seams-4 item 6): a faint cool edge light on the flank facing the key light; uMoonRim is 0 by day.
+ * The moon-side weighting and the cool colour are the ants' own numbers (ANT_MOON_RIM, ANT_FILL.cool): one tuning for both.
+ */
 export const CREATURE_MOON_RIM = /* glsl */ `#include <emissivemap_fragment>
   if (uMoonRim > 0.0) {
     vec3 mN = normalize(normal);
     float mR = pow(1.0 - clamp(dot(mN, normalize(vViewPosition)), 0.0, 1.0), 3.0);
-    float mS = 0.25 + 0.75 * smoothstep(-0.15, 0.65, dot((vec4(mN, 0.0) * viewMatrix).xyz, uMoonDir));
-    totalEmissiveRadiance += vec3(0.66, 0.78, 1.0) * uMoonRim * mR * mS;
+    float mS = ${ANT_MOON_RIM.floor.toFixed(2)} + ${(1 - ANT_MOON_RIM.floor).toFixed(2)} * smoothstep(${ANT_MOON_RIM.from.toFixed(2)}, ${ANT_MOON_RIM.to.toFixed(2)}, dot((vec4(mN, 0.0) * viewMatrix).xyz, uMoonDir));
+    totalEmissiveRadiance += vec3(${ANT_FILL.cool.map((v) => v.toFixed(2)).join(', ')}) * uMoonRim * mR * mS;
   }`;

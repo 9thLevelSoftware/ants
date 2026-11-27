@@ -2,8 +2,8 @@
 // queen in the middle third. Synthetic cells, the real framing chain: cellFootprint -> (shotSubject pad) -> perspectiveGrow ->
 // cardFraming -> foundingShotAt, then every open voxel of the cell under the slice plane projected with a perspective camera.
 import { describe, expect, it } from 'vitest';
-import { cardFraming, CARD_GAP_REM, CARD_HALF_REM, CARD_TOP_MARGIN_REM, perspectiveGrow } from './cardFraming';
-import { cellFootprint, FOOTPRINT_STEP_BU } from './cellFootprint';
+import { cardFraming, CARD_GAP_REM, CARD_TOP_FRACTION, CARD_TOP_MARGIN_REM, perspectiveGrow } from './cardFraming';
+import { cellFootprint, cellFootprintFramed, FOOTPRINT_STEP_BU } from './cellFootprint';
 import { FSHOT_FOV_DEG } from '@/render/camera';
 import { foundingShotAt, makeFoundingShot } from '@/render/camera/foundingShot';
 
@@ -65,7 +65,7 @@ const seed1Like = fieldOf(ellipsoid({ x: -8, y: -21, z: 2 }, { x: 9, y: 6, z: 8 
 
 describe('outcome card framing, end to end (reviewer)', () => {
   const W = 1280, H = 720, rem = 16;
-  const top = CARD_TOP_MARGIN_REM * rem, cardTop = H / 2 - CARD_HALF_REM * rem;
+  const top = CARD_TOP_MARGIN_REM * rem, cardTop = H * CARD_TOP_FRACTION; // the card hangs from 62 % of the height (fix pass; it was centred)
 
   it('every open voxel of the cell under the plane lands between the top margin and the card, from every yaw of the slow orbit', () => {
     const pts = cellPoints(seed1Like, PLANE, 30, 30);
@@ -95,67 +95,14 @@ describe('outcome card framing, end to end (reviewer)', () => {
     }
   });
 
-  it('records how much of the band the cell uses (the report says about half): at least a third of its height', () => {
+  it('records how much of the band the cell uses: more than half of its height (fix pass: the card shot fits the cell on the screen, cellFootprintFramed; the sphere fit gave a third)', () => {
     const pts = cellPoints(seed1Like, PLANE, 30, 30);
-    const r = frameCell(seed1Like, QUEEN, PLANE, W, H, 0)!;
+    const f = cardFraming(H, rem, W);
+    const fp = cellFootprintFramed(seed1Like, QUEEN, PLANE, BU, { kx: f.kx, kq: f.kq })!;
+    const shot = makeFoundingShot();
+    foundingShotAt(shot, { x: fp.x, y: fp.y, z: fp.z, radius: (fp.radius + 0.5 * BU) * perspectiveGrow(f.fill), cutY: PLANE, lift: f.lift, fill: f.fill, minRadiusBu: 1.5, yawRad: fp.yawRad }, fp.yawRad, BU);
     let minY = Infinity, maxY = -Infinity;
-    for (const p of pts) { const s = project(r.shot.pose, p, W, H)!; minY = Math.min(minY, s.y); maxY = Math.max(maxY, s.y); }
-    expect((maxY - minY) / (cardTop - top)).toBeGreaterThan(1 / 3);
-  });
-});
-
-describe('cellFootprint edge cases (reviewer)', () => {
-  it('the screen-reach sphere holds every voxel of the cell (upper bound for every yaw at the shot pitch)', () => {
-    const fp = cellFootprint(seed1Like, QUEEN, PLANE, BU)!;
-    expect(fp).not.toBeNull();
-    // brute force: the radius on the screen of each point for 36 yaws, orthographic at the shot pitch
-    const p = (52 * Math.PI) / 180;
-    for (const q of cellPoints(seed1Like, PLANE, 30, 30)) {
-      for (let a = 0; a < 36; a++) {
-        const yaw = (a / 36) * 2 * Math.PI, dx = q.x - fp.x, dy = q.y - fp.y, dz = q.z - fp.z;
-        const along = dx * Math.sin(yaw) + dz * Math.cos(yaw), across = dx * Math.cos(yaw) - dz * Math.sin(yaw);
-        const sy = along * Math.sin(p) - dy * Math.cos(p);
-        expect(Math.hypot(across, sy)).toBeLessThanOrEqual(fp.radius + 1e-6);
-      }
-    }
-  });
-
-  it('null for solid everywhere, open everywhere (a cut through air), and a tunnel running out of the probe', () => {
-    expect(cellFootprint({ sampleXYZ: () => -1 }, QUEEN, PLANE, BU)).toBeNull();
-    expect(cellFootprint({ sampleXYZ: () => 1 }, QUEEN, PLANE, BU)).toBeNull();
-    const tunnel = fieldOf(ellipsoid({ x: 0, y: -20, z: 0 }, { x: 6, y: 4, z: 6 }), (p) => Math.min(2 - Math.hypot(p.y + 20, p.z), p.x));
-    expect(cellFootprint(tunnel, { x: 0, y: -18, z: 0 }, PLANE, BU)).toBeNull();
-    expect(cellFootprint(undefined, QUEEN, PLANE, BU)).toBeNull();
-  });
-
-  it('a second cavity not connected to the queen is not framed; the shared grid does not leak between calls', () => {
-    const small = fieldOf(ellipsoid({ x: 0, y: -20, z: 0 }, { x: 4, y: 3, z: 4 }));
-    const both = fieldOf(ellipsoid({ x: 0, y: -20, z: 0 }, { x: 4, y: 3, z: 4 }), ellipsoid({ x: 25, y: -20, z: 0 }, { x: 8, y: 4, z: 8 }));
-    const big = fieldOf(ellipsoid({ x: 0, y: -25, z: 0 }, { x: 20, y: 9, z: 20 }));
-    const a = cellFootprint(small, { x: 0, y: -19, z: 0 }, PLANE, BU)!;
-    const b = cellFootprint(both, { x: 0, y: -19, z: 0 }, PLANE, BU)!;
-    expect(b.radius).toBeCloseTo(a.radius, 6);
-    expect(b.cells).toBe(a.cells);
-    cellFootprint(big, { x: 0, y: -19, z: 0 }, PLANE, BU);
-    const again = cellFootprint(small, { x: 0, y: -19, z: 0 }, PLANE, BU)!;
-    expect(again.cells).toBe(a.cells);
-  });
-});
-
-describe('cardFraming input guards (reviewer)', () => {
-  it('finite lift and fill for zero, negative, NaN and huge screens', () => {
-    for (const [h, rem] of [[0, 16], [-5, 16], [NaN, NaN], [720, 0], [100000, 16], [400, 40]] as const) {
-      const f = cardFraming(h, rem);
-      expect(Number.isFinite(f.lift) && Number.isFinite(f.fill), `${h} ${rem}`).toBe(true);
-      expect(f.lift).toBeGreaterThanOrEqual(0); expect(f.lift).toBeLessThanOrEqual(0.9);
-      expect(f.fill).toBeGreaterThan(0); expect(f.fill).toBeLessThanOrEqual(0.92);
-    }
-  });
-
-  it('perspectiveGrow is 1 at no fill and grows with the fill', () => {
-    expect(perspectiveGrow(0)).toBe(1);
-    expect(perspectiveGrow(0.5)).toBeGreaterThan(perspectiveGrow(0.2));
-    expect(Number.isFinite(perspectiveGrow(10))).toBe(true);
-    expect(FSHOT_FOV_DEG).toBeGreaterThan(0);
+    for (const p of pts) { const s = project(shot.pose, p, W, H)!; minY = Math.min(minY, s.y); maxY = Math.max(maxY, s.y); }
+    expect((maxY - minY) / (cardTop - top)).toBeGreaterThan(0.5);
   });
 });

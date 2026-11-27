@@ -9,7 +9,7 @@ export { ColonyRig, type ColonyEnv, type ColonyInput, type ColonyOptions, type C
 export { PhotoRig, fNumberAt, focalForFov, fovForFocal, type PhotoInput, type PhotoOutput } from './photoRig';
 export { CameraTransition, blendPoses, planTransition, poseDistance, type TransitionKind, type TransitionOutput, type TransitionPlan } from './transition';
 export { cameraNear } from './near';
-export { applyLift, copyShotSubject, easeShotSubject, foundingShotAt, foundingShotDistance, makeFoundingShot, type FoundingShot, type FoundingShotSubject } from './foundingShot';
+export { applyLift, copyShotSubject, easeShotSubject, foundingShotAt, foundingShotDistance, makeFoundingShot, shotAskChanged, type FoundingShot, type FoundingShotSubject } from './foundingShot';
 export { CellCam, azimuthBetween, freeToward, openAzimuth, cellShotSubject, cellSideShotAt, makeCellSideShot, finishCut, makeHeldSection, type CellSideShot, type HeldSection } from './cellCam';
 export { fitsAt } from './boomPath';
 export { pullIntoClearance } from './motionGuard';
