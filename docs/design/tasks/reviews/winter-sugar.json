@@ -1,0 +1,145 @@
+{
+ "implReport": {
+  "summary": "I resumed winter-sugar after restart 10 and carried out integrator ruling 1. The trace of playground-park #3 and kitchen-door #3 (with and without A3) found no defect on those two. No digger is held after the entrance opens, release comes at the same allocation pass in both trees, and there is no second unplugging in year one. On those two colonies A3 changes only which workers unplug, and that changes who becomes the second scout and when the herds are found.\n\nAn early probe over all 15 hand-overs did find a real defect in A3. Where the nearest free face of the plug is a crack that no walk reaches (suburban-garden #1, #2), the walker stops 3.3 BU short, outside the bite's throat test. The digger then counted fails and was barred for 600 ticks without biting: sg #1 opened at +559 instead of +270.\n\nI fixed it in src/sim/ants/behaviours/nest/dig.ts: a walk to the face point that ends out of bite reach now sends the digger to the old axis point instead of counting against her. The red test (unplugStandReach.test.ts) is green on the fixed tree and red on the old one, and DEVIATIONS D44 is amended.\n\nOn the fixed tree I ran a fresh close (close 2): 15 foundings to winter plus the five long runs, with pp #3 and sg #2 going on to year 3 day 16.\n- Year one: 13 of 15 viable, every archetype at least 2 of 3, 261 workers at winter, 185.6 C in store. The bar of 14 is missed by one.\n- The two misses are pp #3 and kd #3 at 0.89 of their R27 need. They are the same games with and without the fix.\n- Long runs: 114 workers at winter 2 (bar 105). R34 at least 1.0 times in 4 of 5, at least 1.5 times in 1 of 5. R22 5 of 5. R27 at winter 2 in 4 of 5 (pp #3 at 0.87).\n- Item 7: pp #3 reaches spring 3 with 21 workers and its queen alive, then rations through summer 3. sg #2 reaches spring 3 with 18 workers.\n\nThe kitchen-door #3 long run lost in the restart was rerun on the first close's tree. The report docs/design/tasks/winter-sugar-report.md is complete. I deleted the scratch ws-* trees and /home/user/frozen-wintersugar, and kept the closing tree /home/user/frozen-wintersugar2.",
+  "filesTouched": [
+   "/home/user/foundress/src/sim/ants/behaviours/nest/dig.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/unplugStandReach.test.ts",
+   "/home/user/foundress/tools/sim/probe/firstDay.ts",
+   "/home/user/foundress/tools/sim/probe/unplugTimes.ts",
+   "/home/user/foundress/tools/sim/probe/unplugYear.ts",
+   "/home/user/foundress/tools/sim/probe/earlyOut.ts",
+   "/home/user/foundress/tools/sim/probe/standTrace.ts",
+   "/home/user/foundress/docs/design/gdd/DEVIATIONS.md",
+   "/home/user/foundress/docs/design/tasks/winter-sugar-report.md",
+   "/home/user/foundress/docs/design/tasks/progress/winter-sugar-impl.md"
+  ],
+  "verification": [
+   "Probes reproduce the life runs: pp #3 opens at +218 / +253 and its first tender is at +1162 / +4602; kd #3 and pp #3 end-of-year hashes equal the close sweep's (8fb157ed, c4a64ee7). ws-T2 reproduces arm T (kd #3 hash at +6000 is 6aaa572a; winter C 11.752).",
+   "Trace outputs are in test-output/winter-sugar/trace/: pp3/kd3 first day, unplug-* bite counts, year-* unplug episodes, early.txt and early-fix.txt (all 15), stand-sg1-A3T.txt (the unreachable stand point).",
+   "unplugStandReach.test.ts is green on the live fixed tree and red on the old close tree (frozen-wintersugar): 'she walks to the axis point: expected undefined to be defined'.",
+   "npm run typecheck: clean for the whole project.",
+   "vitest src/sim/ants/behaviours/nest + src/sim/ants/actions/dig.test.ts: 41 files, 93 tests green (tests-behnest-fix.txt).",
+   "vitest src/sim/colony: 90 files, 374 tests green (tests-colony-fix.txt).",
+   "vitest src/sim/nest: 65 files green; 2 red (escapeDig, flood/readersCost.verify), the same two that were red on Nov 24 and on ws-base before this task (tests-nest-fix.txt).",
+   "outdoor/determinism.perf.test.ts: green (determinism-perf-fix.txt).",
+   "FOUNDRESS_LONG playerOpening.long on the fixed tree: 4 of 4 green in 601 s (long-test-fix.txt).",
+   "Headless openings on the closing tree (opening/fix, fix-b2): open at 500/500/750/1250/500 ticks, two-batch seed 4 at 1250 \u2014 the same as with A3 before the fix.",
+   "close2 fresh sweep (tree bf7364d3, /home/user/frozen-wintersugar2): 13 of 15 viable, 261 workers (close2/sweep-table.md). Fresh foundings are byte-identical to the first close's cache.",
+   "close2 long runs: 114 workers at winter 2, R34 4/5 at 1.0x and 1/5 at 1.5x, R22 5/5, R27 at winter 2 4/5 (close2/sweep-long/longrun-table.md, close2/close2-vs-*.md).",
+   "First close kd #3 long rerun (06:11-06:29) completes close/sweep-long at 5 of 5: 108 workers at winter 2, R34 4/5, R27 4/5."
+  ],
+  "acceptance": [
+   {
+    "criterion": "1. A1-A3 done with their tests; playerOpening.long green on restated R14 incl. 4-worker case",
+    "status": "met",
+    "evidence": "Done by the first engineer; re-verified on the fixed tree: FOUNDRESS_LONG playerOpening.long 4/4 green (long-test-fix.txt). A3 amended with the release fix and unplugStandReach.test.ts."
+   },
+   {
+    "criterion": "2. Item 4's table exists and its reading is stated plainly",
+    "status": "met",
+    "evidence": "item4-y1.md and item4-long-*.md; report section B4: demand asks for tenders but the allocation does not answer (tend target far below tend demand on brood-peak days)."
+   },
+   {
+    "criterion": "3. Each arm run alone on 15 + 5 with its table; adoption follows item 6",
+    "status": "met",
+    "evidence": "armW-table.md, armT-table.md, armWT-table.md; arm T adopted, W not (report B5), confirmed by integrator ruling 1."
+   },
+   {
+    "criterion": "4. Fresh close sweep and long runs meet the viability bar, or the cause is reported before any revert",
+    "status": "partial",
+    "evidence": "close2: 13 of 15 viable (bar 14), every archetype at least 2 of 3. Cause investigated per ruling 1 (report B6): the A3 lockout defect was found and fixed; the remaining pp #3 and kd #3 misses are the same games with and without the fix and show no defect. Nothing reverted; findings recorded in the progress file before closing."
+   },
+   {
+    "criterion": "5. Typecheck clean; tests green in every touched folder; outdoor/determinism.perf green",
+    "status": "partial",
+    "evidence": "Typecheck clean; behaviours/nest, actions/dig and colony green; determinism.perf green. src/sim/nest has 2 reds (escapeDig, flood/readersCost.verify) that were red before this task on the opening-fix tree."
+   },
+   {
+    "criterion": "6. Report complete",
+    "status": "met",
+    "evidence": "docs/design/tasks/winter-sugar-report.md: A, B4-B7, C8 close tables, C9 DEVIATIONS, verification, acceptance, known limits, decisions."
+   },
+   {
+    "criterion": "Integrator ruling 1: trace A3's paired cost (1 h), fix if defect and rerun 15 + 5, rerun lost long run(s), report",
+    "status": "met",
+    "evidence": "Trace done in the timebox (report B6). The defect (unreachable stand point leading to a lockout) was fixed, red test added, 15 + 5 rerun on the fixed tree (close2), lost kd #3 long run rerun, closed on the fixed tree."
+   }
+  ],
+  "notDone": [
+   "Viability bar of 14 of 15 is not met on the closing tree: 13 of 15 (pp #3 and kd #3 at 0.89 of R27, early-hours herd-discovery chance after A3 changes who unplugs; no defect found).",
+   "Two pre-existing red tests in src/sim/nest (escapeDig.test.ts, flood/readersCost.verify.test.ts) were not fixed; they predate this task.",
+   "The R34 at least 1.5x bar is met in 1 of 5 runs (needs 3 of 5) and the R19 growth bar in 5 of 7 checks (P intake, first workers); both were short before this task.",
+   "The browser firstplay.mjs R14 clock (app side) is not changed; it is outside my files."
+  ],
+  "contractChanges": [],
+  "needsFromOthers": [
+   "Owner of src/sim/nest escape-dig and flood readers: two tests red since before this task (escapeDig shaft not opened; readersCost.verify 30 rebuilds against a throttle of 7).",
+   "App engineer: tests/e2e/firplay.mjs still polls R14 as 4 hours from the hand-over; the headless kit now uses the restated clock (from the first warm hour)."
+  ],
+  "notesForIntegrator": [
+   "STATUS check-ins at 08:21 and 09:25 UTC say 'close 2 = 14 of 15, 255 workers'. The runs say 13 of 15 (pp #3 and kd #3 NOT viable at 0.89) and 261 workers: see test-output/winter-sugar/close2/sweep/summary.txt and close2/sweep-table.md.",
+   "The A3 defect came from the 15-colony early probe at the end of the one-hour timebox, not from the pp #3 / kd #3 trace. I treated it as ruling 1's first branch: fixed, red test, reran 15 + 5, closed on that tree although the rerun bar of 14 is not met. The two failures are identical games with and without the fix.",
+   "The fix changed four colonies' year one (sg #1 2.76 to 3.93 x R27, pp #1 1.13 to 3.08, sg #2 2.77 to 2.17, pp #2 2.47 to 2.44). The other eleven have equal day rows; final state hashes differ only by the new bb key 'bn.ua'.",
+   "Closing tree kept at /home/user/frozen-wintersugar2 (hash bf7364d3 = live) for the reviewer; scratch trees deleted. Arm source diffs are kept as test-output/winter-sugar/armW-src/armW.patch, trace/armT-on-base.patch and trace/A1-A3-on-T.patch.",
+   "unplugStandReach.test.ts stubs nest's unplugStandPoint and nest/common's approach with vi.mock. The registry reads `behaviours` off every module, so the nest mock declares it explicitly."
+  ]
+ },
+ "review": {
+  "verdict": "pass-with-minor",
+  "checksRun": [
+   "Read the spec winter-sugar.md (including integrator ruling 1), the design seed, the report, and the task diff ef8e5d9..HEAD for src/sim and tools/sim: dig.ts unplugStep (A3 and the ruling-1 release fix), entrances.ts unplugStandPoint, nest/index.ts, allocation demand.ts tendFloor / targets.ts planTargets / index.ts wiring, playerOpeningKit.ts (A1/A2), playerOpening.long.test.ts, life.ts and lifeSugar.ts (read-only observer, confirmed: no state writes), DEVIATIONS R14/D44/D45 rows.",
+   "Read the action runner's validate order and unseal-entrance's reachable rule, to confirm that canDo(...).reason === 'out-of-reach' means exactly 'outside the throat test'. Also confirmed that dig.unplug is entered only through claimStep, which resets bn.ua.",
+   "npm run typecheck: clean (whole project).",
+   "npx vitest run src/sim/ants/behaviours/nest src/sim/colony/allocation src/sim/ants/actions/dig.test.ts: 49 files passed, 3 skipped; 122 tests passed (test-output/winter-sugar-review/tests-1.txt).",
+   "npx vitest run outdoor/determinism.perf.test.ts + src/sim/colony/allocation + colony/tendDemand.test.ts (with my verify tests): 11 files, 44 tests green (test-output/winter-sugar-review/tests-2.txt).",
+   "Red without each change, checked in a scratch copy of src (since deleted). Removing the release hunk makes unplugStandReach.test.ts red with the same message as the report. Disabling the planTargets tend-floor line makes tendFloor.test.ts red. With all of the task's sim files reverted to ef8e5d9, unplugStand.test.ts (both cases) and my unplugStand.verify.test.ts are red.",
+   "Checked that the two nest reds are not this task's: escapeDig.test.ts and flood/readersCost.verify.test.ts are red on the live tree and also red with every task sim file reverted to ef8e5d9.",
+   "Checked the report numbers against test-output/winter-sugar/close2: sweep/summary.txt and sweep-table.md show 13 of 15 viable (pp #3 and kd #3 at 0.89 of R27), and the per-row worker sum is 261. sweep-long/longrun-table.md shows 114 workers at winter 2 (39+20+23+24+8), R34 4 of 5 at 1.0x and 1 of 5 at 1.5x, R22 5 of 5.",
+   "Checked that /home/user/frozen-wintersugar2 src/sim, src/core, src/worldgen and tools/sim are identical to the live tree (only my new verify tests differ)."
+  ],
+  "findings": [
+   {
+    "severity": "minor",
+    "title": "Closing tree misses the viability bar: 13 of 15, ruling 1 rerun bar is 14",
+    "where": "test-output/winter-sugar/close2/sweep-table.md; docs/design/tasks/winter-sugar-report.md C8",
+    "detail": "Ruling 1 says that if a defect is found and fixed, the 15 are rerun with a bar of >= 14 of 15 and >= 255 workers, and the task closes on that tree. The fixed tree gives 13 of 15 (playground-park #3 and kitchen-door #3 at 0.89 of R27) and 261 workers. Every archetype is >= 2 of 3. The long runs give 114 workers at winter 2 and R27 >= 1.0x in 4 of 5 (pp #3 at 0.87). AC4 is met through its 'cause reported before any revert' branch: the report says so plainly, and nothing was reverted. This is a missed bar for the integrator to decide on, not a code defect. I found nothing in dig.ts or the tend floor that explains the two failures."
+   },
+   {
+    "severity": "minor",
+    "title": "The restated-R14 check cannot fail on time for seed 4 (cold throughout)",
+    "where": "src/sim/colony/founding/playerOpening.long.test.ts (bound = warmFromTicks >= 0 ? ... : Infinity); playerOpeningKit.ts runOpening warmFrom",
+    "detail": "Both seed-4 cases (4 lay batches and the 2-batch, 4-worker case) report warmFromTicks = -1: the air never reaches forage gate b before the entrance opens (report table A1-A3: 'met / met (cold throughout)'). The test's bound is then Infinity. The only real limit left is that `opened` must happen inside the 7500-tick polling window (afterTicks 7500), which is the old bound the spec asked to replace. This matches the ruling's wording (a cold hand-over's clock has not started), but the 4-worker case is not held to any R14 time. A cheap way to make it meaningful is a secondary assertion, such as open within N ticks of the first tick at gate a, or a hand-over chosen so the clock starts."
+   },
+   {
+    "severity": "minor",
+    "title": "The implementer's tend-floor tests skip tendFloor's positive path and its wiring",
+    "where": "src/sim/colony/allocation/tendFloor.test.ts",
+    "detail": "The two tests inject the floor straight into computeTargets and check only the zero cases of tendFloor (needC = 0, surface not workable). None of the following is tested: that tendFloor sums tendKeep over the workable known herds, that it is capped by the tend demand, that undiscovered herds are excluded, or that computeDemand writes core.acc[TEND_FLOOR_KEY]. A regression in any of these would leave the suite green. Covered now by src/sim/colony/allocation/tendFloor.verify.test.ts (8 tests, green)."
+   },
+   {
+    "severity": "minor",
+    "title": "D45's evidence column gives arm T alone's numbers, not the adopted closing tree's",
+    "where": "docs/design/gdd/DEVIATIONS.md row D45",
+    "detail": "D45 cites 'year one 15 of 15 viable, 255 workers; ... R27 >= 1.0 x 5 of 5'. Those are arm T without A3. The tree the task closed on (A1-A3 fixed + T) gives 13 of 15, 261 workers and R27 at winter 2 in 4 of 5 (report C8). A reader of DEVIATIONS alone would overrate the shipped rule. Add the closing-tree numbers, or a pointer to report C8."
+   },
+   {
+    "severity": "minor",
+    "title": "STATUS check-ins and a commit message say close 2 is '14 of 15'; the runs say 13",
+    "where": "git log fe93087 'Check-in: winter-sugar close 2 14 of 15'; docs/STATUS.md check-ins 08:21 and 09:25 UTC",
+    "detail": "close2/sweep/summary.txt and sweep-table.md show pp #3 and kd #3 NOT viable, so 13 of 15 with 261 workers. The implementer already flagged this in notesForIntegrator. These are integrator files, so this is listed only so the record gets corrected."
+   },
+   {
+    "severity": "minor",
+    "title": "Two nest tests are red, but not because of this task (confirmed)",
+    "where": "src/sim/nest/escapeDig.test.ts; src/sim/nest/flood/readersCost.verify.test.ts",
+    "detail": "Both are red on the live tree, and both stay red in a scratch tree where every sim file this task touched (dig.ts, entrances.ts, nest/index.ts, allocation demand/index/targets) is reverted to ef8e5d9. The implementer's claim that they predate the task holds. They need their owner (nest escape dig / flood readers)."
+   }
+  ],
+  "testsAdded": [
+   "/home/user/foundress/src/sim/ants/behaviours/nest/unplugStandReach.verify.test.ts (2 tests, walk stubbed: if neither the face point nor the axis point is in bite reach she walks to the face once and to the axis about DIG_BITE_FAILS_MAX times, then is barred, with no cycling; after the bar she comes back through dig.claim, bn.ua is reset to 0, and her first walk is to the face point)",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/unplugStand.verify.test.ts (1 test, real walker: on a wide 1.9 BU plugged mouth with a reachable face no digger ever falls back to the axis (bn.ua stays 0), and two identical runs open at the same tick with equal stateHash; red on the pre-task tree)",
+   "/home/user/foundress/src/sim/colony/allocation/tendFloor.verify.test.ts (8 tests: tendFloor on real herds equals the sum of tendKeep capped by the tend demand; an undiscovered herd adds nothing; computeDemand writes core.acc[TEND_FLOOR_KEY] on a workable surface (asserted workable); planTargets still serves the floor under threat order and hygiene order; the floor stays within the outside pool and the total stays within the workforce; a floor above the demand is capped; demand that fits the workforce is unchanged by the floor)"
+  ]
+ },
+ "fixReport": null
+}

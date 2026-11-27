@@ -2,7 +2,7 @@
 // fills most of the band between the top margin and the card, whatever its shape, and the view holds that yaw (no orbit while the card is up).
 import { describe, expect, it } from 'vitest';
 import { cardFraming, CARD_GAP_REM, CARD_TOP_FRACTION, CARD_TOP_MARGIN_REM, perspectiveGrow } from './cardFraming';
-import { cellFootprint, cellFootprintFramed, FOOTPRINT_STEP_BU } from './cellFootprint';
+import { cellFootprint, cellFootprintFramed, FOOTPRINT_STEP_BU, sphereWithPoint } from './cellFootprint';
 import { foundingShotAt, makeFoundingShot } from '@/render/camera/foundingShot';
 
 const BU = 4;
@@ -129,5 +129,25 @@ describe('cellFootprint anyView (the sphere the cell camera\'s side view frames)
     expect(any.radius).toBeGreaterThanOrEqual(top.radius);
     const missed = pts.filter((p) => Math.hypot(p.x - top.x, p.y - top.y, p.z - top.z) > top.radius).length;
     expect(missed).toBeGreaterThan(0); // the screen-reach sphere of the top view is not a 3D sphere: the deep ends stand outside it
+  });
+});
+
+describe('sphereWithPoint (the side view\'s sphere holds the entrance\'s mouth up the shaft)', () => {
+  it('is the same sphere for a point inside, and the smallest one holding both otherwise', () => {
+    const s = { x: 0, y: 0, z: 0, radius: 10 };
+    expect(sphereWithPoint(s, { x: 3, y: 4, z: 0 })).toEqual(s);
+    const t = sphereWithPoint(s, { x: 0, y: 30, z: 0 });
+    expect(t.radius).toBeCloseTo(20, 9);
+    expect(t.y).toBeCloseTo(10, 9);
+    // the old sphere's far side and the point both touch the new one
+    expect(Math.hypot(t.x, t.y - 30, t.z)).toBeCloseTo(t.radius, 9);
+    expect(Math.hypot(t.x, t.y + 10, t.z)).toBeCloseTo(t.radius, 9);
+  });
+
+  it('maxGrow caps the radius at that many times the old one and keeps the old sphere inside', () => {
+    const s = { x: 0, y: 0, z: 0, radius: 10 };
+    const t = sphereWithPoint(s, { x: 0, y: 100, z: 0 }, 1.4);
+    expect(t.radius).toBeCloseTo(14, 9);
+    expect(Math.hypot(t.x, t.y, t.z) + s.radius).toBeLessThanOrEqual(t.radius + 1e-9);
   });
 });

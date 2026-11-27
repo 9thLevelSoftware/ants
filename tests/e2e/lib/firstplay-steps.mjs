@@ -92,15 +92,29 @@ export async function findSite(h, o, fromBu, toBu, stepBu) {
   }, { o, slope: SHAFT_SLOPE_DEG, fromBu, toBu, stepBu });
 }
 
-/** Walk the possessed ant toward (gx, gz) with the camera-independent intent until within tol mm. */
+/**
+ * Walk the possessed ant toward (gx, gz) with the camera-independent intent until within tol mm. A player walks round what is in the way: while she has
+ * climbed onto a plant or a stone (her thorax more than 3 BU over the ground) she goes back the way she came for a few steps, and while no ground is gained she
+ * turns a quarter to one side, then the other (a straight walk at a goal behind a grass clump took her up the stems for good, app-seams-4 fix pass, seed 1 beat 16).
+ */
 export async function steerTo(h, gx, gz, tol, maxSteps = 600) {
   const bu = await h.bu();
+  let best = Infinity, stall = 0, side = 1, down = 0;
   for (let i = 0; i < maxSteps; i++) {
     const p = (await h.summary()).possessed?.pos;
     if (!p) return false;
     const dx = gx - p[0], dz = gz - p[2], d = Math.hypot(dx, dz);
     if (d < tol) { await h.g(() => window.__game.setIntent({})); return true; }
-    await h.g((v) => window.__game.setIntent({ dir: v }), { x: dx / d, y: 0, z: dz / d });
+    if (d < best - 0.05 * bu) { best = d; stall = 0; } else stall++;
+    if (stall > 12) { side = -side; stall = 0; }
+    if (down === 0 && i % 4 === 0) {
+      const gh = await h.g(([x, z]) => window.__game.query.field(x, 0, z).height, [p[0], p[2]]);
+      if (p[1] - gh > 3 * bu) down = 8;
+    }
+    let ang = stall > 5 ? side * Math.PI / 2 : 0;
+    if (down > 0) { ang = Math.PI; down--; }
+    const ca = Math.cos(ang), sa = Math.sin(ang), vx = dx / d, vz = dz / d;
+    await h.g((v) => window.__game.setIntent({ dir: v }), { x: vx * ca - vz * sa, y: 0, z: vx * sa + vz * ca });
     await h.step(d > 3 * bu ? 2 : 1);
   }
   await h.g(() => window.__game.setIntent({}));

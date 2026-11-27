@@ -222,5 +222,127 @@
    "(from the interrupted earlier review session, committed in 7dc744f, all passing) src/render/ants/occluderFade.verify.test.ts, src/game/flows/founding/cellFootprint.verify.test.ts, src/game/views/colony/digPlanner.verify.test.ts, src/game/uiBridge/storesFull.verify.test.ts"
   ]
  },
- "fixReport": null
+ "fixReport": {
+  "summary": "Fix pass on app-seams-4 against the nine review findings. All were real except that finding 1 was neither a sim defect nor script timing: the beat's setup was wrong for a colony with a full larder. Findings 1 to 9 are fixed. The three seeds reach beat 25 from their hand-over saves with 1 failed check each, the unchanged growth check, which is a sim cause and open. The three seeds were not replayed from the title: the opening was replayed only to beat 12b, so no uninterrupted title-to-25 run was repeated. 1. Trail beat: after the hand-over the larder fills with sugar (needC 0) while the brood needs protein (needP 0.8, nothing in reach), so a sugar spill draws no trail by design (GDD 02 8.3). firstplay.mjs now puts a 15-unit protein crumb pile beside the spill, and the trail check reads the largest scent in a corridor along the entrance-to-spill line instead of one point. Trails formed in 600 to 3900 ticks on seeds 1, 2 and 3. Two walking defects were also fixed (beat 14 and steerTo climbed grass stems) and beat 16 now accepts \"handed over, or the panel says Stores full\". 2. Flood water: the nest shader tints walls and floor under the water level by the depth of water above (FLOOD_VOLUME), the sheet's alpha fades at grazing view, and the tint is darker and bluer. 3. Creatures between the camera and the possessed ant now fade like ants (aHide attribute, per-creature smoother, blend only while fading). 4. Night leaves: the cream leaves are the fresh-leaf atlas, and nightAlbedo.fresh went from 0.4 to 0.18. 5. Outcome card: it now hangs from 62 % of the height, the picture is retaken at once under a 0.2 s crossfade when the card opens, the cell is fitted on screen at a yaw of its own (the view holds it), and the side view (queen on a steep wall) frames the cell's 3D sphere grown toward the entrance mouth. Cells are whole on all three seeds in the final-code pictures. 6 to 9. Minors: the per-frame array is filled in place, the creature moon rim reads ANT_MOON_RIM, the dig hint and MANUAL mention soil near a room, and done('12b') was added.",
+  "filesTouched": [
+   "src/render/ants/AntRenderer.ts",
+   "src/render/creatures/shader/creatureChunk.ts",
+   "src/render/creatures/shader/materials.ts",
+   "src/render/creatures/batch.ts",
+   "src/render/creatures/lookStore.ts",
+   "src/render/creatures/CreatureRenderer.ts",
+   "src/render/creatures/CreaturesRenderer.ts",
+   "src/render/slots/creaturesSlot.ts",
+   "src/render/slots/nestSlot.ts",
+   "src/render/nest/params.ts",
+   "src/render/nest/NestRenderer.ts",
+   "src/render/nest/materials/nestUniforms.ts",
+   "src/render/nest/materials/glsl.ts",
+   "src/render/world/weather/tuning.ts",
+   "src/render/world/weather/floodWater.ts",
+   "src/render/world/decor/tuning.ts",
+   "src/render/camera/foundingShot.ts",
+   "src/render/camera/index.ts",
+   "src/game/views/viewDirector.ts",
+   "src/game/flows/founding/cardFraming.ts",
+   "src/game/flows/founding/cellFootprint.ts",
+   "src/game/flows/founding/shotSubject.ts",
+   "src/game/flows/founding/flow.ts",
+   "src/ui/screens/founding/founding.css",
+   "src/ui/panels/markers/model.ts",
+   "src/render/creatures/occluderFade.test.ts",
+   "src/render/nest/floodVolume.test.ts",
+   "src/game/flows/founding/cellFootprintFramed.test.ts",
+   "src/game/flows/founding/cardFraming.test.ts",
+   "src/game/flows/founding/cellFootprint.verify.test.ts",
+   "src/render/camera/foundingShot.test.ts",
+   "src/ui/panels/markers/model.test.ts",
+   "tests/e2e/firstplay.mjs",
+   "tests/e2e/lib/firstplay-steps.mjs",
+   "tests/e2e/app4-trail.mjs",
+   "tests/e2e/app4-fade.mjs",
+   "tests/e2e/app4-water.mjs",
+   "docs/MANUAL.md",
+   "docs/design/gdd/DEVIATIONS.md",
+   "docs/design/tasks/app-seams-4-report.md",
+   "docs/design/tasks/progress/app-seams-4-fix.md"
+  ],
+  "verification": [
+   "npm run typecheck: clean (last run 10:08, after the final code change).",
+   "vitest by folder: src/render/ants + creatures + world/weather + world/decor 56 files / 348 tests; src/render/nest + slots + camera + src/game/flows + views + uiBridge + src/ui/panels/markers 95 / 504; src/ui + src/content + src/input + tests/docs 75 / 677; final recheck of flows + camera + creatures + nest + ants + markers 499 tests; all green. One 20 s vitest ran while a harness run was in progress (noted in the progress file).",
+   "Reviewer tests: occluderRenderer.verify (fadeDbg storage test now passes), cellFootprint.verify, colony/storesFull/digPlanner verify tests all pass. Two edits to cellFootprint.verify.test.ts, both because the card geometry changed: the CARD_HALF_REM import became CARD_TOP_FRACTION, and the 'at least a third of the band' check now measures the production fitted path and asks for more than half.",
+   "Trail exploration on the seed 3 hand-over (app4-trail.mjs): sugar spill alone no trail in 12000 ticks; crumb-protein 15 units trail in 2700 ticks; a 1-unit insect none in 12000 (test-output/app4-fix/trail-*.log).",
+   "firstplay RESUME runs from the stored hand-overs of the earlier full runs: s3r2 trail via scouts at 600 ticks, s2r2 at 3900, s1r3 at 1200. All reach beat 25 (save, quit to title, continue) with 24 pictures. The only failed check on each is the growth check (seed 1 workers 14,14,14 brood 14,7,5; seed 2 workers 10,10,10 brood 11,7,2; seed 3 workers 11,11,11 brood 10,9,8), assertion untouched. Beat 16 and the walk to the food failed on earlier script versions (seed 2 out-of-reach, seed 1 worker up a plant) and passed after the fixes.",
+   "Opening replayed to beat 12b with seeds 2, 3 and 1 on the final code: cards whole and clear (s2-u12b, s3-u12f, s1-u12f), clean console (errors: []).",
+   "Pictures looked at: water/fix3-08-cell-side.png, fix3-08-cell-camera.png, s2-u12b/10-first-clutch.png (edge-on); fade/fix-creature-0/3/40.png (solid, ghost, gone, the worker solid); leaf3/fix-h22-clear/h02-clear/h22-rain observer low and h22/h02 surface; leaf2/after-f18/f25.",
+   "Draw calls and triangles: leaf3 at medium 87 / 765,542 (as before 87 / 765,581); creature fade sequence 188 -> 186 draws and 1,046,759 -> 1,038,503 triangles (the louse not drawn); no extra draw call from the flood volume, the creature fade or the moon rim."
+  ],
+  "acceptance": [
+   {
+    "criterion": "Finding 1: seed 3 beat 13->14 reproduced and fixed at its cause",
+    "status": "met",
+    "evidence": "Cause: a full sugar larder gives needC 0 while the brood needs protein, so no trail to a sugar spill by design. The script now puts out a protein crumb pile and reads a corridor, and the trail check passes on seeds 1, 2, 3 (resume runs s1r3, s2r2, s3r2). A restart from the title was not repeated in this pass (see notDone)."
+   },
+   {
+    "criterion": "Finding 2: edge-on flood water reads as water",
+    "status": "met",
+    "evidence": "Volume tint plus grazing alpha fade plus a darker tint; water/fix3-08-cell-side.png and s2-u12b/10-first-clutch.png. The outline from above is still a diamond, a sim flood-fill order cause, listed in notDone."
+   },
+   {
+    "criterion": "Finding 3: creatures fade like ants",
+    "status": "met",
+    "evidence": "Creature renderer fade; occluderFade.test.ts; fade/fix-creature-0/3/40.png. Aphid herds, the bird and antlion pits are not covered, listed in notDone."
+   },
+   {
+    "criterion": "Finding 4: night leaf litter",
+    "status": "met",
+    "evidence": "nightAlbedo.fresh 0.4 -> 0.18; leaf3 pictures at 22:00 and 02:00 clear and 22:00 rain show the leaves at or under the soil level."
+   },
+   {
+    "criterion": "Finding 5: outcome card framing",
+    "status": "partial",
+    "evidence": "Cells whole on seeds 1, 2, 3 on the final code and the first frame equals the settled one. The side view (queen on a steep wall) is still about half the size of the top view."
+   },
+   {
+    "criterion": "Findings 6 to 9 (minors)",
+    "status": "met",
+    "evidence": "fadeDbg filled in place with its test passing; CREATURE_MOON_RIM from ANT_MOON_RIM and ANT_FILL.cool; dig hint and MANUAL with a test in model.test.ts; done('12b') added."
+   },
+   {
+    "criterion": "Tests in my paths, typecheck, harness pictures looked at",
+    "status": "met",
+    "evidence": "See verification."
+   },
+   {
+    "criterion": "Reviewer tests not weakened",
+    "status": "met",
+    "evidence": "Only the two cellFootprint.verify.test.ts edits named in verification, both for the changed card geometry, not to loosen the assertions."
+   }
+  ],
+  "notDone": [
+   "The growth check ('no growth over game days 2-3 at 8x') fails on seeds 1, 2 and 3 after the hand-over: workers constant, brood falling, protein stores rising to 5 to 8 (see verification for the numbers). It is a sim cause (brood survival or queen laying); the assertion is untouched. Reproduction: FIRSTPLAY_SEED=0000000N FIRSTPLAY_RESUME=test-output/app4/sN-handover.save node tools/harness/play.mjs --root . --query 'test=1&quality=test' --script tests/e2e/firstplay.mjs (about 8 minutes). Owner: sim colony growth.",
+   "No uninterrupted title-to-beat-25 run was repeated on all three seeds in this pass. The colony beats 13 to 25 were run from the stored hand-over saves (same sim tree), and the opening to 12b was replayed separately for the card and water pictures.",
+   "Flooded sheet outline from above is a polygon with straight diagonal edges: the sim fills the last partial layer in breadth-first order (src/sim/nest/flood/spill.ts). Owner: sim nest/flood.",
+   "Outcome card side view (queen on a steep wall) frames a 3D sphere and is about half the size of the top view; a screen fit for the side camera (pitch and azimuth chosen at run time by the director) would close it.",
+   "Thick pale rim round the cell in the card picture (cut-face edge line at the bigger zoom, CELLCAM_EDGE_W), not changed.",
+   "Creatures fade only for per-creature instances: aphid herds, the bird and antlion pits do not.",
+   "Outdoor puddles at night (black polygon) and pale puddle patches at 02:00 are unchanged (decor water layer).",
+   "controls, views, hud, save, lifecycle, stage1a and panels browser scripts were not rerun in this pass; the only shared script change is steerTo in lib/firstplay-steps.mjs (firstplay only).",
+   "Growth failure, flood outline and the walk robustness are reported for the sim owner; no files outside my paths were touched."
+  ],
+  "contractChanges": [
+   "FoundingShotSubject (src/render/camera/foundingShot.ts) gained optional fields yawRad, sphereX, sphereY, sphereZ, sphereRadius; copyShotSubject and easeShotSubject carry them; new helper shotAskChanged, exported from src/render/camera/index.ts.",
+   "CreatureRenderer gained setOccluderSubject(pos|null, lengthMm) and stats fields faded and fadedHidden; CreaturesRenderer.stats() exports them. AntRenderer gained occluderSubject(). New per-instance attribute aHide (one float) on creature batches.",
+   "NestRenderer gained setFloodLevel(levelMm|null) and stats floodOn and floodLevel; NestUniforms gained uFlood, uFloodTint and uFloodDeep; FLOOD_VOLUME constants in src/render/nest/params.ts.",
+   "cardFraming(heightPx, remPx, widthPx?) now returns kx and kq as well; CARD_HALF_REM was replaced by CARD_TOP_FRACTION. foundingShotSubject(sim, out, wholeCell, frame?) takes a fourth argument. cellFootprint() gained an anyView flag; new cellFootprintFramed, sphereWithPoint and cachedFootprint(sim, anchor, planeY, frame?, anyView?).",
+   "No change to src/sim, src/worldgen or src/core."
+  ],
+  "notesForIntegrator": [
+   "The orchestrator already committed my in-progress source changes in eb72fa0; later edits (cellFootprint.ts, shotSubject.ts, cellFootprintFramed.test.ts, firstplay-steps.mjs, the report) are uncommitted. docs/design/tasks/progress/winter-sugar-* and winter-sugar-report.md changes in the working tree are another engineer's.",
+   "Pictures are under test-output/app4-fix/ (git-ignored). Full details, evidence paths and the still-open list are in section 11 of docs/design/tasks/app-seams-4-report.md.",
+   "DEVIATIONS D-APP4-1, 3, 4, 5 and MANUAL (Dig row, Stores full paragraph, rendering paragraph) were updated for what changed.",
+   "For the sim owner: the growth failure on all three seeds and the flood fill order (11.1 and 11.2 of the report). The finding that a colony with a full larder recruits only to what it needs is by design (GDD 02 8.3) and is now in the MANUAL.",
+   "A shared, loaded machine: the foundings in the script's opening runs differ slightly run to run (real-time waits), so card pictures from different runs show different cells."
+  ]
+ }
 }

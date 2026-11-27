@@ -201,3 +201,16 @@ export function cachedFootprint(sim: Sim, anchor: FootAnchor, planeY: number, fr
   m.set(key, value);
   return value;
 }
+
+/**
+ * The smallest sphere that holds the sphere (cx, cy, cz, r) and the point p: the sphere itself when p is inside it. `maxGrow` caps the new radius at that many
+ * times the old one (the old sphere stays inside; the point is then reached only in part): the cell must not shrink to nothing for a long shaft.
+ */
+export function sphereWithPoint(
+  s: { x: number; y: number; z: number; radius: number }, p: { x: number; y: number; z: number }, maxGrow = Infinity,
+): { x: number; y: number; z: number; radius: number } {
+  const dx = p.x - s.x, dy = p.y - s.y, dz = p.z - s.z, d = Math.hypot(dx, dy, dz);
+  if (d <= s.radius) return { x: s.x, y: s.y, z: s.z, radius: s.radius };
+  const r = Math.min((s.radius + d) / 2, s.radius * maxGrow), k = (r - s.radius) / d;
+  return { x: s.x + dx * k, y: s.y + dy * k, z: s.z + dz * k, radius: r };
+}

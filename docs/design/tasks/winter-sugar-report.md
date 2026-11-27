@@ -228,8 +228,8 @@ No digger is held after the entrance is open, the release comes at the same allo
 second unplugging happens in the year. What A3 changes on these two is who unplugs: on kd #3 two diggers bite instead
 of one biter and three barred workers, so a different worker is free when the second scout slot opens in hour 3
 (7296 instead of 7303); T's 7303 finds the herd at 286 BU, A3's scouts find nothing that day. On pp #3 the entrance
-opens 35 ticks sooner and the colony finds the near herd early but the other two late. Over all 15 the year's
-deliveries are not smaller with A3 (trips 794 / 739, deliveries 1466 / 1441) but their mix is: C 334.5 / 364.9, P 156.3
+opens 35 ticks sooner and the colony finds the near herd early but the other two late. Over all 15 (first close against
+arm T) the year's deliveries are not smaller with A3 (trips 794 / 739, deliveries 1466 / 1441) but their mix is: C 334.5 / 364.9, P 156.3
 / 135.8 - the herds are found later in 9 of 15 and sooner in 3. I read that as the early hours' chaos the herd
 discovery has always shown (one chaotic run proves nothing, direction 13), not a mechanism.
 
@@ -309,3 +309,112 @@ unplugs decides who is free in hour 3, and the herd discovery that follows); it 
 nothing was reverted. Without A3 both are viable (arm T: 1.92 and 1.89), with A3 alone and no tend floor too (1.62,
 1.07; `switchoff-T/`, the first engineer's switch-off runs) - on these two colonies the loss needs A3's changed first
 hours and the tend floor together; each alone keeps them viable.
+
+**The five long runs (to the second winter; pp #3 and sg #2 on to day 60):** `close2/sweep-long/longrun-table.md`,
+against arm T alone `close2/close2-vs-armT-table.md`, against the opening-fix final tree `close2/close2-vs-base-table.md`,
+against the first close `close2/close2-vs-close1-table.md`.
+
+| colony | winter 1 workers | winter 2 workers | R34 (w2 / w1) | C : R27 need at winter 2 | queen at w2 | y2 eggs : eclosed |
+|---|---|---|---|---|---|---|
+| woodland-edge #2 | 10 | 8 | **0.80** | 13.1 : 2.7 (4.90) | alive | 18 : 7 |
+| suburban-garden #2 | 15 | 24 | 1.60 | 17.9 : 5.7 (3.11) | alive | 42 : 22 |
+| playground-park #3 | 20 | 23 | 1.15 | 6.1 : 7.0 (**0.87**) | alive | 64 : 21 |
+| car-park-verge #1 | 29 | 39 | 1.34 | 22.7 : 8.3 (2.75) | alive | 47 : 25 |
+| kitchen-door #3 | 15 | 20 | 1.33 | 13.3 : 5.4 (2.48) | alive | 45 : 15 |
+
+| | opening-fix final | arm T alone | close 1 | **close 2** | bar (item 6) |
+|---|---|---|---|---|---|
+| workers at winter 2, sum | 113 | 113 | 108 | **114** | >= 105 |
+| R34 >= 1.0 x | 4 of 5 | 5 of 5 | 4 of 5 | **4 of 5** (we #2 0.80) | >= 4 of 5 |
+| R34 >= 1.5 x | 1 of 5 | 2 of 5 | 0 of 5 | **1 of 5** | (colony-life: 3 of 5) |
+| R22 spring >= 0.7 x winter | 5 of 5 | - | 5 of 5 | **5 of 5** | 4 of 5 |
+| R27 at winter 2 >= 1.0 x | 3 of 5 | 5 of 5 | 4 of 5 | **4 of 5** (pp #3 0.87) | >= 4 of 5 |
+
+The first close's kitchen-door #3 long run (lost in the restart) was rerun on that tree on Nov 27 (06:11-06:29) and
+is in `close/sweep-long/`; woodland-edge #2, pp #3, car-park-verge #1 and kd #3 are the same games on both closing
+trees. The sweep and the long runs read their second-winter row as the first winter row of year 2 for all five.
+
+### C9. DEVIATIONS rows (`docs/design/gdd/DEVIATIONS.md`)
+
+- **R14** restated (A1): the 4-hour clock starts at the first game hour after the hand-over with the air at the nest
+  mouth at or above the forage gate's full band; checked on the headless opening.
+- **D44** (A3): the unplug stand point at the plug's free face; no lockout for a walk that failed against the plug.
+  **Amended Nov 27** (ruling 1): a walk to the face point that ends out of bite reach sends the digger to the axis
+  point instead of counting against her; `unplugStandReach.test.ts`.
+- **D45** (arm T, adopted): the tend floor - while needC > 0 on a workable surface, the herds' keep is served before
+  forage, with the scout floor; no constant.
+- Not added: R41 (arm W) stays withdrawn (not adopted, section B5).
+
+## Verification (final tree, Nov 27)
+
+- `npm run typecheck`: clean (whole project, after the fix).
+- `npx vitest run src/sim/ants/behaviours/nest src/sim/ants/actions/dig.test.ts`: 41 files / 93 tests green, 3
+  skipped (`test-output/winter-sugar/tests-behnest-fix.txt`).
+- `npx vitest run src/sim/colony`: 90 files / 374 tests green (`tests-colony-fix.txt`).
+- `npx vitest run src/sim/nest`: 65 files green, **2 red that are not this task's**: `nest/escapeDig.test.ts` (the
+  escape shaft does not open) and `nest/flood/readersCost.verify.test.ts` (30 spill rebuilds against a throttle of 7).
+  Both were red on Nov 24 on the opening-fix final tree before any change of this task (the first engineer's
+  `tests-nest-live.txt`; same two on `/home/user/ws-base`); they are left for their owner and listed below.
+- `src/sim/ants/behaviours/outdoor/determinism.perf.test.ts`: green (`determinism-perf-fix.txt`).
+- FOUNDRESS_LONG `src/sim/colony/founding/playerOpening.long.test.ts` on the final tree: 4 of 4 green, 601 s
+  (`long-test-fix.txt`).
+- Headless openings on the closing tree (`opening/run-fix.sh` -> `opening/fix`, `opening/fix-b2`): seeds 1-5 open at
+  500 / 500 / 750 / 1250 / 500 ticks and the two-batch seed 4 at 1250 - the same as with A3 before the fix.
+- Red without the change: `unplugStandReach.test.ts` red on the first close's tree (no fix); `unplugStand.test.ts` and
+  `tendFloor.test.ts` red without A3 / arm T (first engineer, `tests-A.txt`, section A3 and B5).
+
+## Acceptance criteria
+
+1. **Met.** A1-A3 done with their tests; `playerOpening.long` green on the restated R14 including the 4-worker case
+   (4 of 4, on the final tree too).
+2. **Met.** Item 4's tables (`item4-y1.md`, `item4-long-*.md`) and their reading (B4): demand asks, the allocation
+   does not answer - tend target far under tend demand on the short colonies' brood-peak days.
+3. **Met.** Arm W and arm T each alone on the 15 + 5, with tables; the pair too; the decision follows item 6's bar
+   (T adopted, W not; confirmed by integrator ruling 1).
+4. **Partial.** The close sweep (close 2) is 13 of 15 viable - every archetype >= 2 of 3, but one under the bar of 14.
+   The cause was investigated and reported before any revert (B6: one real defect in A3 found and fixed; the two
+   remaining failures are the same games with and without the fix and are not explained by a defect); nothing was
+   reverted.
+5. **Met, with two pre-existing reds.** Typecheck clean; behaviours/nest and colony green; nest green except the two
+   tests that were red before this task; `outdoor/determinism.perf` green.
+6. **Met.** This report.
+
+GDD Appendix E checks: this task changes no rule that an Appendix E check of GDD 02 §3-§5 or GDD 06 §8 states
+directly; the colony folder's existing App E tests (stores, needs, allocation, overwinter) stay green. R27's winter
+line is checked by the sweeps (`lifeViable.ts`), not by a unit test.
+
+## What is still wrong (most serious first)
+
+1. **Two colonies of 15 enter their first winter short of sugar on the final tree** (playground-park #3 and
+   kitchen-door #3, 0.89 of R27), so the viability bar of 14 is missed by one. Neither is a defect I could find: with
+   A3 the plug's diggers are different workers, so a different worker is free when the second scout slot opens, and
+   the herds those colonies need are found hours to days later (B6). The paired cost is real on these hand-overs -
+   on the first close (A3 before its fix) the 15 colonies deliver 8 % less carbohydrate and 15 % more protein in year one than without it (trips and
+   deliveries are not fewer), and herds were found later in 9 of 15 - but it reads as early-hours chaos in herd
+   discovery, which direction 13 warns one run cannot settle. A run-to-run spread of herd discovery this large (kd #3:
+   +3054 against +12904 ticks from the same hand-over) is itself the weakness: a colony's year hangs on one scout's
+   luck in its first game day.
+2. **A colony short at winter 2 survives the winter but starves through the next summer** (B7: pp #3 rations on 5 of
+   the first 16 days of year 3 with 35-47 workers). Nothing in the model makes a colony with low carbohydrate in
+   spring raise less brood or forage harder for sugar early; R41's winter path (arm W) did not hold either.
+3. **R34 >= 1.5 x in 1 of 5** (the colony-life bar is 3 of 5) and woodland-edge #2 shrinks over year two (10 -> 8,
+   0.80 x): unchanged from the opening-fix tree (1 of 5, we #2 0.82 x there).
+4. **R19 growth bar 5 of 7**: median protein intake / need 0.39 (bar 0.7) and first workers >= 9 in 11 of 15 (bar 13)
+   - pre-existing (4 of 7 on the opening-fix tree).
+5. **Arm T's trade** (B5): in year two the colonies lay 28 % fewer eggs and bring in 24 % less protein; eclosions and
+   workers at winter 2 do not fall and fewer larvae starve, so item 6's clause was read as not triggered - the
+   integrator agreed in ruling 1, but the trade stands.
+6. **Two red tests in `src/sim/nest`** (escapeDig, flood/readersCost.verify), red since before this task.
+7. The browser script `tests/e2e/firstplay.mjs` still polls R14 as 4 hours from the hand-over (app side, not this
+   task's files); the headless kit holds the restated clock.
+
+## Decisions and contradictions recorded
+
+- Ruling 1's timebox (one hour) was used for the trace of pp #3 / kd #3; the A3 defect was found at its end by the
+  15-colony early probe, not on those two. I treated it as the ruling's first branch (a defect in how A3 changes who
+  is free), fixed it, and reran the 15 + 5 on the fixed tree.
+- The ruling's rerun bar (>= 14 of 15, >= 255 workers) is not met on the viability count (13); I closed on the fixed
+  tree as the ruling says ("close on that tree") rather than reverting A3: the fix removes a real lockout on four
+  colonies and changes nothing on the two failures.
+- The release fix uses `canDo('unseal-entrance')`'s `out-of-reach` reason as the test of "the walk ended out of bite
+  reach", so the rule is the primitive's own throat test, not a second copy of it.

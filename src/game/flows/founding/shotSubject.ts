@@ -7,7 +7,7 @@
 import { foundingNest } from '@/sim/colony/founding';
 import { FSHOT_CUT_ABOVE_BU, type FoundingShotSubject } from '@/render/camera';
 import type { Sim } from '@/sim/types';
-import { cachedFootprint, type CardFrame, type FramedFootprint } from './cellFootprint';
+import { cachedFootprint, sphereWithPoint, type CardFrame, type FramedFootprint } from './cellFootprint';
 
 /**
  * First workers close to the cell's centre count as being in it (the others went out or stay deeper down): in full up to this many BU,
@@ -28,6 +28,8 @@ const SPREAD_PAD_BU = 1;
 const FALLBACK_HALF_HEIGHT_BU = 1.5;
 /** A cell the footprint found is framed at its own size, down to this radius (BU): a founding cell is 3 to 4 BU across. */
 const CELL_MIN_RADIUS_BU = 1.5;
+/** The side view's sphere grows toward the entrance's mouth by at most this factor of the cell's own radius. */
+const SIDE_SHAFT_GROW = 1.4;
 
 /**
  * `wholeCell`: the subject is the sphere around the cell the slice shows (cellFootprint.ts: the open voxels under the plane that connect to the queen), so a shot framed behind a card shows
@@ -93,7 +95,12 @@ export function foundingShotSubject(sim: Sim, out: FoundingShotSubject, wholeCel
       let r = ball.radius;
       for (const b of st.brood) if (b.alive && b.colony === col && b.carriedBy < 0) r = Math.max(r, Math.hypot(b.pos.x - ball.x, b.pos.y - ball.y, b.pos.z - ball.z));
       r += SPREAD_PAD_BU * bu * 0.5;
-      if (fitted) { out.sphereX = ball.x; out.sphereY = ball.y; out.sphereZ = ball.z; out.sphereRadius = r; } else { out.x = ball.x; out.y = ball.y; out.z = ball.z; out.radius = r; }
+      if (fitted) {
+        // the side view is a vertical section: the shaft up to the ground shows over the cell, so the sphere grows toward the entrance's mouth, by at most SIDE_SHAFT_GROW (a deep cell must not shrink to a speck)
+        const mouth = foundingNest(sim)?.origin;
+        const sph = mouth ? sphereWithPoint({ x: ball.x, y: ball.y, z: ball.z, radius: r }, mouth, SIDE_SHAFT_GROW) : { x: ball.x, y: ball.y, z: ball.z, radius: r };
+        out.sphereX = sph.x; out.sphereY = sph.y; out.sphereZ = sph.z; out.sphereRadius = sph.radius;
+      } else { out.x = ball.x; out.y = ball.y; out.z = ball.z; out.radius = r; }
     }
     if (fitted) { out.x = cell.x; out.y = cell.y; out.z = cell.z; out.radius = cell.radius + SPREAD_PAD_BU * bu * 0.5; }
   }

@@ -1946,3 +1946,38 @@ by the five JSON files. All of that is git-ignored and is lost if the container 
   fixed (the fresh-leaf albedo); flood water edge-on acceptable; seed 2's outcome card cell large and whole; the side
   view still cut the deep cell on seeds 1 / 3 (fixed twice, re-run pending); seed 1's beat 16 fails "neither handed over
   nor told why" (crop 0.45, stores 17.1) - under debug.
+
+### Nov 27 ~10:13 UTC — winter-sugar and app-seams-4 landed; **playable build republished**; early-growth launched
+
+**Correction:** my check-ins at 08:21 and 09:25 UTC said winter-sugar's close 2 was "14 of 15, 255 workers". The runs
+say **13 of 15 and 261 workers** (pp #3 and kd #3 not viable, both at 0.89 of R27). Both the engineer and the reviewer
+flagged it.
+
+**winter-sugar** (review: pass-with-minor; `reviews/winter-sugar.json`, `winter-sugar-report.md`). Closing tree =
+A1 (R14 restated from the first warm hour), A2 (headless kit lays 24 eggs), A3 with its release fix (a digger whose walk
+to the plug's face ends out of reach goes to the axis point instead of being barred 600 ticks), and **the tend floor**
+(tenders kept per workable herd while needC > 0, served before forage). Fresh close sweep: 13 of 15 viable (every
+archetype >= 2 of 3), 261 workers, 185.6 C in store at winter; long runs **114 workers at winter 2**, R34 >= 1.0 x in 4
+of 5 and >= 1.5 x in 1 of 5, R22 5 of 5, R27 at winter 2 in 4 of 5. Third year: pp #3 reaches spring 3 with 21 workers
+and its queen, sg #2 with 18. R41 (autumn stocking) measured and not adopted. Review minors go to early-growth.
+
+**app-seams-4** (review: fail, 4 majors + 5 minors; fix stage fixed all nine; `reviews/app-seams-4.json`,
+`app-seams-4-report.md`): dig planner anchor; "Stores full - dig a food chamber"; ants and creatures between camera and
+possessed ant fade (alpha); flood water reads as water in a cell (pictures I looked at: `app4/sheets/item4-water-before-
+after.jpg` - good from above; **edge-on it is still a pale band**, and outdoor puddles are pale polygons); night leaf
+litter fixed (the fresh-leaf albedo); outcome card framed on the real cell (`item5-cards-final.jpg`: whole, but small,
+at the top of the frame); crowd fade (`item3-fade-crowd-high.jpg`: the hatched slab is gone). firstplay.mjs to beat 25
+from the hand-over saves on seeds 1-3; **all three fail only the growth check** (sim). The script now puts a protein
+crumb pile beside its sugar spill (a colony with a full larder recruits only to what it needs, GDD 02 §8.3) and beat 16
+accepts a refusal with the "Stores full" reason. Not rerun in the fix pass: controls, views, hud, save, lifecycle,
+stage1a, panels; and no uninterrupted title-to-25 run on the final code.
+
+**Playable build republished** (`npm run build:portable` + `verify:portable` OK, 27.9 MB, 7 files):
+https://claude.ai/artifact/UN4he4cpvfLj687nUN4BMF - version `1795774354-453a` (was `1794941134-d1bb` from Nov 17). The
+verify script's picture of the sandboxed build (`test-output/portable/iframe/play.png`) shows the queen on the surface
+with the HUD, readable daylight; far buildings are pale slabs in the haze.
+
+**Launched early-growth** (Opus / Opus; `docs/design/tasks/early-growth.md`): why the player's colony does not grow in
+days 2-3 after the hand-over (brood shrinks while protein rises), measured headless from the browser's hand-over saves,
+fixed at the cause; plus the small sim items (alert focus, test-world hand-over, "No diggers free", harvest-liquid,
+flood fill shape, winter-sugar review minors, escapeDig, readersCost).

@@ -181,3 +181,11 @@ test-output/winter-sugar/
 - 08:57 close2 long runs: pp3, sg2 (to day 60) running/finishing; then we2, cpv1, kd3. Report C/limits next.
 - 09:17 close2 long: pp3, sg2 (day 60), we2, cpv1 done; kd3 running (~09:35). pp3 long == close's pp3
   (every row equal). Report: B6, B7, C8 sweep written; long table, DEVIATIONS, verification, acceptance, limits next.
+- 09:32 CLOSE2 DONE 09:31. Long (close2/sweep-long/longrun-table.md, close2/close2-vs-*.md): w2 workers
+  114, R34 >= 1.0 4/5 (we2 0.80), >= 1.5 1/5, R27 at w2 4/5 (pp3 0.87), R22 5/5. we2, pp3, cpv1, kd3 long == close1
+  (kd3 rerun of the lost run). Writing the report tail; then delete frozen-wintersugar.
+- 09:33 DONE. Report docs/design/tasks/winter-sugar-report.md complete (B6 trace + fix, B7 third year,
+  C8 close 2 tables, C9 DEVIATIONS, verification, acceptance, limits). /home/user/frozen-wintersugar deleted;
+  /home/user/frozen-wintersugar2 (closing tree bf7364d3) kept for the reviewer. No process left running.
+  NOTE for the integrator: STATUS check-ins of 08:21 / 09:25 say close 2 = 14 of 15 / 255 workers; the runs say
+  13 of 15 (pp3, kd3 NOT viable at 0.89) and 261 workers (close2/sweep/summary.txt, close2/sweep-table.md).
