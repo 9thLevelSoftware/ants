@@ -112,3 +112,23 @@ change), `docs/design/tasks/winter-sugar-report.md`. Another engineer works in `
 4. The fresh close sweep and long runs meet the viability bar, or the cause is reported before any revert.
 5. Typecheck clean; tests green in every folder you touched; `outdoor/determinism.perf` green.
 6. Report complete.
+
+## Integrator ruling 1 (06:03 UTC Nov 27, after a pause and container restart 10)
+- **Arm T (the tend floor) is adopted**; R41 (arm W) is not. Agreed.
+- **A3 (the unplug stand point) stays in, but its cost is to be explained, not accepted unseen.** On the same 15
+  hand-overs, A1-A3 + T (the close sweep) gives 13 of 15 viable and 169.6 C at winter in sum; T without A3
+  (`armT-y1`) gives 15 of 15 and 196.6 C; workers 256 against 255. A3 is a real defect fix the opening needs (seed 2
+  opens at +500 instead of +1500; the restated R14 fails on seed 2 without it), so reverting it is not the answer by
+  itself. The last time a small opening fix cost year-one sugar, the cause was a real defect in how it released
+  workers (the unplug draft). So: on pp #3 and kd #3 (the two that fail with A3), from the close's own hand-overs,
+  trace the first game day with A3 and without (`/home/user/ws-armT` is T without A3): who digs at the plug, for how
+  long after the entrance opens, when the first tender starts, where the foragers are. **Timebox one hour.**
+  - If A3 leaves diggers held after the entrance is open (or changes who is free in another way that is a defect),
+    fix the release, test red without, rerun the 15 cached hand-overs to winter on the fixed tree (bar: >= 14 of 15
+    and >= 255 workers) and the five long runs, and close on that tree.
+  - If no mechanism is found, close on A1-A3 + T as it is: 13 of 15, every archetype >= 2 of 3; report A3's paired
+    cost plainly in the known limits.
+- The container restarted during the pause: the close's kitchen-door #3 long run was lost (4 of 5 JSONs). Rerun what
+  the closing tree needs (`close.sh` is restart-safe) - the five long runs of whatever tree you close on.
+- Disk is short (5-9 GB free): delete `/home/user/ws-*` trees you no longer need and `/home/user/frozen-wintersugar`
+  when your close is done.

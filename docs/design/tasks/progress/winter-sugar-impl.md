@@ -117,3 +117,7 @@ test-output/winter-sugar/
   switchoff-T/ (runq2 now counts only node processes). Paired A3+T vs T over 15: workers 256 vs 255, sum winter C
   169.6 vs 196.6; herd discovery shifts both ways (kd3 2818 -> 12658, pp3 3911 -> 896): chaos via early hours.
   NOTHING REVERTED. Long runs of the close running.
+- 06:03 UTC Nov 27 INTEGRATOR NOTE (after the pause and restart 10): "Integrator ruling 1" is at the tail of
+  docs/design/tasks/winter-sugar.md: T adopted, W not; A3 stays but trace its paired cost on pp #3 / kd #3's first
+  game day (timebox 1 h; fix the release if it is a defect, then 15 + 5 again; else close on A1-A3 + T at 13 of 15);
+  rerun the lost long run(s); then the report.
