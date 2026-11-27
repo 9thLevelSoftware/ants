@@ -1895,3 +1895,15 @@ by the five JSON files. All of that is git-ignored and is lost if the container 
    current tasks have landed (`npm run build:portable`, `verify:portable`; slug
    `dd97a4c3-a304-4801-aa70-0302442d71e6`, last published Nov 17); species viability + honeydew; perf; Stage 2/3
    gate; QA playtests; GDD amendments; final report.
+
+### Nov 27 ~06:04 UTC — resumed at the user's request (container restart 10 during the pause)
+
+- The pause's left-over long runs were cut by the restart (4 of 5 JSONs of the close's long runs exist).
+- Freed about 3.4 GB of superseded run outputs (colony-life rounds 10-13, look, look2, econ-growth, gate-close).
+- **Ruling for winter-sugar (its spec, "Integrator ruling 1"):** keep the tend floor (arm T) and not R41; keep A3 (the
+  unplug stand point: the player's opening needs it - seed 2 opens at +500 instead of +1500) but trace its paired cost
+  first (close sweep with A3: 13 of 15, 169.6 C in sum; T without A3 on the same hand-overs: 15 of 15, 196.6 C) on
+  pp #3 / kd #3's first game day, one-hour timebox; fix the release if it is a defect, else close at 13 of 15.
+- wf-build relaunched 06:04 UTC: task `wokhskj4p`, run `wf_ac96d7c5-04e`: winter-sugar (opus / opus, RESUME from its
+  progress file) and app-seams-4 (review restarted: `skipImpl`, opus verify, then a sonnet fix stage). Journal:
+  `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_ac96d7c5-04e/journal.jsonl`.
