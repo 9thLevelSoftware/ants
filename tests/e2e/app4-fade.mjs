@@ -12,7 +12,8 @@ export default async ({ page, log, out }) => {
   if (process.env.APP4_FADE === '0') await g(async () => { const t = await import('/src/render/ants/tuning.ts'); t.OCCLUDER.nearFraction = -9; });
   await g(() => window.__game.cheat.setTime(8 * 6000 + 3000));
   const where = process.env.APP4_WHERE ?? 'tunnel';
-  if (where === 'crowd') await S.crowdWorker(); else await S.tunnelWorker();
+  if (where === 'creature') await S.surfaceWorker(); // fix pass: creatures between the camera and the possessed ant fade too (woodlice on the line)
+  else if (where === 'crowd') await S.crowdWorker(); else await S.tunnelWorker();
   await g(() => window.__game.step(6));
   await S.render(1);
   // camera and subject
@@ -21,8 +22,23 @@ export default async ({ page, log, out }) => {
     return { bu, subj: { x: p.pos[0], y: p.pos[1], z: p.pos[2] }, cam: { x: cam.x ?? cam[0], y: cam.y ?? cam[1], z: cam.z ?? cam[2] } };
   });
   log('geometry', JSON.stringify(geo));
+  if (where === 'creature') {
+    // woodlice on the ground under the line camera -> subject (near the camera, half-way): spawned, then ONE tick (they would wander off)
+    const ids = await g(({ geo, fr, kind }) => {
+      const gm = window.__game, out = [];
+      for (const t of fr) {
+        const x = geo.cam.x + (geo.subj.x - geo.cam.x) * t, z = geo.cam.z + (geo.subj.z - geo.cam.z) * t;
+        const y = gm.query.field(x, 0, z).height;
+        gm.cheat.spawnCreature(kind, { x, y, z });
+        out.push({ t, x, y, z });
+      }
+      gm.step(1);
+      return out;
+    }, { geo, fr: [0.12, 0.3], kind: process.env.APP4_KIND ?? 'woodlouse' });
+    log('creatures placed', JSON.stringify(ids));
+  }
   // workers on the line camera -> subject, at the cavity point nearest each wanted fraction
-  const put = await g(({ geo, fr }) => {
+  const put = where === 'creature' ? { out: [], near: [] } : await g(({ geo, fr }) => {
     const gm = window.__game, bu = geo.bu, out = [];
     const f = (x, y, z) => { const v = gm.query.field(x, y, z); return typeof v === 'number' ? v : v.f; };
     for (const t of fr) {
@@ -45,7 +61,7 @@ export default async ({ page, log, out }) => {
     const st = await S.statsNow();
     await page.screenshot({ path: `${out}/${tag}-${where}-${name}.png`, timeout: 300000 });
     await h.evaluate((el) => el.remove());
-    log('shot', name, JSON.stringify({ calls: st.drawCalls, tris: st.triangles, ants: st.ants ? { faded: st.ants.faded, hidden: st.ants.hiddenAnts, on: st.ants.fadeOn, maxW: st.ants.fadeMaxWeight, cam: [st.ants.fadeCx, st.ants.fadeCy, st.ants.fadeCz], subj: [st.ants.fadeSx, st.ants.fadeSy, st.ants.fadeSz], L: st.ants.fadeL } : null }));
+    log('shot', name, JSON.stringify({ calls: st.drawCalls, tris: st.triangles, creatures: st.creatures ? { faded: st.creatures.faded, hidden: st.creatures.fadedHidden, n: st.creatures.creatures } : null, ants: st.ants ? { faded: st.ants.faded, hidden: st.ants.hiddenAnts, on: st.ants.fadeOn, maxW: st.ants.fadeMaxWeight, cam: [st.ants.fadeCx, st.ants.fadeCy, st.ants.fadeCz], subj: [st.ants.fadeSx, st.ants.fadeSy, st.ants.fadeSz], L: st.ants.fadeL } : null }));
   };
   await pic('0', 1);
   await pic('3', 3);

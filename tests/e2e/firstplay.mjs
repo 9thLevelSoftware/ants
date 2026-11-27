@@ -489,15 +489,32 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   expect(spot, 'no open ground for the food near the entrance');
   const sp = await g((p) => window.__game.cheat.raw({ type: 'cheat.spawnFood', kind: 'sugar', variant: 'sugary-spill', pos: p, units: 400, stage: null }), spot);
   log('food', JSON.stringify(sp), JSON.stringify(spot), dirOut);
+  // A colony recruits to what it NEEDS (GDD 02 8.3: the trail's dab and the foragers' will scale with the need of the source's nutrient). After the hand-over the larder fills with
+  // sugar from the flowers (needC 0 from then on) while the brood the queen lays next needs protein (needP 0.8: the "protein stores low" alert) and no protein is in reach, so a
+  // sugar spill alone gets no trail on a colony that has just filled its larder (seed 3, 24000 ticks, app-seams-4 review; app4-trail.mjs). A player sees that alert and
+  // looks for protein: a pile of protein crumbs beside the spill, as setup like the spill (a crumb pile is what a yard has), makes the colony's trail form within a few thousand ticks.
+  const crumbAt = { x: spot.x + 1.5 * bu, z: spot.z };
+  crumbAt.y = (await g(([x, z]) => window.__game.query.field(x, 0, z).height, [crumbAt.x, crumbAt.z]));
+  const cr = await g((p) => window.__game.cheat.raw({ type: 'cheat.spawnFood', kind: 'crumb', variant: 'crumb-protein', pos: p, units: 15, stage: null }), crumbAt);
+  (result.findings ??= []).push(`setup: a protein crumb pile beside the sugar spill (${JSON.stringify(cr)}): the colony's larder is full of sugar and its brood needs protein, so it recruits to protein only`);
   const srcs = await g(() => window.__game.query.sources());
-  food = srcs.filter((s) => Math.hypot(s.pos.x - spot.x, s.pos.z - spot.z) < 3 * bu)[0];
+  food = srcs.filter((s) => s.kind === 'sugar' && Math.hypot(s.pos.x - spot.x, s.pos.z - spot.z) < 3 * bu)[0];
   expect(food, 'the spawned food source is missing', srcs.length);
+  // the trail runs round the grass and stones, not along the straight line: the scent is read in a corridor of +-4 BU along its far two thirds (the largest value counts; near the entrance every trail of the colony passes)
+  const corridorScent = () => g(([a, b, bu]) => {
+    const q = window.__game.query, dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz), nx = -dz / L, nz = dx / L;
+    let max = 0;
+    for (let t = 0.3; t <= 0.9; t += 0.1) for (let o = -4; o <= 4; o += 2) {
+      const x = a.x + dx * t + nx * o * bu, z = a.z + dz * t + nz * o * bu;
+      max = Math.max(max, q.scent(x, q.field(x, 0, z).height + 0.3 * bu, z));
+    }
+    return max;
+  }, [ent.pos, food.pos, bu]);
   const waitTrail = async (n) => {
     for (let i = 0; i < n && trail <= 0; i++) {
       await step(300);
       waited += 300;
-      const mid = { x: (ent.pos.x + food.pos.x) / 2, y: (ent.pos.y + food.pos.y) / 2, z: (ent.pos.z + food.pos.z) / 2 };
-      trail = await g((m) => window.__game.query.scent(m.x, m.y, m.z), mid);
+      trail = await corridorScent();
       if (trail <= 0) {
         const ev = await g(() => window.__game.events('trail-established', 1));
         if (ev.length) trail = 1e-6;
@@ -581,11 +598,17 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   // walk to the food along the trail (sample the scent on the way: she is on the trail)
   // beat 14 is shot on the first sample on scent with the food still ahead (> 3 BU), else on arrival: never skipped
   let onTrail = 0, samples = 0, trailShot = null;
-  for (let i = 0; i < 80; i++) {
+  // she walks toward the food; a grass stem or a stone in the way is walked round, as a player does (a quarter turn to one side, then the other, while no ground is gained)
+  let bestD = Infinity, stall = 0, side = 1;
+  for (let i = 0; i < 160; i++) {
     const p = (await summary()).possessed.pos;
     const d = Math.hypot(food.pos.x - p[0], food.pos.z - p[2]);
     if (d < 1.2 * bu) break;
-    await g((v) => window.__game.setIntent({ dir: v }), { x: (food.pos.x - p[0]) / d, y: 0, z: (food.pos.z - p[2]) / d });
+    if (d < bestD - 0.05 * bu) { bestD = d; stall = 0; } else stall++;
+    if (stall > 12) { side = -side; stall = 0; }
+    const ang = stall > 5 ? side * Math.PI / 2 : 0, ca = Math.cos(ang), sa = Math.sin(ang);
+    const vx = (food.pos.x - p[0]) / d, vz = (food.pos.z - p[2]) / d;
+    await g((v) => window.__game.setIntent({ dir: v }), { x: vx * ca - vz * sa, y: 0, z: vx * sa + vz * ca });
     await step(5);
     samples++;
     const scented = (await g((q) => window.__game.query.scent(q[0], q[1], q[2]), p)) > 0;
@@ -601,7 +624,7 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   await g(() => window.__game.act({ action: 'harvest-liquid', phase: 'stop' }));
   const after = await g((id) => { const a = window.__game.query.ant(id); return { c: a.cropC, p: a.cropP }; }, worker);
   result.checks.harvest = { before, after, refusals: await g(() => window.__game.events('action-failed', 3).map((e) => `${e.action}:${e.reason}`)) };
-  expect(after.c > before.c, 'harvesting did not fill the crop', result.checks.harvest);
+  expect(after.c > before.c, 'harvesting did not fill the crop', { ...result.checks.harvest, distToFoodBu: await g(([id, f]) => { const a = window.__game.query.ant(id); return Math.round(Math.hypot(a.pos.x - f.x, a.pos.z - f.z) / window.__game.query.world().bu * 10) / 10; }, [worker, food.pos]) });
   await beat('15-worker-harvesting');
   done('15');
   // back home: into the entrance; a nestmate takes the load (trophallaxis-give) or it goes to the chamber pool
@@ -646,7 +669,11 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   await h.frames(3);
   const storesFullNote = await h.visible('possessed-stores-full');
   result.checks.delivery = { cropAfter: delivered.cropC, storesBefore: g1.stores, storesAfter: g2.stores, deliveries: [g1.deliveries, g2.deliveries], storesFullNote, note: storesFullNote ? await g(() => document.querySelector('[data-testid="possessed-stores-full"]')?.textContent ?? null) : null };
-  expect(delivered.cropC < after.c * 0.5, 'the worker did not hand over her load', result.checks.delivery);
+  // Two honest outcomes (GDD 02: a load that cannot be stored is refused, and the game says why, GDD 08 alerts): she hands it over, or the larder is full (the colony's foragers
+  // fill it faster than it is used once a trail to food stands) and her panel says so at once. A load kept with no word on the screen is the defect.
+  const handedOver = delivered.cropC < after.c * 0.5;
+  result.checks.delivery.mode = handedOver ? 'handed over' : 'refused: stores full, said in her panel';
+  expect(handedOver || storesFullNote, 'the worker neither handed over her load nor was told why (no "Stores full" note in her panel)', result.checks.delivery);
   await beat('16-worker-delivered');
   done('16');
 

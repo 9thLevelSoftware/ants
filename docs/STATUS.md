@@ -1923,3 +1923,14 @@ by the five JSON files. All of that is git-ignored and is lost if the container 
   litter's cause is the FRESH leaf atlas albedo (reviewer confirmed with variants), not an unknown floor. Minors:
   the card is whole but small on seed 3, per-frame allocation for debug stats, inline moon-rim numbers, a stale planner
   hint, `FIRSTPLAY_UNTIL=12b`. Fix stage (Sonnet) running.
+
+### Nov 27 ~08:21 UTC — check-in: winter-sugar close 2 at 14 of 15 so far; app-seams-4 fix stage running
+
+- winter-sugar, fixed tree (A1-A3 with the stand-point release fix + T): opening seeds 1-5 headless as with A3
+  (500 / 500 / 750 / 1250 / 500), `playerOpening.long` 4 of 4, colony and nest folders green (2 known reds). Close 2
+  fresh sweep: 14 runs done, 13 viable, 1 not (pp #3 or kd #3 as expected); long runs next.
+- app-seams-4 fix: seeds 1, 2, 3 resumed from their hand-overs reach beat 25; the only failing check is still growth
+  over days 2-3, and on seed 2 **brood vanishes while protein rises (2.9 -> 6.4)** - so the early-growth gap is not
+  only protein income: the next sim task must measure brood losses and the queen's laying in those days too. The
+  engineer changed beat 16 to accept a refused delivery when the "Stores full" reason is visible (the spec's "refused
+  with a visible reason"); the reviewer will judge it.

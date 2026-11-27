@@ -13,6 +13,10 @@ describe('palette', () => {
     expect(paletteTools().map((t) => [t.info.id, t.key])).toEqual([['dig', 1], ['forage', 2], ['avoid', 3], ['rally', 4], ['entrance', 5], ['move-brood', 6], ['move-queen', 7]]);
     for (const id of COLONY_TOOLS) { expect(TOOL_INFO[id].icon).toBe(`marker-${id}`); expect(TOOL_INFO[id].hint.length).toBeGreaterThan(10); }
   });
+  it("the Dig hint tells that the soil beside a room works too (app-seams-4: the planner snaps a click up to 8 BU from a room to its wall)", () => {
+    expect(TOOL_INFO.dig.hint).toMatch(/soil/);
+    expect(TOOL_INFO.dig.hint).toMatch(/nest wall/);
+  });
   it('counts read n/cap and flag the cap', () => {
     expect(countText({ n: 3, cap: 8 })).toBe('3/8');
     expect(countText(undefined)).toBe('');

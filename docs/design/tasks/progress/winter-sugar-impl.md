@@ -166,3 +166,10 @@ test-output/winter-sugar/
   bf7364d3 = live; fresh sweep -> close2/sweep + close2/cache, then long runs -> close2/sweep-long, pp3/sg2 to day 60).
   Restart-safe: cd close2; nohup setsid bash close.sh &. ws-fix, ws-T2 deleted. frozen-wintersugar (old close)
   kept until the report is written. Next: DEVIATIONS D44 amendment, report.
+- 07:34 close2 sweep 4/15 done (all viable so far). Headless openings on the fixed tree
+  (opening/run-fix.sh -> opening/fix, fix-b2) = the A3 numbers (500/500/750/1250/500, b2 1250). FOUNDRESS_LONG
+  playerOpening.long running (-> long-test-fix.txt). Report: B6 (trace + fix) written; C, acceptance, limits to write
+  when close2 is done.
+- 07:58 Fixed tree tests: FOUNDRESS_LONG playerOpening.long 4/4 green (long-test-fix.txt, 601 s); colony
+  90 files / 374 green (tests-colony-fix.txt); nest 65 green + the 2 known reds (escapeDig, flood/readersCost.verify;
+  same as Nov 24 and on ws-base: pre-existing, not this task's). close2 sweep 10/15, all viable so far.

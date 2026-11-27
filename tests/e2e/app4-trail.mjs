@@ -36,17 +36,29 @@ export default async ({ page, log }) => {
     if (dig.prim === null) spot = { x, y: f.height, z };
   }
   const kind = process.env.APP4_TRAIL_FOOD ?? 'sugar';
-  const variant = kind === 'sugar' ? 'sugary-spill' : (process.env.APP4_TRAIL_VARIANT ?? 'insect-medium');
-  const sp = await g(([p, k, v, sugar]) => window.__game.cheat.raw({ type: 'cheat.spawnFood', kind: k, variant: v, pos: p, units: sugar ? 400 : 1, stage: sugar ? null : 'fresh' }), [spot, kind === 'sugar' ? 'sugar' : 'carrion', variant, kind === 'sugar']);
+  const variant = kind === 'sugar' ? 'sugary-spill' : kind === 'crumb' ? 'crumb-protein' : (process.env.APP4_TRAIL_VARIANT ?? 'insect-medium');
+  const units = kind === 'sugar' ? 400 : kind === 'crumb' ? Number(process.env.APP4_TRAIL_UNITS ?? 15) : 1;
+  const sp = await g(([p, k, v, u]) => window.__game.cheat.raw({ type: 'cheat.spawnFood', kind: k, variant: v, pos: p, units: u, stage: k === 'carrion' ? 'fresh' : null }), [spot, kind === 'sugar' ? 'sugar' : kind === 'crumb' ? 'crumb' : 'carrion', variant, units]);
   log('spawn', kind, variant, JSON.stringify(sp));
   const food = (await g(() => window.__game.query.sources())).sort((a, b) => b.id - a.id)[0];
   log('food', JSON.stringify({ id: food.id, kind: food.kind, variant: food.variant, units: food.units, c: food.c, p: food.p }));
   const mid = { x: (ent.pos.x + food.pos.x) / 2, y: (ent.pos.y + food.pos.y) / 2, z: (ent.pos.z + food.pos.z) / 2 };
+  // a trail is not on the straight line between the entrance and the spill: foragers walk round the grass and stones. Scan a corridor of +-10 BU along it.
+  const corridor = (a, b) => g(([a, b, bu]) => {
+    const q = window.__game.query, dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz), nx = -dz / L, nz = dx / L;
+    let n = 0, max = 0, at = null;
+    for (let t = 0; t <= 1.0001; t += 0.05) for (let o = -10; o <= 10; o += 2) {
+      const x = a.x + dx * t + nx * o * bu, z = a.z + dz * t + nz * o * bu, y = q.field(x, 0, z).height + 0.3 * bu;
+      const v = q.scent(x, y, z);
+      if (v > 0) { n++; if (v > max) { max = v; at = { t: Math.round(t * 20) / 20, o }; } }
+    }
+    return { n, max, at };
+  }, [a, b, bu]);
   let trail = 0, waited = 0;
   for (let i = 0; i < 40 && trail <= 0; i++) {
     await step(300); waited += 300;
     trail = await g((m) => window.__game.query.scent(m.x, m.y, m.z), mid);
-    if (i % 5 === 4 || trail > 0) log('t', waited, 'trail', trail, JSON.stringify(await state()));
+    if (i % 5 === 4 || trail > 0) log('t', waited, 'trail', trail, 'corridor', JSON.stringify(await corridor(ent.pos, food.pos)), JSON.stringify(await state()));
   }
   log('result', JSON.stringify({ kind, variant, trail, waited, final: await state() }));
   return { kind, trail, waited };
